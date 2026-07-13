@@ -27,6 +27,10 @@ SEED=${SEEDS[$((i / 12))]}
 SUPERVISED_LAYER_FRACS=${SUPERVISED_LAYER_FRACS:-"0.25,0.5"}
 # M1 NO-GO: soft_knn_kl (identity) is control-only; drop it entirely via SKIP_ARMS if tight:
 if [[ "${SKIP_ARMS:-}" == *"$ARM"* ]]; then echo "arm $ARM skipped by SKIP_ARMS"; exit 0; fi
+# cross-tokenizer pair skipped BY DEFAULT — the harness does not support it (no OT bridge yet).
+# Unset SKIP_PAIRS only after implementing cross-tokenizer alignment.
+SKIP_PAIRS=${SKIP_PAIRS-"phi4mini_to_qwen3_1p7b"}
+if [[ "$SKIP_PAIRS" == *"$PAIR"* ]]; then echo "pair $PAIR skipped by SKIP_PAIRS"; exit 0; fi
 
 case $PAIR in
   qwen3_4b_to_1p7b)   TEACHER=Qwen/Qwen3-4B;                 STUDENT=Qwen/Qwen3-1.7B-Base ;;

@@ -23,7 +23,9 @@ python train_harness.py --loss pkt_tau --tau 0.1 --steps 5 --n-prompts 8 \
 
 Known limitation: **cross-tokenizer pairs are not implemented** (harness exits with a clear
 error) — Tier 2's phi4mini pair needs the anchor-fingerprint OT bridge (review §5.8) or another
-alignment; run the shared-vocab pair (`SKIP` the phi pair or trim the array to 0-17).
+alignment. The tier2 sbatch therefore **skips the phi pair by default** (`SKIP_PAIRS` env; its
+array tasks exit 0 immediately — note the pairs interleave every 6 task ids, so do NOT try to
+exclude them by trimming the array range). Unset `SKIP_PAIRS` only once the bridge exists.
 
 ## Files
 
