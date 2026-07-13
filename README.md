@@ -32,13 +32,15 @@ git clone <this-repo> && cd <repo>/cluster
 #      ##SBATCH --account=<your account>        <- uncomment + fill
 #    and adjust `module load cuda python` to the site's module names
 
-# 3. implement the TODOs in train_harness.py (loss arms are fully specified in
-#    its docstrings + cluster/README.md; the CLI contract is already wired)
+# 3. env: python 3.12 + torch/transformers/datasets/numpy/scipy (+ vllm for fast
+#    generation; harness falls back to hf generate without it)
 
-# 4. smoke-test ONE task before submitting arrays
+# 4. smoke-test ONE task before submitting arrays (harness is fully implemented —
+#    all 7 loss arms smoke-tested end-to-end on a Mac; vLLM/CUDA paths untested)
 python train_harness.py --loss pkt_tau --tau 0.1 --steps 5 --n-prompts 8 \
   --teacher hbx/JustRL-DeepSeek-1.5B --student deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
-  --supervised-layer-fracs 0.25,0.5 --seed 0 --out runs/smoke
+  --prompts BytedTsinghua-SIA/DAPO-Math-17k --supervised-layer-fracs 0.25,0.5 \
+  --batch-tokens 2048 --rollout-refresh 0 --seed 0 --out runs/smoke
 
 # 5. submit
 mkdir -p logs runs

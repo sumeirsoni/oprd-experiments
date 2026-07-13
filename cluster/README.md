@@ -1,10 +1,29 @@
 # OPRD Tier 1–2 cluster scripts
 
-**STATUS: UNTESTED-ON-CLUSTER.** These were written on a Mac (no Slurm) during the
-Tier 0 measurement night. They are syntactically valid (`bash -n`, `python -m
-py_compile` clean) but have never been submitted. `train_harness.py` is a stub —
-implement its TODOs and smoke-test one task (`--steps 5 --n-prompts 8`) before
-submitting arrays.
+**STATUS: harness implemented and smoke-tested locally; cluster paths untested.**
+
+What has actually been verified (2026-07-13, Apple MPS, Qwen2.5-0.5B pair):
+- **all 7 loss arms** ran end-to-end (generation → teacher prefill → 2 training steps →
+  diagnostics) with finite, sane losses;
+- **rollout refresh** (regeneration from the current policy mid-training) and the
+  **AIME eval plumbing** (dataset download, Avg@N generation, boxed-answer grading).
+
+What is **UNTESTED** and needs a 1-task cluster smoke before submitting arrays:
+- the vLLM generation backend (local smoke used the `hf` fallback);
+- CUDA memory behavior at 1.5–4B scale and real `--batch-tokens 16384`;
+- the sbatch files themselves (never submitted to a real queue — fix partition/account/modules).
+
+Cluster smoke command (one GPU, ~5 min):
+```bash
+python train_harness.py --loss pkt_tau --tau 0.1 --steps 5 --n-prompts 8 \
+  --teacher hbx/JustRL-DeepSeek-1.5B --student deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
+  --prompts BytedTsinghua-SIA/DAPO-Math-17k --supervised-layer-fracs 0.25,0.5 \
+  --batch-tokens 2048 --rollout-refresh 0 --seed 0 --out runs/smoke
+```
+
+Known limitation: **cross-tokenizer pairs are not implemented** (harness exits with a clear
+error) — Tier 2's phi4mini pair needs the anchor-fingerprint OT bridge (review §5.8) or another
+alignment; run the shared-vocab pair (`SKIP` the phi pair or trim the array to 0-17).
 
 ## Files
 

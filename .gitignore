@@ -13,3 +13,5 @@ __pycache__/
 
 # OS noise
 .DS_Store
+cluster/smoke_runs/
+cluster/smoke.log
