@@ -1,0 +1,127 @@
+[
+ {
+  "key": "2606.06021",
+  "title": "OPRD: On-Policy Representation Distillation",
+  "fetchFailed": false,
+  "coreClaims": [
+   "OPRD-Vanilla (Eq. 6: layer-averaged, position-masked MSE between student and stop-gradient teacher hidden states, default = all 28 layers, last 2000 response tokens) closes the student-teacher gap on AIME24/AIME25/AIMO (49.8/34.6/79.1 vs teacher 50.8/35.6/79.5) where OPD top-1 and top-16 plateau below the teacher, while training 1.44x faster and using up to 54% less actor-update peak memory (Table 2-3).",
+   "Theorem 1 claims OPRD's gradient has zero conditional variance vs. OPD's sampled-token gradient whose variance does not vanish as student approaches teacher, explaining OPD's late-stage plateau; Theorem 2 claims output-space OPD is blind to hidden-state deviations in the LM head's effective null space, which can be arbitrarily large relative to output-space loss.",
+   "OPRD-Bridge (frozen teacher PCA projector to rank r + trained student linear projector, both frozen after Stage 1, MSE in rank-r space during Stage 2) enables cross-architecture (Qwen3-4B->Qwen3-1.7B-Base) and cross-tokenizer (Phi-4-mini-reasoning->Qwen3-1.7B-Base) distillation motivated by the Platonic Representation Hypothesis, evidenced by a rank-8 subspace reaching 95% cosine similarity between projected representations of one same-family model pair (declining monotonically to 77% at full rank).",
+   "In the shared-vocabulary cross-architecture setting, OPRD-Bridge's Avg@16 (11.2%) is actually WORSE than OPD top-1 (15.3%) and roughly comparable to OPD top-16 (11.7%); it only ties OPD top-1 exactly on Best@16 (30.8=30.8), a gap the paper reframes as 'consistency not capability' rather than a genuine win on the primary accuracy metric.",
+   "In the cross-tokenizer setting where standard OPD structurally cannot run ('collapses'), OPRD-Bridge lifts the student from near-zero to Avg@16=5.0%/Best@16=21.3% (teacher: 50.0%/67.7%), the paper's cleanest but still very partial win, and no CKA/mutual-kNN/null-calibration control is computed anywhere to validate the claimed shared low-rank structure."
+  ],
+  "limitations": [
+   "Paper explicitly admits uniform layer weighting and a 'simple last-k position heuristic' with no adaptive layer/position selection ablated ('could further sharpen supervision').",
+   "All experiments are long-CoT math only (AIME/AIMO); generalization to code, agentic, or open-ended dialogue tasks is stated as an open question, not tested.",
+   "No seeds or error bars reported anywhere in main results tables (2, 4, 5, 6); several reported gains are as small as 0.5-0.6 points.",
+   "The flagship same-architecture win uses teacher/student that are independently-trained checkpoints of the identical base model, an admittedly 'high degree of representational alignment' setting, not a stress test of dissimilar representations.",
+   "The PG-loss phase-transition mechanism observed during training is explicitly stated as unexplained ('under active investigation').",
+   "OPRD-Bridge's own Table 4 shows it losing to OPD top-1 on the primary Avg@16 metric in the shared-vocabulary cross-architecture setting, only tying (not beating) on Best@16 \u2014 a result the text reframes rhetorically rather than resolving.",
+   "The core PRH/shared-low-rank-structure evidence (95% cosine similarity at rank 8) comes from a single same-family, same-tokenizer model pair with no null-calibration baseline (no CKA, mutual-kNN/CKNNA, or random-projection control), leaving open whether the observed alignment is genuine shared structure or an uncalibrated-metric artifact.",
+   "Theorems are stated as qualitative/asymptotic; authors themselves flag 'tighter theoretical bounds... would solidify the theoretical foundation' as future work.",
+   "No comparison to any relational, contrastive, or local-neighborhood alternative to pointwise MSE anywhere in the paper, for either OPRD-Vanilla or OPRD-Bridge.",
+   "Diversity metrics (Dist-4g) are reported only for the cross-architecture experiment, never for the flagship same-architecture experiment, so a possible diversity/quality trade-off in the main result is unverifiable from this paper."
+  ],
+  "planRelevance": "Heavily load-bearing: the plan's baselines (Student, OPD, OPRD all-layer/last-2000, OPD+OPRD) copy this paper's exact defaults. Phase E (ARH-Bridge vs OPRD-Bridge) is substantially de-risked because OPRD-Bridge's own Table 4 shows it losing to plain OPD top-1 on Avg@16 in the shared-vocab setting \u2014 a low, beatable bar. Phases A2/A3/B are confirmed genuinely novel: paper does zero layer-selectivity, update-geometry, or relational-objective ablation. PRH-vs-ARH framing is well-grounded: the paper's sole PRH evidence is one same-family pair with no null-calibration control, exactly ARH's critique target.",
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/digest-oprd.md"
+ },
+ {
+  "key": "arh-2602.14486",
+  "title": "Revisiting the Platonic Representation Hypothesis: An Aristotelian View (Gr\u00f6ger, Wen, Brbi\u0107 2026; arXiv 2602.14486)",
+  "fetchFailed": false,
+  "coreClaims": [
+   "Standard representational similarity metrics (CKA, CCA, RV, RSA, Procrustes) are confounded by network width/depth \u2014 even untrained/random models show non-zero similarity, so prior reported PRH convergence trends are partly artifactual.",
+   "A permutation-based null-calibration framework (K=200 permutations, floor calibrated score at 0 at significance \u03b1=0.05) converts any similarity metric into a scale-artifact-corrected effect size.",
+   "After calibration, global spectral/geometric measures (CKA, and by extension RSA/Procrustes-style distance metrics) largely lose their scaling-with-model-size signal \u2014 'apparent convergence reported by global spectral measures largely disappears after calibration.'",
+   "Local neighborhood-identity measures (mutual-kNN, CKNNA) retain a real, calibration-robust, scale-increasing alignment signal across independently trained vision-language(-video) model pairs (reported calibrated mKNN ~0.10-0.19, gains of +0.05 to +0.07 with LM scale across 204 model pairs).",
+   "Models increasingly agree on neighbor identity ('who is near whom') but not on exact local distances \u2014 supporting a topological rather than metric notion of convergence.",
+   "The authors propose this as a refinement of PRH (Aristotelian Representation Hypothesis: convergence to shared local neighborhood relationships), not a full disproof \u2014 though some secondary coverage frames it as refuting the 'global convergence' claim specifically.",
+   "The paper is a measurement/statistical-calibration contribution about evaluating independently-trained, off-the-shelf models; it makes no mechanistic claim about why local structure converges and contains no discussion of using any alignment metric as a training objective/loss."
+  ],
+  "limitations": [
+   "Stated by paper: the permutation null-calibration assumes sample exchangeability, which breaks for sequential/clustered data and requires more complex restricted permutations \u2014 directly relevant since LLM token sequences within a rollout are non-exchangeable.",
+   "Stated by paper: computational cost scales O(K x L_A x L_B), linear in permutation budget and layer-pair search space.",
+   "Stated by paper (implicitly, per secondary sources): findings are validated on independently-sampled image-text(-video) pairs across pretrained foundation models and may not generalize beyond that setting.",
+   "Unstated/inferred: all evidence is from comparing independently pretrained models at inference time on held-out data \u2014 none of it involves a training-time intervention, so it provides no direct evidence that optimizing a student toward a teacher's local-neighborhood identity (a training loss) will outperform pointwise MSE or PCA+MSE; that is an analogy the OPRD plan is making, not a result the paper reports.",
+   "Unstated/inferred: reported calibrated mKNN effect sizes are numerically small (~0.10-0.19 on a [0,1]-bounded, floor-at-0 metric), so 'survives calibration' establishes relative robustness vs global spectral measures, not that local-neighborhood alignment is a strong or sufficient signal in absolute terms.",
+   "Could not confirm from secondary sources whether the paper applies its calibration procedure intra-model across LLM layers (the regime the OPRD plan actually needs for Phase A3/E) versus only across cross-modal model pairs \u2014 this is unresolved and matters before reusing their exact calibration machinery on token-level hidden states.",
+   "Retrieval limitation (this digest, not the paper): primary PDF text could not be extracted (alphaxiv 403, arxiv PDF returned only binary object stream); digest is synthesized from 5 independent secondary sources (arxiv abstract page, EPFL project page, HuggingFace papers page, arxiviq substack review, techxplore news article) plus WebSearch snippets, cross-checked for consistency but not verified against verbatim paper text/section numbers."
+  ],
+  "planRelevance": "Directly underwrites two plan pillars: (1) the claim that PCA+MSE (OPRD-Bridge) rests on a PRH-flavored global/spectral notion of shared subspace that ARH shows loses its calibration-robust signal \u2014 legitimate as a measurement-validity critique of the Bridge's motivating story; (2) the choice of local-neighborhood-identity (soft-kNN/rank) losses over full-Gram/distance matching in Phase B/E. However, the plan's leap from 'this metric survives when measuring independently-trained models' to 'this should be the training objective for directly-supervised distillation' is not licensed by the paper (pure measurement claim, no training-objective discussion, no training-time evidence) \u2014 this should be flagged as an assumption requiring its own empirical validation, not inherited authority from ARH.",
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/digest-arh.md"
+ },
+ {
+  "key": "posbias-2606.22600",
+  "title": "On the Position Bias of On-Policy Distillation (arXiv 2606.22600v3)",
+  "fetchFailed": false,
+  "coreClaims": [
+   "OPD (output-space reverse-KL on student rollouts) exhibits a strong prefix>>suffix asymmetry: with equal 30% token budget, Prefix-30 matches/exceeds full-token OPD while Suffix-30 barely learns, using a single Qwen3-0.6B student / Qwen3-4B-Instruct-2507 teacher pair.",
+   "Teacher-student output KL plateaus at a non-zero residual even after reward converges (drops only ~20% post-saturation), interpreted as OPD only optimizing within a small local trust region.",
+   "The paper derives a closed-form optimal locally-projected policy q*_\u03b1(y) \u221d \u03c0_\u03b8(y)\u00b7(\u03c0_T(y)/\u03c0_\u03b8(y))^\u03b1 under a KL trust-region budget constraint, and argues this ratio-based reweighting mechanistically explains the observed prefix bias.",
+   "IW-OPD (Importance-Weighted OPD) reweights per-token OPD loss by a stop-gradient cumulative unsigned discrepancy statistic r\u0303_t = 1+\u03b3(1-\u03a3_{k<t}|A_k|/\u03a3_{k<T}|A_k|), interpolated with standard OPD via \u03b3=0.5, requiring no extra teacher calls.",
+   "IW-OPD improves both convergence speed (+6.9 AIME25 points at step 10, Qwen3-4B student/30B-A3B teacher) and final accuracy (+1.7 to +2.2 points on AIME25 depending on setting) across same-family, cross-scale, and 235B-teacher settings, with relative gains growing as students shrink.",
+   "Ablations show the 'theoretically ideal' ratio weight alone underperforms plain OPD (-1.2), and most of the empirical gain (+5.6 of +5.6 max on one ablation) comes from engineering choices (unsigned accumulation, trajectory-adaptive shape, OPD blending) rather than the ratio derivation itself.",
+   "The entire paper operates purely in output-probability/KL space (Eqs 1-6); no hidden-state representations, layers, or intermediate activations are analyzed anywhere in the main text."
+  ],
+  "limitations": [
+   "No hidden-state or representation-space analysis anywhere in the paper -- it cannot speak to whether OPRD inherits, escapes, or differs in its position bias from OPD's output-space bias.",
+   "The core prefix/suffix asymmetry (Fig 1) is demonstrated on a single teacher-student pair (Qwen3-0.6B/4B) and not replicated across the other scales used for IW-OPD evaluation.",
+   "No variance/confidence intervals reported despite 3-seed averaging; many reported deltas (+0.4 to +1.0 points) are small enough to plausibly be seed noise.",
+   "IW-OPD's 'ideal' theoretically-derived weight underperforms plain OPD when used unblended (Table 4, -1.2), so the trust-region derivation is better read as post-hoc motivation than as a tightly validated causal mechanism -- most of the win is from engineering (sign correction, adaptive shape, OPD blending).",
+   "IW-OPD only reweights the existing output-KL gradient signal (reallocates budget toward currently-teacher-compatible tokens); it cannot inject new information about what the teacher 'would have done' off-trajectory, so it structurally cannot test whether hidden states carry additional/more-reliable late-position signal.",
+   "All experiments are Qwen3-family, math/code RLVR domains only -- no cross-tokenizer, cross-architecture, or non-reasoning-domain evidence.",
+   "No comparison against prior token-weighting baselines from the literature (TIP, FiRe, SelecTKD) that the paper itself cites as related work in \u00a76."
+  ],
+  "planRelevance": "Anchors Phase A1 (position probes for OPD/OPRD) and the IW-OPD candidate weight in Phase C of the draft plan. Since this paper is output-space-only, A1's core question -- whether OPRD's hidden-state supervision has the same prefix bias -- is a genuinely open, non-redundant experiment, not literature-answerable. The Eq.17 cumulative-|A_k|-share formula is directly reusable for Phase C, but its effect size is decoupled from its theoretical derivation (ablations show the 'ideal' weight alone hurts), so the plan should not assume its output-space gains transfer to hidden-space objectives without its own ablation.",
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/digest-posbias.md"
+ },
+ {
+  "key": "geometry-2606.07082",
+  "title": "On the Geometry of On-Policy Distillation",
+  "fetchFailed": false,
+  "coreClaims": [
+   "Across bf16-aware update sparsity, principal-angle rotation, normalized spectral shift, and update-mask overlap on Qwen3-8B, output-space OPD consistently falls between SFT and RLVR (biased toward RLVR) \u2014 a 'relaxed off-principal regime'.",
+   "OPD's cumulative update \u0394W_t rapidly enters a narrow, persistent low-dimensional subspace lock (stable rank ~18\u219227) early in training, unlike SFT (expands, ~50\u219275) or RLVR (contracts late, ~65\u219220) \u2014 not a temporal interpolation between the two.",
+   "Constraining subsequent OPD gradients to the rank-16 subspace extracted at ~20% training leaves OPD's downstream performance (AIME2024 avg@8 and 4 other benchmarks) essentially unchanged, while the identical constraint substantially degrades SFT \u2014 the locked subspace is functionally sufficient for OPD but not SFT.",
+   "Token-level sparsification (top-KL or random retention at 25%/50%) and switching rollouts from on-policy to off-policy both preserve OPD's stable-rank trajectory almost exactly, changing update scale but not spectral shape.",
+   "Interpolating the OPD objective with an RLVR advantage signal changes the stable-rank trajectory once the OPD component becomes weak \u2014 objective composition, not token coverage or rollout policy, controls whether the OPD-style subspace lock is preserved.",
+   "The paper's 'OPD' is defined strictly as output-space (token-level log-prob / reverse-KL) distillation on student rollouts \u2014 no hidden-state or representation-matching (OPRD-style) objective is defined, tested, or discussed anywhere in the paper."
+  ],
+  "limitations": [
+   "Stated: analysis is confined to controlled Qwen3-family reasoning settings; observed geometry may not generalize to other model families, modalities, or task distributions.",
+   "Stated: diagnostics characterize trajectories from stored checkpoints only; the Three-Gate/covariance account is a mechanistic explanation consistent with the evidence, not a proven causal theory.",
+   "Unstated: the full trajectory/locking/rank-16-sufficiency analysis was run only at Qwen3-8B/32B; no evidence the findings hold at 4B or the plan's target 1.5B (only a single sparsity scalar was checked at 4B/14B).",
+   "Unstated: spectral diagnostics cover only 144 attention-weight matrices (36 layers \u00d7 QKVO); MLP/FFN weights are excluded entirely from the locking analysis, which could matter for a hidden-state objective whose gradients act on MLP outputs.",
+   "Unstated: RLVR was never run through the rank-16 functional-sufficiency test (only OPD vs SFT), so 'OPD's channel is uniquely sufficient' is unverified against RLVR's own channel.",
+   "Unstated: the 'objective mixing breaks the lock' finding is evidenced only for OPD+RLVR interpolation; extrapolating to OPD+OPRD (a representation-space additive term) is an untested but mechanistically plausible analogy.",
+   "Unstated: OPD's final stable rank converges close to RLVR's (~20-27 vs ~20); the paper's novelty rests on trajectory/early-locking timing (subspace similarity to the final channel), not on a uniquely low endpoint rank \u2014 plan experiments should be precise about which claim they're testing."
+  ],
+  "planRelevance": "Directly anchors plan Phase A3/D: this paper is the literal source of the reused diagnostic suite (stable rank, Frobenius norm, principal angles, subspace similarity, rank-16 projected training) and the specific finding that token sparsification preserves spectral shape (only objective mixing changes it) \u2014 which the plan's Phase D explicitly tests against position weighting. No hidden-state objective was ever tested here, so Phase A3/D's OPD-vs-OPRD geometry comparison is genuinely novel, not redundant, but the plan's 1.5B default and its \"diagnostics are scale-agnostic\" assumption are unvalidated by this source.",
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/digest-geometry.md"
+ },
+ {
+  "key": "2607.01232",
+  "title": "Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training",
+  "fetchFailed": false,
+  "coreClaims": [
+   "Training a single frozen-network transformer layer via RL (GRPO/Dr.GRPO/GiGPO) can recover most, and sometimes exceed, the task-score gain of full-parameter RL across 7 models, 2 model families, 3 RL algorithms, and math/code/agentic domains.",
+   "Layer contribution C(k)=(S_k-S_base)/(S_full-S_base) is highly non-uniform and structured: layers at ~40-60% relative depth consistently show the highest C(k), while layers near input/output contribute little or negative (e.g. Qwen3-8B layer 0 has C=-0.51).",
+   "Per-layer contribution rankings are stable across datasets and tasks for a fixed model (Spearman rho=0.76 math-vs-math, rho=0.59 math-vs-code, both p<0.001), suggesting layer contribution is an intrinsic property of the pretrained model rather than the training data.",
+   "Guided training strategies built on C(k) (boosting LR on top-k layers, training only top-k layers, or a profiling-free middle-band heuristic) outperform uniform full-parameter RL on math benchmarks across all three tested Qwen3 scales (1.7B/4B/8B).",
+   "Under full-parameter training the per-layer weight-update L2 norm is roughly uniform (~0.5-0.8) despite highly non-uniform C(k), implying layer contribution reflects the effectiveness of a layer's parameter subspace rather than the magnitude of its update.",
+   "High-contribution single-layer-trained models solve largely non-overlapping problem subsets (mean pairwise Jaccard ~34%), and majority-voting across the top-7 layer-trained models beats both the best individual layer model and self-consistency voting over the full-parameter model."
+  ],
+  "limitations": [
+   "Authors state: guided training strategies (adaptive-LR/layer-selective/middle-heuristic, section 4) are validated only on mathematical reasoning; coding and agentic extensions are left for future work, even though the descriptive C(k) pattern itself was checked on code and agentic tasks.",
+   "Authors state: the layer contribution metric is defined with respect to a specific training configuration (LR, batch size, etc.), and no deeper theoretical explanation for middle-layer dominance is offered -- an explicit open question.",
+   "Unstated: the paper contains zero representation-geometry analysis (no CKA, no hidden-state similarity/rank/subspace metrics) -- C(k) is purely an output-task-score metric, so it provides no direct evidence about hidden-state or representational layer structure.",
+   "Unstated: only parameter-update selectivity is tested (all-but-one-layer frozen); the paper never tests loss-supervision selectivity (all layers trainable, only some layers' hidden states enter an auxiliary loss), which is the axis most relevant to OPRD-style distillation.",
+   "Unstated: 3 of 7 models used only a partial/representative layer scan (as few as 8 of 28 layers probed), so their 'best layer' and middle-concentration claim rest on sparser sampling than the fully-scanned Qwen3 models.",
+   "Unstated: no test of distillation, SFT, or any OPD/OPRD-style objective anywhere in the paper; the one distilled model (DeepSeek-Distilled-Qwen-7B) is only used as a base checkpoint for further RL, not as a subject of distillation-layer analysis -- the paper explicitly frames itself as RL-focused versus prior SFT-era layer-importance work (LISA, MISA, AdaGradSelect).",
+   "Unstated: all 7 models are Qwen-family (Qwen3, Qwen2.5, or Qwen-architecture distillation target); no cross-architecture-family (e.g. Llama/Gemma) generalization test despite claiming a general transformer structural property.",
+   "Unstated: no comparison to standard parameter-efficient fine-tuning baselines (e.g. LoRA-RL) to contextualize how special single-full-layer training is versus other low-parameter-count RL methods."
+  ],
+  "planRelevance": "Directly underwrites Phase A2 ('mirror Is One Layer Enough') for OPD/OPRD layer-selectivity ablations -- the C(k) protocol transplants cleanly and is genuinely non-redundant since the source paper explicitly never touches distillation. However the plan's hypothesis that OPD will show a 'flatter' middle-layer profile than RL has zero support here (paper says nothing about OPD), and the plan's 'loss-supervision selectivity' idea for OPRD has no precedent in this paper at all -- it's novel, unverified, and should get a cheap minimum-viable test given compute constraints. No relevance to Phase B/E's ARH/PRH relational-objective questions.",
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/digest-onelayer.md"
+ }
+]

@@ -1,0 +1,116 @@
+[
+ {
+  "phase": "A1-position",
+  "verdict": "worth-doing-not-headline",
+  "novelty": "A genuine gap: no paper runs OPD-vs-OPRD position-bias head-to-head, and the posbias paper (2606.22600) is output-KL-only, single pair (0.6B/4B), zero hidden-state evidence. The specific new question is whether OPRD's deterministic zero-variance MSE reverses/flattens OPD's prefix>>suffix asymmetry rather than inheriting it. But confirmatory risk is high: OPRD's own Fig 8 (tail-concentrated divergence) plus its last-2000-token default already presuppose the likely answer.",
+  "priorArt": [
+   "On the Position Bias of On-Policy Distillation (IW-OPD), 2026",
+   "OPRD: On-Policy Representation Distillation, Fig 8 first-k/last-k cosine, 2026",
+   "PW-OPSD position-weighted on-policy self-distillation, 2026"
+  ],
+  "reviewerObjections": [
+   "Confirmatory/near-definitional: OPD's prefix bias is 3-paper-established and OPRD already supervises the suffix by design (its Fig 8 shows tail-concentrated teacher-student divergence). Showing 'OPD can't learn suffix while OPRD can' largely re-derives OPRD's stated design rationale plus OPD's known bias, via a zero-variance-MSE mechanism the OPRD paper already asserts (Thm 1).",
+   "Not a clean apples-to-apples: OPD position bias was diagnosed on reward/KL curves, OPRD on hidden MSE+accuracy. Calling both 'position bias' across two loss geometries is a confound unless you fix budget/data/checkpoints and report the SAME downstream benchmark metric under identical masks for both objectives.",
+   "Weak statistical basis: single teacher-student pair in a favorable pre-aligned regime (R1-distill/JustRL share a base), OPRD's own tables report no seeds/CIs, and the posbias asymmetry itself rested on one 0.6B/4B pair. Suffix-30 vs prefix-30 deltas could be seed noise.",
+   "No practice change: OPRD already defaults to last-k suffix supervision and reports gains, so A1 yields a mechanistic 'why' but no new recipe."
+  ],
+  "recommendation": "Keep, but demote from standalone headline to a mechanistic diagnostic subsection supporting the relational/bridge contribution. Highest-value change: make it a true controlled head-to-head \u2014 same rollouts, checkpoints, token budget, and data, run BOTH OPD and OPRD under identical prefix-30/middle-30/suffix-30/last-2000/full masks, and report downstream benchmark accuracy (not just reward/MSE/cosine) with >=3 seeds and CIs. Pre-register the falsifiable prediction that OPRD reverses or flattens OPD's prefix bias. If the outcome is merely \"OPRD uses the suffix,\" it is a footnote confirming OPRD's default; only a clean reversal, attributable to deterministic-MSE vs sampling-variance, is a real contribution."
+ },
+ {
+  "phase": "A2-layers",
+  "verdict": "worth-doing-not-headline",
+  "novelty": "\"Is One Layer Enough?\" (2607.01232) is explicitly RL-only and disclaims distillation transfer, so porting C(k) to OPD/OPRD is genuinely non-redundant. But the port is incremental. The one truly new slice is loss-supervision selectivity (which layers enter L_OPRD while all layers stay trainable) \u2014 no precedent anywhere, and it directly challenges OPRD's all-layer default. The parameter-update-selectivity half (freeze-all-but-k) is a near-mechanical mirror and its distillation analog (Flex-KD) already points to final, not middle, layers.",
+  "priorArt": [
+   "Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training (2026)",
+   "Task-Based Flexible Feature Distillation for LLMs / Flex-KD (2025)",
+   "On the Geometry of On-Policy Distillation (2026)",
+   "PHF: Privileged Hidden Flow for On-Policy Self-Distillation \u2014 layer-subset ablation (2026)"
+  ],
+  "reviewerObjections": [
+   "This is porting one metric to a new objective \u2014 a section, not a paper. Layer-importance analyses are saturated (LISA/MISA/Flex-KD/One-Layer), and the actionable heuristic (middle layers) already exists for RL.",
+   "The RL result won't transfer and you have no reason to expect it to: the Geometry paper shows OPD's update geometry is qualitatively different from RLVR (early subspace locking, ~51% vs 77% bf16 sparsity, ~1\u00b0 rotation), and the closest distillation datapoint (Flex-KD) says FINAL layer, not middle. So this is exploratory, not confirmatory \u2014 and a null/messy result is likely.",
+   "Scale can't support the claim: the source paper used 7 models across 2 families to argue 'intrinsic property'; a single 1.5B Qwen student proves nothing general. C(k) also demands one full OPD run per layer (28+ runs for a 28-layer model) \u2014 very expensive for a diagnostic.",
+   "Parameter-freezing C(k) is ill-posed for OPD/OPRD: unlike GRPO, OPD/OPRD already gradient-update all layers every step, so 'freeze all but k' is an artificial regime that doesn't map onto how anyone trains these \u2014 undermining any practice-changing claim."
+  ],
+  "recommendation": "Modify and shrink. Cut the expensive parameter-freeze C(k) scan for OPD (mirrors RL, artificial for an all-layer objective, 28+ runs). Keep and lead with the one novel, cheap, actionable arm: loss-supervision selectivity for OPRD \u2014 supervise only layer-bands (e.g. early/middle/late/all) while all layers stay trainable, and test whether a small band matches all-layer MSE. This directly attacks OPRD's own all-layer design default (a practice-changing result if a 3-layer band ties all-layer), has zero prior art, and costs a handful of runs. Baseline against Flex-KD's final-layer finding. Frame the RL middle-layer story as an untested hypothesis, not an inherited result. As-is it's a footnote; reframed around loss-supervision selectivity it's a defensible ablation section."
+ },
+ {
+  "phase": "A3-geometry",
+  "verdict": "worth-doing-not-headline",
+  "novelty": "Genuinely new: nobody has run the stable-rank / early-subspace-locking / rank-constrained suite on a hidden-state-MSE gradient (OPRD) rather than OPD's token-KL gradient, nor measured whether OPD's and OPRD's locked subspaces overlap, nor tested cross-objective sufficiency (does OPRD survive projection onto OPD's early subspace). Everything else \u2014 the metrics, the rank-16 protocol, the SFT/RLVR baselines, the OPD result itself \u2014 is copied verbatim from 2606.07082. The novel slice is the objective (hidden-state vs KL), not the diagnostics.",
+  "priorArt": [
+   "On the Geometry of On-Policy Distillation (2026) \u2014 ran this exact suite (stable rank, top-16 subspace lock, rank-16 constrained training, Frobenius control) on OPD at 8B/32B",
+   "The Path Not Taken: RLVR Provably Learns Off the Principals (2025) \u2014 off-principal low-rank localization is model-conditioned and recipe-invariant",
+   "Gradient Descent Happens in a Tiny Subspace (Gur-Ari et al., 2018) \u2014 early subspace collapse is a 7-year-old general SGD phenomenon",
+   "Dense Supervision, Sparse Updates (2026) \u2014 rank/subnetwork-constrained OPD training already run"
+  ],
+  "reviewerObjections": [
+   "Redundancy: the cited motivation paper (2606.07082) already ran this literal diagnostic suite \u2014 stable rank, early top-16 locking, rank-16 constrained training with SFT as negative control \u2014 on OPD. Re-running it on OPD is reconfirmation; only the OPRD arm is new, and the writeup foregrounds the whole battery rather than the one novel measurement (OPD-vs-OPRD subspace overlap / cross-objective projection sufficiency).",
+   "Scale invalidity: the source result exists only at 8B/32B (never below 4B), and principal-angle diagnostics there required CPU float64 SVD because 'GPU SVD produces unstable angles for near-identical matrices.' At 1.5B, SVD instability plus model-conditioned geometry (Path Not Taken) make a 1.5B curve that agrees-or-disagrees with the 8B finding nearly uninterpretable \u2014 you can't attribute a difference to the objective vs. scale.",
+   "No surprise / a-priori-expected: subspace locking is a general SGD phenomenon (Gur-Ari 2018) and is largely fixed by base-model geometry, not the training objective (Path Not Taken). 'OPRD also locks a low-rank subspace' is the default expectation, not a finding \u2014 the burden is to show OPRD locks a DIFFERENT subspace than OPD, which the proposed metrics don't directly measure.",
+   "So-what for practice: the source suite is attention-weights-only (QKVO; MLP excluded), yet MLP is the dominant residual-stream writer a hidden-state MSE would most affect \u2014 copying the suite may miss the locus. And no experiment ties geometry to any recipe change or downstream accuracy, so even a clean result changes no one's training choices."
+  ],
+  "recommendation": "Keep, but re-scope and de-prioritize. Cut the OPD-alone re-run to a sanity check; make the headline measurement OPD-vs-OPRD subspace overlap (principal angles between the two locked V_16 subspaces) plus the cross-objective sufficiency test the plan already hints at \u2014 does OPRD survive projection onto OPD's early subspace, and vice versa? That's the only genuinely unanswered question. Extend the 144-matrix set to include MLP weights. Do NOT claim scale-general geometry from 1.5B alone; run at least one larger confirmatory pair or state the 1.5B result as suggestive only, given SVD instability and model-conditioned confounds. Tie at least one arm to downstream accuracy or it changes no practice."
+ },
+ {
+  "phase": "B-relational",
+  "verdict": "needs-reframing",
+  "novelty": "Genuinely new slice: local token-window top-k neighbor-identity soft-KL as a training loss on LLM hidden states, on-policy, no negatives, ARH-motivated. But the loss family is old (PKT 2018 = soft-KL over similarity distributions; SP, RKD, DIST; MLDR-KD Feb-2026 = softmax-KL over relation matrices cross-arch; PHF 2606.29340 = relational on-policy LLM, already beats pointwise). The only unclaimed piece is \"local top-k neighbor-identity, distance-discarding\" + the ARH justification \u2014 a thin, mechanism-level novelty, not a new problem.",
+  "priorArt": [
+   "PKT: Probabilistic Knowledge Transfer (2018) \u2014 soft-KL over similarity distributions, dimension-agnostic, ~ties vanilla KD",
+   "CRD: Contrastive Representation Distillation (2020) \u2014 only relational family that reliably beats KD, but uses negatives (excluded here); RKD/PKT/SP tie-or-lose over 5 seeds",
+   "MLDR-KD (2026) \u2014 softmax+KL over relation matrices for heterogeneous-architecture distillation",
+   "PHF (2606.29340, 2026) \u2014 relational (transition-geometry) hidden-state loss beats pointwise MSE +1.5-2.2pts on-policy Qwen3",
+   "CKA-QAD / Beyond Output Matching (2606.05682, 2026) \u2014 global Gram/CKA loss improves reasoning accuracy in RL-post-trained LLMs",
+   "VanillaKD (NeurIPS 2023) \u2014 'fancy loss beats vanilla' is largely a tuning/scale artifact",
+   "ARH (2602.14486, 2026) \u2014 neighbor-identity is a measurement finding, never tested as a training loss"
+  ],
+  "reviewerObjections": [
+   "Control set is under-powered for the claim: MSE-only, full-Gram, and hybrid do not isolate the load-bearing variable. A win over MSE-only is uninterpretable \u2014 you cannot tell whether 'local vs global' or 'identity vs distance' drove it. The two baselines that would make it interpretable are absent: a distance-preserving relational loss (RKD/LSP-style) and TinyBERT-style MSE+learned-linear-map. Every documented no-negatives relational win (RKD, LSP) kept distances; identity-only is the family member with no positive precedent.",
+   "Base rate is against the specific design: in CRD/RepDistiller (5-seed), no-negatives relational losses tie or lose to vanilla KD, and PKT \u2014 the closest analog to this exact mechanism \u2014 ties. Combined with VanillaKD, a modest win at 1.5B is presumptively a tuning artifact until a well-tuned MSE baseline is cleared.",
+   "Statistical power: OPRD's own results are single-run, 500 steps, no seeds, with deltas as small as 0.5-2pts. Any relational-vs-MSE delta at this scale is inside the noise floor unless the plan commits to multi-seed CIs \u2014 which the current setup does not.",
+   "Theory-to-loss gap and causal inertia: ARH never validates neighbor-identity as a training objective (it is inference-time measurement on independently-trained models with an exchangeability assumption that breaks on token sequences), and 'Convergence Without Understanding' shows alignment is causally near-inert exactly in the generation-token region this loss targets \u2014 so even a win may not mean what the framing claims. Identity-only matching in a sparse top-k/window regime is also the weakest identifiability case (ordinal-embedding theory) and shares InfoNCE/SNNL collapse pathologies, with no representation-collapse or LM-head-fidelity diagnostic proposed."
+  ],
+  "recommendation": "Do not run as a headline. Reframe from \"relational beats MSE\" to a property-isolation study: which relational property (neighbor-identity vs distance-preserving vs global-spectral) transfers, if any. Single highest-value change: add the two missing baselines \u2014 a distance-preserving relational loss (RKD/LSP-style) and TinyBERT MSE+learned-linear-map \u2014 because without them any win over MSE-only/full-Gram is uninterpretable, and cite PKT/PHF/MLDR-KD as direct rivals not motivation. Then commit to multi-seed CIs and add representation stable-rank + LM-head-decodability diagnostics. Best home is inside Phase E cross-arch, where OPRD-Bridge's own loss to OPD top-1 gives a genuinely beatable bar; same-arch it will likely tie a tuned MSE."
+ },
+ {
+  "phase": "C-weights",
+  "verdict": "needs-reframing",
+  "novelty": "Genuinely untested slice: applying position/trajectory weights to a hidden-state relational (Phase-B) loss rather than output-KL. Every constituent mechanism is borrowed and pre-published in output-KL space \u2014 IW-OPD's cumulative-prefix-discrepancy weight (2606.22600), TIP's entropy\u00d7disagreement soft-OR (2604.14084), FiRe's trajectory-normalized weight + bottom-quantile filter (2606.02684), PW-OPSD's sigmoid position ramp (2605.21606). The novelty is the loss-space transfer, not any weighting scheme itself.",
+  "priorArt": [
+   "On the Position Bias of On-Policy Distillation / IW-OPD (2026)",
+   "When Are Teacher Tokens Reliable? / PW-OPSD position-weighted self-distillation (2026)",
+   "TIP: entropy + teacher-student divergence token weighting (2026)",
+   "FiRe-OPD: trajectory filter + soft token reweight (2026)",
+   "DEAR: hidden-state cosine similarity for token selection (2026)",
+   "Beyond the 80/20 Rule: high-entropy token selection for RLVR (NeurIPS 2025)"
+  ],
+  "reviewerObjections": [
+   "The motivating mechanism is falsified for this setting: IW-OPD/PW-OPSD ground position bias in sampling-variance / trust-region drift of a stochastic reverse-KL estimator (IW-OPD Prop.1). OPRD's Phase-B objective is a deterministic hidden-state loss with (per OPRD Thm 1) a zero-variance gradient \u2014 the reason those weights help simply may not exist here, so the prior expectation is null/negative, not positive (panel verdict C8: REFUTED as low-risk-likely-positive).",
+   "You bundled four weighting schemes onto one objective \u2014 this is an engineering grab-bag, not a contribution. IW-OPD's own Table 4 shows the 'ideal' theoretically-motivated weight UNDERPERFORMS uniform by -1.2 and the win comes entirely from stacked stabilization tricks (unsigned accumulation + blend) tuned for output-KL. A naive port will most likely net ~0 without its own per-scheme shape/hyperparameter sweep, and you cannot attribute a win to any single mechanism from a bundle.",
+   "Effect sizes in the source literature are 0.4-2pt at convergence with 3 seeds and NO confidence intervals; several deltas sit inside plausible AIME seed noise. At 1.5B on math with AIME/AIMO's high variance, a +1pt weighting effect is not distinguishable from noise without many more seeds and reported CIs \u2014 the setup cannot support the claim as framed.",
+   "This is entirely contingent on Phase B producing a clear winner; stacking a weak weighting ablation on an unvalidated relational objective compounds risk, and the position-bias question you actually care about (does OPRD's reliability profile differ from OPD's) belongs to A1, not here."
+  ],
+  "recommendation": "Reframe, do not run as a four-way headline phase. Cut the bundle to ONE weight \u2014 IW-OPD's cumulative unsigned prefix-discrepancy \u2014 as a single ablation row on the winning Phase-B objective, and drop TIP/FiRe/PW-OPSD unless one clears it. Highest-value change: retarget the experiment from \"does weighting help\" (a saturated, likely-null question) to the one comparative claim that is novel and interesting \u2014 does OPRD's deterministic hidden-state loss show the SAME prefix>>suffix reliability profile as output-KL OPD, or does it escape it because there is no sampling variance? That ties to A1, is falsifiable, and would change practice. Demand CIs and enough seeds to resolve a 1-2pt effect before believing any win. As a standalone weighting sweep it is a footnote."
+ },
+ {
+  "phase": "E-bridge",
+  "verdict": "worth-doing-not-headline",
+  "novelty": "Genuinely new slice: mutual-kNN neighbor-identity used as a training loss (not an eval metric) for cross-architecture LLM reasoning bridging, on-policy, in a local token window, justified by ARH width/depth null-calibration. But \"relational-instead-of-pointwise cross-arch bridge\" is not new (RKD 2019, MiniLM-v2 2020, MLDR-KD Feb 2026 already do softmax+KL over relation matrices across heterogeneous architectures). Only the ARH justification + LLM-on-policy-local-window setting + kNN-as-loss are unclaimed.",
+  "priorArt": [
+   "Multi-Level Decoupled Relational Distillation for Heterogeneous Architectures (MLDR-KD), 2026 \u2014 softmax+KL over class/sample relation matrices + learned projector, structurally near-identical",
+   "MiniLM-v2, 2020 \u2014 projector-free value-relation transfer that dissolves width/head mismatch without any PCA",
+   "Relational Knowledge Distillation (RKD), 2019 \u2014 distance/angle relational loss, the distance-preserving baseline ARH-Bridge must beat",
+   "Beyond Output Matching / CKA-QAD, 2026 \u2014 global Gram/CKA loss beats output-only matching on reasoning recovery (kills the 'Gram is a weak PRH strawman' assumption)",
+   "Back into Plato's Cave, 2026 \u2014 mutual-kNN alignment degrades at eval-set scale, threatening the diagnostic itself",
+   "OPRD / OPRD-Bridge, 2026 \u2014 the PCA+MSE baseline; its own Table 4 loses to OPD top-1 on Avg@16"
+  ],
+  "reviewerObjections": [
+   "Baseline gap: the three listed baselines (OPD-only, PCA+MSE, linear-map-MSE) omit every relational prior-art method. Without RKD-distance, MLDR-KD relation-KL, MiniLM-v2 projector-free, and a CKA/Gram loss, a win is unattributable \u2014 it reads as MLDR-KD reinvented for LLMs with a geometry story bolted on. MiniLM-v2 specifically shows you can drop the projector entirely, so why keep the proportional-depth PCA-less map?",
+   "ARH does not predict the outcome (C5 refuted). ARH is an inference-time measurement result on independently-trained, exchangeable-sample foundation models; it never tests neighbor-identity as a training loss and its exchangeability assumption explicitly breaks on token sequences. And CKA-QAD is a live counterexample where the global-spectral loss ARH deems 'invalid' still helps training. So the theory motivates but cannot carry the claim.",
+   "Scale/noise: cross-arch 1.5B is a near-floor regime (student 2.8, OPD top-1 15.3, teacher 35.9 Avg@16), single run, no seeds anywhere in OPRD. Deltas of 1-4 pts on a degenerate floor with no error bars cannot support a method claim. The one clean OPRD-Bridge 'win' (cross-tokenizer, Table 6) is only because OPD structurally can't run \u2014 not evidence a relational bridge beats a competent bridge.",
+   "Identity-only is the weakest relational variant: no-negatives relational losses (RKD/PKT/SP) tie-or-lose to vanilla KD in CRD/RepDistiller; the wins (RKD, LSP) all kept distances, which ARH-Bridge discards. Plus 'Convergence Without Understanding' shows alignment is causally near-inert precisely in the generation-token window this loss targets \u2014 so a mutual-kNN win could improve alignment metrics without transferring reasoning."
+  ],
+  "recommendation": "Run it \u2014 it's the plan's highest-value, least-redundant experiment: no paper compares PCA+MSE vs a neighbor-identity bridge, and OPRD-Bridge's own Table-4 shortfall (loses to OPD top-1) sets a low, honest bar. But it cannot be the headline at 1.5B-cross-arch (noisy near-floor, no seeds) and the ARH framing is motivation, not entailment. Single highest-value change: replace the thin baseline set with the relational prior art \u2014 RKD-distance, MLDR-KD relation-KL, MiniLM-v2 projector-free, and a CKA/Gram loss \u2014 so a win isolates ARH's specific 'local-identity, no-distance' contribution rather than re-proving 'relational beats PCA+MSE.' Add seeds and a causal/flip-rate probe."
+ }
+]

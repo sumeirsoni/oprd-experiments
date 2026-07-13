@@ -1,0 +1,514 @@
+[
+ {
+  "key": "relational-kd",
+  "summary": "Adversarial base rate is unfavorable to plan item (B): in the standard CRD/RepDistiller benchmark (5-seed avg), no-negatives relational losses (RKD, PKT, SP) roughly tie or lose to vanilla pointwise KD; the only relational-family method that reliably wins (CRD) uses contrastive negatives, which the plan explicitly excludes. MiniLMv2 and TinyBERT are real, uncited prior art: MiniLMv2 already dissolves head/width mismatch via a relational (self-attention) loss (partial support for ARH-Bridge, but predates it); TinyBERT solves width mismatch with plain MSE + learned linear map, no relational component \u2014 a cheap baseline both OPRD-Bridge and ARH-Bridge must beat. PKT (2018) is close prior art for item (B)'s soft-KL-neighbor mechanism specifically, and only ties KD. A 2026 paper (CKA-QAD) reports a *global* spectral (CKA/Gram) loss improving reasoning accuracy in RL-post-trained LLMs, directly complicating the plan's assumption that full-Gram/PRH-style controls should be weak. VanillaKD (NeurIPS 2023) shows much of the \"fancy loss beats vanilla\" literature is a tuning/scale artifact \u2014 demands a well-tuned MSE baseline before trusting any relational win.",
+  "findings": [
+   {
+    "claim": "In the CRD/RepDistiller CIFAR-100 benchmark (5-seed average), RKD (relational, no negatives) underperforms vanilla KD on all 3 sampled teacher-student pairs (e.g. resnet32x4\u2192resnet8x4: KD 73.33% vs RKD 71.90%); PKT roughly ties KD; only CRD (contrastive, uses negatives) reliably beats KD.",
+    "direction": "refutes-plan",
+    "source": "Tian, Krishnan, Isola, Contrastive Representation Distillation, ICLR 2020",
+    "url": "https://arxiv.org/abs/1910.10699"
+   },
+   {
+    "claim": "PKT (2018) already implements a dimension-agnostic soft-KL-over-pairwise-similarity distillation loss, functionally close to the plan's proposed local top-k neighbor-softmax-KL loss, and only achieves parity with vanilla KD, not a clear win.",
+    "direction": "refutes-plan",
+    "source": "Passalis & Tefas, Learning Deep Representations with Probabilistic Knowledge Transfer, ECCV 2018",
+    "url": "https://arxiv.org/abs/1803.10837"
+   },
+   {
+    "claim": "MiniLMv2 distills self-attention relation matrices (Q-Q/K-K/V-V similarity) and explicitly removes the requirement that student and teacher have matching attention-head counts, i.e. a relational loss already solves a width-mismatch problem analogous to what OPRD-Bridge's PCA projector targets.",
+    "direction": "prior-art",
+    "source": "Wang et al., MiniLMv2: Multi-Head Self-Attention Relation Distillation, Findings of ACL 2021",
+    "url": "https://arxiv.org/abs/2012.15828"
+   },
+   {
+    "claim": "TinyBERT solves cross-width hidden-state distillation with plain pointwise MSE plus a learned linear projection matrix (no PCA, no relational structure), establishing a cheap working baseline that any ARH-Bridge/OPRD-Bridge claim must beat.",
+    "direction": "refutes-plan",
+    "source": "Jiao et al., TinyBERT: Distilling BERT for Natural Language Understanding, Findings of EMNLP 2020",
+    "url": "https://aclanthology.org/2020.findings-emnlp.372.pdf"
+   },
+   {
+    "claim": "CoDIR explicitly argues L2/MSE hidden-state losses fail because they 'assume all dimensions of hidden representations are independent, failing to capture important structural knowledge' -- but the fix that actually works is contrastive (positive/negative pairs), the exact family the plan excludes from item (B).",
+    "direction": "context",
+    "source": "Sun et al., Contrastive Distillation on Intermediate Representations for Language Model Compression, EMNLP 2020",
+    "url": "https://arxiv.org/abs/2009.14167"
+   },
+   {
+    "claim": "A 2026 quantization-distillation paper reports that adding a global CKA/Gram-matrix alignment regularizer (not local, not MSE) on top of KL substantially improves reasoning/coding accuracy specifically for RL-post-trained reasoning LLMs (Nemotron 3 Nano, Qwen3-4B-Thinking), directly in tension with the plan's assumption that full-Gram/PRH-flavored matching should be a weak control post-ARH.",
+    "direction": "refutes-plan",
+    "source": "Beyond Output Matching: Preserving Internal Geometry in NVFP4 LLM Distillation, 2026",
+    "url": "https://arxiv.org/abs/2606.05682"
+   },
+   {
+    "claim": "An ICLR 2025 paper reportedly uses CKA (global spectral alignment) to match hidden states of different dimensionality across encoder-only and encoder-decoder architectures for LM distillation, which if accurate is additional prior art for solving cross-architecture width mismatch without PCA or local-kNN methods -- but I could not read the PDF directly (OpenReview bot-check blocked WebFetch), so this is unverified beyond search-engine synthesis.",
+    "direction": "context",
+    "source": "Improving Language Model Distillation through Hidden State Matching, ICLR 2025 (unverified, PDF not read)",
+    "url": "https://openreview.net/forum?id=IcVSKhVpKu"
+   },
+   {
+    "claim": "VanillaKD shows that with proper training recipes at scale, well-tuned vanilla logit-matching KD is competitive with or beats many feature/relational distillation methods previously claimed superior on small-scale benchmarks -- i.e. much of the 'fancy loss beats vanilla' literature may be a tuning/scale artifact.",
+    "direction": "refutes-plan",
+    "source": "Revisit the Power of Vanilla Knowledge Distillation: from Small Scale to Large Scale, NeurIPS 2023",
+    "url": "https://arxiv.org/abs/2305.15781"
+   },
+   {
+    "claim": "Even where distillation improves generalization, there remains a large teacher-student predictive discrepancy attributable to optimization difficulty rather than objective/capacity limits -- a general caution to control for optimization confounds before attributing OPD/OPRD/relational gaps to representational theory.",
+    "direction": "context",
+    "source": "Stanton, Izmailov, Kirichenko, Alemi, Wilson, Does Knowledge Distillation Really Work?, NeurIPS 2021",
+    "url": "https://arxiv.org/abs/2106.05945"
+   },
+   {
+    "claim": "DIST replaces exact output-space matching (KL) with a relaxed correlation-based (Pearson) relational loss specifically motivated by large teacher-student capability gaps ('stronger teacher'), which is the closest logit-level analog to the OPD/OPRD 'stronger teacher on student rollouts' regime and suggests a cheap correlation-loss ablation before building a full local-kNN relational loss.",
+    "direction": "prior-art",
+    "source": "Huang et al., Knowledge Distillation from a Stronger Teacher (DIST), NeurIPS 2022",
+    "url": "https://openreview.net/forum?id=157Usp_kbi"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-relational-kd.md"
+ },
+ {
+  "key": "prh-arh",
+  "summary": "ARH (Gr\u00f6ger/Wen/Brbi\u0107, ICML 2026) refines PRH, not disproves it: after width/depth null-calibration, global spectral convergence (CKA, Procrustes) largely vanishes but local neighbor-identity (mutual-kNN/CKNNA) survives \u2014 distances don't. This directly undercuts OPRD-Bridge's PCA+MSE (a global-spectral mechanism), theoretically justifying a switch to a local-neighbor loss (proposal E). But two independent threats survive that switch: (1) \"Back into Plato's Cave\" (2604.18572) shows mutual-kNN convergence itself degrades badly at eval-set scale \u2014 ARH's \"survives\" claim isn't settled at OPRD's operating scale; (2) \"Convergence Without Understanding\" (2605.23315) is the sharper problem \u2014 representational alignment is weakest and causally near-inert (1.5-5.5% flip rate) exactly in post-decision/generation tokens, where OPRD applies its loss, and is *higher* on problems models fail. This threatens pointwise AND relational hidden-state matching alike; no found experiment in the plan tests causal relevance rather than assuming alignment-of-any-kind transfers reasoning.",
+  "findings": [
+   {
+    "claim": "ARH shows global spectral metrics (CKA, Procrustes, RV) lose convergence signal after width/depth null-calibration, but local neighbor-identity metrics (mutual-kNN, CKNNA) retain significant cross-modal alignment; local distances do not.",
+    "source": "Gr\u00f6ger, Wen, Brbi\u0107, 'Revisiting the Platonic Representation Hypothesis: An Aristotelian View,' ICML 2026",
+    "url": "https://arxiv.org/abs/2602.14486",
+    "direction": "supports-plan"
+   },
+   {
+    "claim": "ARH frames itself as 'Revisiting' PRH and proposes a narrower successor hypothesis (convergence to shared local neighborhood relationships) rather than claiming PRH is false; treat 'ARH disproves PRH' as an overstatement.",
+    "source": "Gr\u00f6ger, Wen, Brbi\u0107, ICML 2026 (arXiv:2602.14486)",
+    "url": "https://arxiv.org/abs/2602.14486",
+    "direction": "context"
+   },
+   {
+    "claim": "Mutual-nearest-neighbor alignment (the exact metric family ARH says survives calibration) degrades substantially when evaluation sets scale from ~1K to millions of samples, and the trend of newer LLMs increasingly aligning with vision does not hold for newer models.",
+    "source": "'Back into Plato's Cave: Examining Cross-modal Representational Convergence at Scale'",
+    "url": "https://arxiv.org/abs/2604.18572",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "CKA can be manipulated (via simple transformations, outliers) without meaningfully changing model function, predating and independently corroborating ARH's width/depth critique; authors 'call for caution' using activation alignment metrics for conclusions.",
+    "source": "'Reliability of CKA as a Similarity Measure in Deep Learning'",
+    "url": "https://arxiv.org/abs/2210.16156",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "Biased CKA can be inflated by adding isotropic noise or shuffling correspondence (fake alignment); debiased CKA avoids this, per search snippet only (not independently fetched).",
+    "source": "'Correcting Biased Centered Kernel Alignment Measures in Biological and Artificial Neural Networks'",
+    "url": "https://arxiv.org/abs/2405.01012",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "Whatever cross-model convergence remains may be explained by shared linear object-attribute structure (Linear Representation Hypothesis) rather than a genuinely relational/topological phenomenon \u2014 sparse linear features align more strongly than dense ones.",
+    "source": "'Representation Alignment Rests on Linear Structure'",
+    "url": "https://arxiv.org/abs/2605.28870",
+    "direction": "context"
+   },
+   {
+    "claim": "Across 16 models/8 families/800 reasoning problems: representational agreement (CKA) is HIGHER on problems models collectively fail (0.897) than solve (0.830); pre-decision representations align strongly (0.875) but post-decision/generation representations diverge sharply (0.274); shared representational info is decodable (66%) but has almost no causal effect on predictions (1.5-5.5% flip rate) \u2014 i.e. representational convergence does not imply shared reasoning and is weakest/most causally inert exactly in the generation-token region OPRD's MSE loss targets.",
+    "source": "'Convergence Without Understanding: When Language Models Agree on Representations but Disagree on Reasoning'",
+    "url": "https://arxiv.org/abs/2605.23315",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "No paper found that directly evaluates an OPRD-Bridge-style frozen-teacher-PCA + learned-linear-map + MSE-in-rank-r cross-architecture distillation method and shows it failing; the case against it is theoretical (PCA = global spectral alignment, the part ARH shows is confounded), not an observed method failure.",
+    "source": "Gap identified across this sweep \u2014 no direct empirical hit",
+    "url": "",
+    "direction": "context"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-prh-arh.md"
+ },
+ {
+  "key": "cross-arch-bridge",
+  "summary": "Cross-architecture bridge design is not greenfield. PCA/CKA/OT/cross-attention bridges all already exist for LLM cross-tokenizer KD (ULD, MultiLevelOT-AAAI25, DSKD-CMA, byte-level interface). More importantly, \"relational instead of pointwise\" cross-architecture distillation is well-trodden: RKD (2019), MiniLM-v2 (projector-free relation transfer across widths, 2020), and especially MLDR-KD (Feb 2026) already do softmax+KL over class/sample relation matrices for heterogeneous-architecture distillation \u2014 structurally near-identical to the plan's proposed local top-k neighbor soft-KL loss. The genuinely new piece is the ARH/null-calibration theoretical justification and the LLM-reasoning/on-policy/local-token-window setting, not the relational-loss mechanism itself. A mutual-kNN-as-training-loss (vs. as evaluation metric) for cross-arch LLM bridging does appear to be an unfilled gap, but the plan needs explicit ablations against RKD/MiniLM-v2/MLDR-KD or it will read as reinvention. Also found a third theoretical position (linear-structure/SAE account, arXiv 2605.28870) complicating the PRH-vs-ARH binary \u2014 flagged as unverified/context since fetch summaries of it conflicted.",
+  "findings": [
+   {
+    "claim": "MLDR-KD (Feb 2026) already decomposes cross-architecture (CNN/ViT/MLP-Mixer/Vision-Mamba) distillation into class-wise and sample-wise relation matrices aligned via softmax + KL divergence, combined with learned feature projectors \u2014 structurally close to the plan's proposed 'soft local softmax/KL over top-k teacher neighbors' bridge loss.",
+    "source": "Multi-Level Decoupled Relational Distillation for Heterogeneous Architectures, arXiv 2502.06189",
+    "url": "https://arxiv.org/html/2502.06189v1",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "MiniLM-v2 transfers self-attention value-relation matrices instead of raw hidden states specifically to become hidden-size- and head-count-agnostic, i.e. it already solves the width/depth-mismatch problem without any PCA/linear projector.",
+    "source": "MiniLMv2: Multi-Head Self-Attention Relation Distillation for Compressing Pretrained Transformers",
+    "url": "https://arxiv.org/pdf/2012.15828",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Relational Knowledge Distillation (pairwise distance-wise and angle-wise losses, transferring relations not points) predates this plan by 6+ years and is the origin of the 'relational beats pointwise' thesis for cross-architecture transfer.",
+    "source": "Relational Knowledge Distillation, Park et al., CVPR 2019",
+    "url": "https://openaccess.thecvf.com/content_CVPR_2019/papers/Park_Relational_Knowledge_Distillation_CVPR_2019_paper.pdf",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "CKA-based Gram-matrix distillation losses (not just as a metric) already exist for BERT-scale transformer compression, predating the plan's proposal to keep full-Gram matching only as a 'PRH-flavored control'.",
+    "source": "Feature Structure Distillation with Centered Kernel Alignment in BERT Transferring, arXiv 2204.08922",
+    "url": "https://arxiv.org/pdf/2204.08922",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Naive CKA training losses in KD have documented instability/failure modes, which is consistent with (and could support) an ARH-style story that global spectral alignment is unreliable \u2014 usable as supporting context rather than a strawman control.",
+    "source": "Rethinking Centered Kernel Alignment in Knowledge Distillation, IJCAI 2024 / arXiv 2401.11824",
+    "url": "https://arxiv.org/pdf/2401.11824",
+    "direction": "supports-plan"
+   },
+   {
+    "claim": "A mature optimal-transport bridge family (token+sequence-level Sinkhorn OT on logit distributions) already achieves cross-tokenizer, cross-architecture LLM distillation without requiring dimensional correspondence, published as an AAAI 2025 oral \u2014 a third competing bridge-design family beyond PCA-projector and CKA.",
+    "source": "Multi-Level Optimal Transport for Universal Cross-Tokenizer Knowledge Distillation on Language Models, arXiv 2412.14528",
+    "url": "https://arxiv.org/abs/2412.14528",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "DSKD's cross-model attention (and its key-query-matching + adversarial-learning extension) already implements a learned soft-correspondence bridge across tokenizers, with modest but real gains (+0.37 ROUGE-L average OOD) \u2014 the closest already-published 'relational-flavored' LLM cross-architecture bridge found in this sweep, and a realistic prior for expected effect size.",
+    "source": "Dual-Space Knowledge Distillation with Key-Query Matching for LLMs with Vocabulary Mismatch, arXiv 2603.22056",
+    "url": "https://arxiv.org/abs/2603.22056",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "Mutual-kNN alignment agreement is highly sensitive to evaluation/gallery scale and degrades under many-to-many correspondences at large scale \u2014 a caveat for building a token-window local top-k neighbor loss over large rollout pools, independent of the PRH/ARH debate.",
+    "source": "Back into Plato's Cave: Examining Cross-modal Representational Convergence at Scale, arXiv 2604.18572",
+    "url": "https://arxiv.org/pdf/2604.18572",
+    "direction": "context"
+   },
+   {
+    "claim": "A separate 2026 paper proposes a linear-representation/sparse-autoencoder/word-frequency-noise account of cross-model representational alignment, offering a third theoretical position beyond the PRH-vs-ARH binary the plan assumes; I could not fully verify from the abstract alone whether it directly contradicts ARH's local-vs-global claim, and an earlier automated summary of this paper appears to have over-interpreted its stance \u2014 flagged as unverified.",
+    "source": "Representation Alignment Rests on Linear Structure, Bangachev/Bresler/Polyanskiy, arXiv 2605.28870",
+    "url": "https://arxiv.org/abs/2605.28870",
+    "direction": "context"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-cross-arch-bridge.md"
+ },
+ {
+  "key": "token-weighting",
+  "summary": "Token-level weighting/selection in LLM distillation is saturated: 13+ OPD-specific papers (TIP, EOPD, EGAD, SCOPE, Rock Tokens, FiRe-OPD, ReNIO, IW-OPD, PW-OPSD, Blockwise-Drift-Gating, DEAR, SEAD, SelecTKD) plus 2 survey papers and 2 community \"awesome\" lists as of mid-2026, on top of the RLVR-side 80/20 high-entropy-token literature (NeurIPS 2025). Position-weighting is the most dangerous overlap: IW-OPD (2606.22600) and PW-OPSD (2605.21606) already do near-exactly plan items A1+C in pure output-KL space, and PW-OPSD reports position beats entropy as a reliability predictor (AUROC 0.83 vs 0.57) \u2014 a direct rival explanation the plan must engage with, not just cite as background. Almost all token-weighting papers stay in output-KL space, BUT three 2026 papers already touch hidden-state/relational signals: SRA (2605.01205, cosine + pairwise-DISTANCE-preserving regularizer + cross-arch projection \u2014 vulnerable to the same ARH critique the plan levels at OPRD-Bridge, since it preserves distances not neighbor identity), PHF (2606.29340, temporal transition-direction relational loss beating pointwise OPSD baselines \u2014 real evidence relational-over-pointwise wins, but on a different (temporal) axis than ARH's (spatial-neighbor) axis), and DEAR (2606.22830, hidden-state cosine similarity used to select tokens, though the loss itself stays output-KL). Net: the plan's local-neighbor-identity-as-loss operator (not distance-preserving, not transition-based, not selection-only) still looks like a genuine unclaimed gap, but the plan overstates novelty on \"hidden-state loss + token selection\" as a category, and must sharply differentiate from SRA/PHF/DEAR and cite IW-OPD/PW-OPSD as direct rivals to A1/C rather than as mere motivation.",
+  "findings": [
+   {
+    "claim": "IW-OPD (position-weighted OPD via accumulated student/teacher prefix discrepancy) already runs the plan's A1 position-bias-probe experiment for OPD, in pure output-KL space, with up to +6.9 AIME-2025.",
+    "source": "On the Position Bias of On-Policy Distillation, arXiv 2606.22600",
+    "url": "https://arxiv.org/abs/2606.22600",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Position-based token weighting (sigmoid ramp over normalized sequence position) is the strongest tested predictor of teacher-token reliability in on-policy self-distillation (AUROC 0.83), beating entropy-based signals (AUROC \u22640.57) \u2014 this is essentially plan item C already executed, and it directly rivals the entropy-centric framing implicit in citing 'Is One Layer Enough'/RLVR 80/20 papers.",
+    "source": "When Are Teacher Tokens Reliable? Position-Weighted On-Policy Self-Distillation for Reasoning, arXiv 2605.21606",
+    "url": "https://arxiv.org/html/2605.21606",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "SRA uses a hidden-state loss with a geometric regularizer that explicitly preserves pairwise DISTANCES between (attention-weighted) span representations across a cross-architecture teacher-student projection \u2014 i.e. it optimizes exactly the invariant (global distance/spectral structure) that ARH claims does not survive width/depth null-calibration, making it a live target for the plan's core ARH-vs-PRH argument rather than a solved problem.",
+    "source": "SRA: Span Representation Alignment for Large Language Model Distillation, arXiv 2605.01205",
+    "url": "https://arxiv.org/pdf/2605.01205",
+    "direction": "supports-plan"
+   },
+   {
+    "claim": "PHF replaces pointwise hidden-state MSE with a relational (transition-direction, offset/rotation-invariant) loss in on-policy self-distillation and beats reproduced pointwise-matching OPSD baselines by +1.5-2.2 Avg@12 across Qwen 1.7B/4B/8B \u2014 real evidence that relational-over-pointwise hidden-state losses can win, but the relational axis is temporal (rollout position-to-position), not spatial (representation-space neighbor identity), so it doesn't directly implement or preempt the plan's ARH-local-kNN loss.",
+    "source": "PHF: Privileged Hidden Flow for On-Policy Self-Distillation, arXiv 2606.29340",
+    "url": "https://arxiv.org/abs/2606.29340",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "DEAR selects 'evidence tokens' for OPD supervision via hidden-state cosine similarity to high-entropy 'decision' tokens, i.e. it already uses relational hidden-state structure operationally in OPD token selection \u2014 but the underlying distillation loss remains output-KL, so it doesn't preempt using local-neighbor identity AS the training loss itself.",
+    "source": "Finding the Evidence: Discovering Decision-Supporting Tokens, arXiv 2606.22830",
+    "url": "https://arxiv.org/abs/2606.22830",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "Restricting RLVR policy-gradient updates to the top ~20% highest-entropy 'forking' tokens matches or beats full-gradient RLVR on Qwen3-8B/14B/32B \u2014 establishes entropy-based token selection as well-trodden prior art in RL, raising the bar for any entropy-based token-selection claim the plan makes, though this is RL not distillation and doesn't touch hidden states.",
+    "source": "Beyond the 80/20 Rule: High-Entropy Minority Tokens Drive Effective RL for LLM Reasoning, arXiv 2506.01939 (NeurIPS 2025)",
+    "url": "https://arxiv.org/abs/2506.01939",
+    "direction": "context"
+   },
+   {
+    "claim": "The OPD field already has 2 dedicated survey papers and 2 community-maintained 'awesome list' repos as of mid-2026, with token-weighting/selection explicitly systematized as a named design axis ('gate or weight' variable) in the formula-driven survey's general framework \u2014 token-weighting in OPD is not an open/unclaimed research question in the abstract, only specific untested combinations are.",
+    "source": "A Formula-Driven Survey and Research Agenda for On-Policy Distillation, arXiv 2606.22793",
+    "url": "https://arxiv.org/html/2606.22793",
+    "direction": "context"
+   },
+   {
+    "claim": "Classical Relational Knowledge Distillation (Park et al., CVPR 2019) established pairwise-distance/angle-preserving relational losses as a distillation technique over 6 years before this plan; it is the direct conceptual ancestor of SRA's distance-preserving term and is exactly the invariant ARH says is unreliable post null-calibration, giving the plan a clean citable contrast ('our loss differs from classical RKD/SRA precisely on the axis ARH predicts matters') but also meaning 'relational loss for distillation' per se is old news \u2014 only the ARH-motivated local-identity variant is new.",
+    "source": "Relational Knowledge Distillation, Park et al., CVPR 2019 / arXiv 1904.05068",
+    "url": "https://arxiv.org/abs/1904.05068",
+    "direction": "prior-art"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-token-weighting.md"
+ },
+ {
+  "key": "update-geometry",
+  "summary": "The A3/D \"does OPD/OPRD lock a low-rank subspace\" diagnostic suite is largely already run: On the Geometry of On-Policy Distillation (2606.07082) already measures stable rank, shows OPD's early subspace locking from checkpoint 1, and runs the exact rank-constrained (rank-16) training experiment the plan proposes \u2014 on OPD itself, not an analogue. The Path Not Taken (2511.08567) shows off-principal/low-rank localization is largely model-conditioned and recipe-invariant, and the phenomenon class predates all of this (Gur-Ari et al. 2018, \"Gradient Descent Happens in a Tiny Subspace\"). The only defensible novel slice for OPRD is whether hidden-state-MSE gradients lock a *different* subspace than OPD's KL gradients and whether the subspaces overlap \u2014 nobody has shown that. For OPRD-Bridge/ARH-Bridge: LoRi (2606.05315) already does cross-architecture (LLaMA/Qwen) reasoning-trajectory distillation via shared low-rank subspace with first/second-order statistics; Demystifying Low-Rank KD (2603.22355) gives PRH-agnostic theory for low-rank representation matching; and most damaging, Beyond Output Matching / CKA-QAD (2606.05682) shows a plain CKA/Gram-matrix relational loss (the exact \"PRH-flavored control\" the plan expects to be a weak strawman) already beats output-only matching on reasoning/coding recovery in RL-post-trained models. ARH-Bridge must beat that Gram baseline, not just MSE, to justify local-neighbor-only structure.",
+  "findings": [
+   {
+    "claim": "On the Geometry of On-Policy Distillation (2606.07082) already runs the exact A3/D diagnostic suite (stable rank, early subspace locking from the first checkpoint, rank-16-constrained training) on OPD itself, showing the locked subspace is functionally sufficient for OPD while degrading SFT.",
+    "direction": "refutes-plan",
+    "source": "On the Geometry of On-Policy Distillation, arXiv 2606.07082 (2026)",
+    "url": "https://arxiv.org/abs/2606.07082"
+   },
+   {
+    "claim": "Off-principal, low-curvature RLVR update localization is model-conditioned (Gate II: Model Geometry) and 'largely invariant to datasets and RL recipes,' meaning subspace-locking behavior may be predictable from the base model rather than being a distinguishing property of a given post-training objective.",
+    "direction": "refutes-plan",
+    "source": "The Path Not Taken: RLVR Provably Learns Off the Principals, arXiv 2511.08567 (2025)",
+    "url": "https://arxiv.org/abs/2511.08567"
+   },
+   {
+    "claim": "Gradient descent trajectories collapse into a tiny subspace spanned by top Hessian eigenvectors early in training, a general SGD phenomenon shown across architectures/tasks in 2018, well before any LLM RL-vs-distillation comparison existed.",
+    "direction": "prior-art",
+    "source": "Gradient Descent Happens in a Tiny Subspace, Gur-Ari, Roberts & Dyer, arXiv 1812.04754 (2018)",
+    "url": "https://arxiv.org/abs/1812.04754"
+   },
+   {
+    "claim": "RLVR updates independently confirmed to be low-rank/sparse and to concentrate on directions already present at pretraining rather than introducing new ones, corroborating the SFT-vs-RL spectral asymmetry from a second, independent paper.",
+    "direction": "context",
+    "source": "On Predictability of Reinforcement Learning Dynamics for Large Language Models, arXiv 2510.00553",
+    "url": "https://arxiv.org/pdf/2510.00553"
+   },
+   {
+    "claim": "LoRi already performs cross-architecture (LLaMA/Qwen) reasoning-trajectory distillation by aligning teacher/student hidden states in a shared low-rank subspace using first- and second-order statistics (not raw pointwise MSE), on math reasoning benchmarks similar to the plan's target setting.",
+    "direction": "prior-art",
+    "source": "LoRi: Low-Rank Distillation for Implicit Reasoning, arXiv 2606.05315 (2026)",
+    "url": "https://arxiv.org/abs/2606.05315"
+   },
+   {
+    "claim": "A rigorous convergence/generalization/information-theoretic theory already exists for low-rank projected teacher-student representation matching (built on Low-Rank Clone), independent of the Platonic Representation Hypothesis, weakening PRH's status as the load-bearing justification for OPRD-Bridge's design.",
+    "direction": "refutes-plan",
+    "source": "Demystifying Low-Rank Knowledge Distillation in Large Language Models, arXiv 2603.22355 (2026)",
+    "url": "https://arxiv.org/abs/2603.22355"
+   },
+   {
+    "claim": "Low-Rank Clone (NeurIPS 2025 Spotlight) already trains a low-rank projection to align teacher and student activations for efficient distillation, structurally close to OPRD-Bridge's frozen-PCA-projector-plus-learned-map design, published ~13 months before OPRD; architecture-mismatch handling not independently confirmed here and should be re-checked.",
+    "direction": "prior-art",
+    "source": "A Token is Worth over 1,000 Tokens: Efficient Knowledge Distillation through Low-Rank Clone, arXiv 2505.12781 (2025, NeurIPS 2025 Spotlight)",
+    "url": "https://arxiv.org/abs/2505.12781"
+   },
+   {
+    "claim": "A pre-OPRD paper (Flex-KD) already argues raw pointwise hidden-state MSE matching is the wrong distillation objective because dimension relevance depends on functional contribution to output, not intrinsic position \u2014 a direct predecessor critique of OPRD's core loss design on different (non-ARH) grounds.",
+    "direction": "prior-art",
+    "source": "What Should Feature Distillation Transfer in LLMs? A Task-Tangent Geometry View (Flex-KD), arXiv 2507.10155 (2025)",
+    "url": "https://arxiv.org/abs/2507.10155"
+   },
+   {
+    "claim": "In RL-post-trained LLMs, output-only (KL) distillation measurably degrades layerwise CKA representational similarity to the teacher, and a plain CKA/Gram-matrix relational regularizer (the same global/PRH-flavored measure the plan expects to be a weak strawman control) already recovers downstream reasoning/coding accuracy \u2014 meaning ARH-Bridge's local-neighbor loss must beat this Gram baseline, not just MSE, to justify its added complexity.",
+    "direction": "refutes-plan",
+    "source": "Beyond Output Matching: Preserving Internal Geometry in NVFP4 LLM Distillation, arXiv 2606.05682 (2026)",
+    "url": "https://arxiv.org/abs/2606.05682"
+   },
+   {
+    "claim": "Self-Policy Distillation extracts a low-rank 'capability subspace' from a single model's own gradients and projects KV activations into it during self-generation before fine-tuning \u2014 a tangential but related instance of gradient-derived low-rank subspace constraints being used as an active design pattern in 2026 post-training work.",
+    "direction": "context",
+    "source": "Self-Policy Distillation via Capability-Selective Subspace Projection, arXiv 2605.22675 (2026)",
+    "url": "https://arxiv.org/abs/2605.22675"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-update-geometry.md"
+ },
+ {
+  "key": "opd-landscape",
+  "summary": "Biggest threat: PHF (arXiv 2606.29340) already runs a relational, non-pointwise (transition-geometry/adjacent-layer) hidden-state loss for on-policy self-distillation, gains over pointwise baselines on Qwen3 1.7B/4B/8B \u2014 plan item (B) must be reframed as \"ARH-specific neighbor-identity loss\" and benchmarked against PHF, not just MSE. OISD (2605.29089, pre-dates OPRD by ~1wk) also does on-policy intermediate-layer + attention-map alignment via JS divergence, weakening OPRD's implicit \"first into representation space\" framing. \"Dense Supervision, Sparse Updates\" (2606.13657) already runs rank/subnetwork-constrained OPD training successfully \u2014 largely subsumes (A3/D) unless rescoped to representation-space (not weight-update) stable rank. Position-bias-in-OPD (A1's premise) is a 3-paper-deep established fact \u2014 only the OPD-vs-OPRD comparison is novel. (A2) layer-selectivity and (E) cross-architecture ARH-Bridge appear genuinely open \u2014 no contradicting prior art found. Two independent papers (2604.13016, 2606.09471) show vanilla OPD baselines can underperform for reasons (token-mass concentration, KL-agreement trap) unrelated to OPRD's stated variance/LM-head-bottleneck story \u2014 recommend stronger OPD baseline controls before attributing gains to representation supervision.",
+  "findings": [
+   {
+    "claim": "PHF (arXiv 2606.29340) already aligns 'token-to-token transition directions and trajectory geometry over selected generated positions' plus an 'adjacent-layer relation ... without pointwise hidden-state imitation', invariant to orthogonal transformations \u2014 a relational (non-MSE) hidden-state loss for on-policy self-distillation, tested on Qwen3 1.7B/4B/8B with reported gains.",
+    "direction": "refutes-plan",
+    "source": "PHF: Privileged Hidden Flow for On-Policy Self-Distillation, arXiv 2606.29340 (2026)",
+    "url": "https://arxiv.org/abs/2606.29340"
+   },
+   {
+    "claim": "OISD, dated ~1 week before OPRD, already combines on-policy rollouts (during GRPO) with intermediate-layer supervision using non-pointwise signed advantage-weighted Jensen-Shannon alignment plus attention-map alignment, beating RL baselines on 4 math tasks.",
+    "direction": "refutes-plan",
+    "source": "OISD: On-Policy Internal Self-Distillation of Language Models, arXiv 2605.29089 (2026)",
+    "url": "https://arxiv.org/abs/2605.29089"
+   },
+   {
+    "claim": "OPD parameter updates are already shown to be spectrally concentrated / low-rank, and 'training only the discovered subnetwork nearly recovers full-training performance' \u2014 a rank-constrained-training result for OPD already exists.",
+    "direction": "refutes-plan",
+    "source": "Dense Supervision, Sparse Updates: On the Sparsity and Geometry of On-Policy Distillation, arXiv 2606.13657 (2026)",
+    "url": "https://arxiv.org/abs/2606.13657"
+   },
+   {
+    "claim": "Position bias in output-space OPD (later tokens receive unreliable teacher supervision) is independently documented by at least three 2026 papers (IW-OPD, position-weighted self-distillation, blockwise policy-drift gating), making 'position bias exists in OPD' no longer a novel finding on its own.",
+    "direction": "refutes-plan",
+    "source": "On the Position Bias of On-Policy Distillation (arXiv 2606.22600); When Are Teacher Tokens Reliable? (arXiv 2605.21606); Blockwise Policy-Drift Gating for OPD (arXiv 2606.24084)",
+    "url": "https://arxiv.org/abs/2606.22600"
+   },
+   {
+    "claim": "'Is One Layer Enough?' is confirmed to be an RL-training result (GRPO/GiGPO/Dr.GRPO across 7 models), not an OPD/OPRD distillation result \u2014 no existing paper does OPD/OPRD-specific layer-selectivity, so plan item A2 appears genuinely open.",
+    "direction": "context",
+    "source": "Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training, arXiv 2607.01232 (2026)",
+    "url": "https://arxiv.org/abs/2607.01232"
+   },
+   {
+    "claim": "DEAR already uses hidden-state cosine similarity to identify and up-weight 'evidence' tokens for OPD loss, a mechanism adjacent to plan item (C)'s soft position/trajectory weighting, with reported +2.5pp math / +5.7pp code gains over standard OPD.",
+    "direction": "refutes-plan",
+    "source": "DEAR: Finding the Evidence (token-selection for on-policy distillation via hidden-state similarity), arXiv 2606.22830 (2026)",
+    "url": "https://arxiv.org/abs/2606.22830"
+   },
+   {
+    "claim": "Effective OPD learning already concentrates on a small shared token set holding 97-99% of probability mass, and OPD requires 'compatible thinking patterns' plus genuinely novel teacher capability to succeed \u2014 undercuts a pure 'density is why OPRD wins' framing and suggests OPD baselines may need better tuning before comparison.",
+    "direction": "refutes-plan",
+    "source": "Rethinking On-Policy Distillation of Large Language Models, arXiv 2604.13016 (2026)",
+    "url": "https://arxiv.org/abs/2604.13016"
+   },
+   {
+    "claim": "A separate, independent failure mode of reverse-KL OPD exists \u2014 the 'KL agreement trap' where the teacher locally agrees with an already-degraded student trajectory, producing low reverse KL but no corrective signal \u2014 orthogonal to OPRD's stated sampling-variance/LM-head-bottleneck story; a KAT filtering fix recovers +2.66% avg@k.",
+    "direction": "refutes-plan",
+    "source": "Escaping the KL Agreement Trap in On-Policy Distillation, arXiv 2606.09471 (2026)",
+    "url": "https://arxiv.org/abs/2606.09471"
+   },
+   {
+    "claim": "ARH abstract verified verbatim: global spectral measures (CKA/Procrustes/RV) largely lose cross-model agreement after null-calibration, while local neighborhood similarity (not local distances) survives \u2014 matches the plan's characterization exactly, no exaggeration found.",
+    "direction": "supports-plan",
+    "source": "Revisiting the Platonic Representation Hypothesis: An Aristotelian View, arXiv 2602.14486 (2026)",
+    "url": "https://arxiv.org/abs/2602.14486"
+   },
+   {
+    "claim": "No pre-OPRD or concurrent paper was found that performs cross-architecture (width/depth-mismatched) on-policy representation distillation via a PCA-projector or any relational loss \u2014 OPRD-Bridge's core cross-architecture claim, and plan item (E)'s ARH-Bridge attack on it, both appear to be genuinely unclaimed territory.",
+    "direction": "context",
+    "source": "Search sweep across arXiv/HF/GitHub awesome-lists for cross-architecture on-policy representation distillation, July 2026 \u2014 no contradicting source found; could not verify absence exhaustively",
+    "url": "https://arxiv.org/abs/2606.06021"
+   },
+   {
+    "claim": "Canonical OPD reference (Thinking Machines/Tinker) is reverse-KL, output-space only, with documented failure modes (chat-data forgetting, finite-batch degradation even at zero expected KL) \u2014 none involve hidden-state supervision, supporting that hidden-state OPD is not mainstream applied practice even though academic prior art (OISD/PHF) already exists.",
+    "direction": "context",
+    "source": "On-Policy Distillation, Thinking Machines Lab blog (2026)",
+    "url": "https://thinkingmachines.ai/blog/on-policy-distillation/"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-opd-landscape.md"
+ },
+ {
+  "key": "soft-knn-losses",
+  "summary": "Most load-bearing finding: the ARH paper (2602.14486) itself never proposes or tests local-neighborhood similarity as a TRAINING loss \u2014 it's a post-hoc measurement finding on already-capable, independently-trained models, with k fixed at 10 and no real sensitivity sweep. The plan's B/E components extrapolate a measurement result into a training prescription the source paper doesn't validate. Separately, the two closest working analogues of \"relational, not pointwise\" distillation (RKD for vision, LSP for GNNs) both succeeded by keeping distance/magnitude information, not by discarding it for identity-only/rank-only matching \u2014 so the plan's identity-only design choice lacks direct precedent and should be benchmarked against a distance-preserving relational baseline, not just pointwise MSE and full-Gram MSE. Ordinal-embedding theory says rank-only constraints can determine geometry up to similarity transform only in dense-comparison regimes \u2014 the plan's finite top-k/window is exactly the sparse regime where that's weakest, making k/window a first-order swept hyperparameter, not a fixed choice. The proposed softmax/KL-over-neighbors loss is in the same family as SNNL/InfoNCE, both of which have documented collapse and temperature-sensitivity pathologies \u2014 collapse could hide in student representations even as the loss and alignment metric both look good, so rank/stable-rank diagnostics should extend to representations, not just optimizer updates. CRD (contrastive KD with negatives) is excluded by design but is the strongest adjacent baseline in the literature; the omission needs a stated reason.",
+  "findings": [
+   {
+    "claim": "The ARH paper (Gr\u00f6ger, Wen, Brbi\u0107 2026) uses mutual-kNN/CKNNA purely as a post-hoc measurement metric across independently-trained models; it does not propose or test local-neighborhood similarity as a training loss, and does not claim local-neighborhood convergence implies functional equivalence or sufficiency for capability transfer.",
+    "source": "Revisiting the Platonic Representation Hypothesis: An Aristotelian View, arxiv 2602.14486 (Gr\u00f6ger, Wen, Brbi\u0107, 2026)",
+    "url": "https://arxiv.org/abs/2602.14486",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "ARH's own experiments fix k=10 with minimal systematic k-sensitivity analysis in the main text, and their own limitations section states 'why representations converge in local neighborhoods but not in global geometry remains the key open question.'",
+    "source": "Revisiting the Platonic Representation Hypothesis: An Aristotelian View, arxiv 2602.14486",
+    "url": "https://arxiv.org/html/2602.14486v2",
+    "direction": "context"
+   },
+   {
+    "claim": "Relational Knowledge Distillation (RKD) matches pairwise distances and triplet angles (not identity/rank alone) between teacher and student features and outperforms pointwise feature-matching KD baselines.",
+    "source": "Relational Knowledge Distillation, Park et al., CVPR 2019, arxiv 1904.05068",
+    "url": "https://arxiv.org/abs/1904.05068",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Local Structure Preserving (LSP) distillation for GCNs transfers a distribution of pairwise distances to neighboring nodes (not just neighbor identity) from teacher to student, and this is the standard successful 'local neighborhood' distillation method in the graph domain.",
+    "source": "Distilling Knowledge From Graph Convolutional Networks, Yang et al., CVPR 2020, arxiv 2003.10477",
+    "url": "https://arxiv.org/abs/2003.10477",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Soft Nearest Neighbor Loss (SNNL) \u2014 the direct technical ancestor of the plan's proposed soft local softmax loss \u2014 is temperature-controlled and, counter-intuitively, benefits from MAXIMIZING (not minimizing/locking) local entanglement in hidden layers for generalization, suggesting the direction and layer-placement of a local-structure loss is a nontrivial, non-obvious design choice.",
+    "source": "Analyzing and Improving Representations with the Soft Nearest Neighbor Loss, Frosst, Papernot, Hinton, ICML 2019, arxiv 1902.01889",
+    "url": "https://arxiv.org/abs/1902.01889",
+    "direction": "context"
+   },
+   {
+    "claim": "InfoNCE-family similarity-softmax losses have dimensional/representation collapse as a literal stationary point of the loss (zero gradient for linear embeddings at collapse), driven by augmentation strength and implicit low-rank optimizer bias \u2014 a documented failure mode for the loss family the plan's local-softmax/KL loss belongs to.",
+    "source": "Understanding Dimensional Collapse in Contrastive Self-Supervised Learning, Jing et al., arxiv 2110.09348",
+    "url": "https://arxiv.org/abs/2110.09348",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Ordinal embedding theory shows rank/comparison-only constraints (no distance values) can determine a Euclidean geometry up to similarity transform, but only in the dense, large-sample-of-comparisons regime \u2014 sparse/small-k comparison sets are a classical underdetermined regime with many non-isometric embeddings satisfying the same constraints.",
+    "source": "Some theory for ordinal embedding, Arias-Castro, arxiv 1501.02861",
+    "url": "https://arxiv.org/abs/1501.02861",
+    "direction": "context"
+   },
+   {
+    "claim": "CRD (Contrastive Representation Distillation), using InfoNCE with explicit negatives, is a widely-used strong baseline in feature-KD benchmarks; the plan explicitly excludes this family without an explicit written rationale in the draft.",
+    "source": "Contrastive Representation Distillation, Tian et al., ICLR 2020 (arxiv 1910.10699), referenced via HobbitLong/RepDistiller benchmark repo",
+    "url": "https://github.com/HobbitLong/RepDistiller",
+    "direction": "context"
+   },
+   {
+    "claim": "CKNNA (mutual-kNN based alignment metric from the Platonic Representation Hypothesis paper) reportedly increases monotonically with k, meaning absolute alignment scores are k-dependent even if pairwise rankings across model pairs are more stable \u2014 a methodological risk if training-time k is not swept separately from evaluation-time k.",
+    "source": "The Platonic Representation Hypothesis, Huh et al. 2024, arxiv 2405.07987 (secondary/search-summary only, not verified against primary PDF text in this sweep)",
+    "url": "https://arxiv.org/abs/2405.07987",
+    "direction": "context"
+   },
+   {
+    "claim": "A 2025 survey (Klabunde et al.) and complementary analytical work (Braun et al. 2025) argue that high representational similarity does not imply functional equivalence, and that functional and representational similarity can be decoupled even in controlled (deep linear network) settings.",
+    "source": "Similarity of Neural Network Models: A Survey of Functional and Representational Measures, Klabunde et al., ACM Computing Surveys 2025 (secondary/search-summary only, primary text not fetched in this sweep \u2014 exact Braun et al. arXiv ID not located)",
+    "url": "https://www.researchgate.net/publication/390594678_Similarity_of_Neural_Network_Models_A_Survey_of_Functional_and_Representational_Measures",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Differentiable sorting/soft-rank methods (NeuralSort, SoftSort, optimal-transport ranks) are an established alternative mechanism for enforcing neighbor-order constraints without matching distances, already used as a distillation loss from ranking teachers to pre-ranking students in recommendation systems \u2014 a redundant/adjacent design space the plan should acknowledge.",
+    "source": "Fast Differentiable Sorting and Ranking, Blondel et al., arxiv 2002.08871; PiRank, Swezey et al.",
+    "url": "https://arxiv.org/pdf/2002.08871",
+    "direction": "prior-art"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-soft-knn-losses.md"
+ },
+ {
+  "key": "hidden-state-kd-failures",
+  "summary": "The plan has a real redundancy problem, not just a novelty-polish one. PHF (arXiv 2606.29340) already runs \"relational hidden-state objective vs pointwise MSE\" plus a layer-subset ablation in an adjacent on-policy reasoning-distillation setting (Qwen3 1.7B/4B/8B) and the relational objective already wins by +1.5-2.2pts \u2014 this substantially prefigures plan item (B) and part of A2. \"On the Geometry of On-Policy Distillation\" (2606.07082, already cited by the plan) already builds the stable-rank/early-rank-collapse/rank-constrained-training diagnostic that item A3/D proposes as new. Separately, hard evidence exists that (a) activation-scale mismatch is real and only band-aided by L2-norm (2605.11513: ~3x magnitude gap teacher vs student), (b) all-layer MSE is not obviously better than final/selected-layer matching and adds optimization complexity (Flex-KD, 2507.10155), and (c) hidden-state distillation's edge over well-tuned logit KD is regime-dependent and can vanish entirely. Cheap output-space fixes (top-K local support matching, IW-OPD) already close much of OPD's failure-mode gap on math reasoning and should be baselines before claiming a hidden-state/relational win. One genuine, unclaimed gap: no paper directly measures representation-target staleness for synchronous on-policy hidden-state distillation specifically (as opposed to async rollout-policy staleness, which AsyncOPD covers) \u2014 worth keeping, but the plan should first confirm the concept even applies in a synchronous setup.",
+  "findings": [
+   {
+    "claim": "PHF (Privileged Hidden Flow) already compares a relational hidden-state objective (transition-direction + adjacent-layer trajectory geometry, no pointwise imitation) against pointwise hidden-state matching and against layer-subset choices, in on-policy self-distillation for reasoning on Qwen3-1.7B/4B/8B, with the relational objective winning by +2.2/+1.5/+1.7 Average@12 points.",
+    "source": "PHF: Privileged Hidden Flow for On-Policy Self-Distillation, arXiv:2606.29340 (2026)",
+    "url": "https://arxiv.org/abs/2606.29340",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "On the Geometry of On-Policy Distillation already tracks stable rank over training and documents early rank collapse plus rank-constrained training for OPD \u2014 the core diagnostic apparatus item A3/D proposes to build.",
+    "source": "On the Geometry of On-Policy Distillation, arXiv:2606.07082",
+    "url": "https://arxiv.org/pdf/2606.07082",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Measured activation-scale mismatch between teacher and student hidden states (~3x10^5 vs ~1x10^5 mean squared magnitude) is a real, quantified failure mode in hidden-layer distillation for LLMs, addressed only by an L2-normalization workaround, and single-layer (not all-layer) matching still only marginally/inconsistently beats well-tuned logit-based KD.",
+    "source": "A Study on Hidden Layer Distillation for Large Language Model Pre-Training (Google DeepMind), arXiv:2605.11513",
+    "url": "https://arxiv.org/html/2605.11513v1",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Final-hidden-layer-only distillation (Flex-KD) outperforms multi-layer/all-layer feature matching including CKA-style all-layer approaches, because multi-layer matching adds optimization complexity without proportional gains.",
+    "source": "Task-Based Flexible Feature Distillation for LLMs, arXiv:2507.10155",
+    "url": "https://arxiv.org/html/2507.10155v2",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Cheap output-space fixes for OPD's known failure modes (teacher top-K local support matching; importance-weighted position weighting IW-OPD) already recover large math-reasoning gains (e.g. +19.8% multi-task math score) without touching hidden states, making them necessary baselines before crediting a hidden-state/relational objective with the win.",
+    "source": "Revisiting On-Policy Distillation: Empirical Failure Modes and Simple Fixes, arXiv:2603.25562; On the Position Bias of On-Policy Distillation, arXiv:2606.22600",
+    "url": "https://arxiv.org/html/2603.25562v2",
+    "direction": "refutes-plan"
+   },
+   {
+    "claim": "Independent, differently-motivated work shows the LM head suppresses the large majority of gradient norm during backprop, supporting OPRD's foundational premise that bypassing the LM head via hidden-state supervision is valuable.",
+    "source": "Lost in Backpropagation: The LM Head is a Gradient Bottleneck, arXiv:2603.10145",
+    "url": "https://arxiv.org/html/2603.10145v1",
+    "direction": "supports-plan"
+   },
+   {
+    "claim": "'Is One Layer Enough?' shows RL post-training gains concentrate in a small set of middle transformer layers across many Qwen models/algorithms/domains \u2014 supports the plan's A2 hypothesis by analogy, but is an RL-training result, not a distillation-target result, exactly as the plan's own framing already notes.",
+    "source": "Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training, arXiv:2607.01232",
+    "url": "https://arxiv.org/abs/2607.01232",
+    "direction": "prior-art"
+   },
+   {
+    "claim": "AsyncOPD studies staleness of the rollout policy relative to the learner in asynchronous OPD pipelines (forward KL robust to staleness, reverse KL not) \u2014 a different staleness axis than representation-target staleness under a synchronous schedule; no paper found that directly measures hidden-state-target staleness for OPRD-style synchronous on-policy distillation, which looks like a genuine unclaimed gap.",
+    "source": "AsyncOPD: How Stale Can On-Policy Distillation Be?, arXiv:2606.24143",
+    "url": "https://arxiv.org/pdf/2606.24143",
+    "direction": "context"
+   },
+   {
+    "claim": "Local-neighbor-identity relational distillation (matching which samples are near which, not absolute feature values) has vision-domain precedent (NRKD) constructing teacher similarity matrices for kNN-based neighbor matching within a minibatch, suggesting the general technique (outside LLMs/on-policy/reasoning) is not novel per se; could not verify the paper's actual claims/results due to a paywall (HTTP 403), so treat as unverified context only.",
+    "source": "Neighborhood Relation-Based Knowledge Distillation for Image Classification, Neural Networks 2025 (ScienceDirect)",
+    "url": "https://www.sciencedirect.com/science/article/abs/pii/S0893608025003089",
+    "direction": "context"
+   }
+  ],
+  "file": "/private/tmp/claude-501/-Users-christianyoon-Desktop-Projects-oprd/2d420ba3-9673-4172-82d6-c293bbdb3019/scratchpad/oprd-research/sweep-hidden-state-kd-failures.md"
+ }
+]

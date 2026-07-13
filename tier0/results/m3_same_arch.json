@@ -1,0 +1,73 @@
+{
+ "pair": "same_arch",
+ "n_tokens": 198651,
+ "grading": {
+  "method": "dataset ground_truth vs \\boxed{} extraction",
+  "graded_rollouts": 2,
+  "total": 100
+ },
+ "token_correlations": {
+  "geo0.5_vs_negKL": {
+   "spearman": 0.03806073099844476,
+   "p": 1.3736052195374078e-64,
+   "n": 198651
+  },
+  "geo0.5_vs_top1": {
+   "spearman": -0.0007087713620936273,
+   "p": 0.7520788341760901,
+   "n": 198651
+  },
+  "geo0.5_vs_pos": {
+   "spearman": 0.017600967908887898,
+   "p": 4.3171576702144895e-15,
+   "n": 198651
+  },
+  "geo1.0_vs_negKL": {
+   "spearman": -0.10964194487808687,
+   "p": 0.0,
+   "n": 198651
+  },
+  "geo1.0_vs_top1": {
+   "spearman": -0.057306755034333655,
+   "p": 3.974144480730439e-144,
+   "n": 198651
+  },
+  "geo1.0_vs_pos": {
+   "spearman": 0.0545904483404389,
+   "p": 5.923082419133369e-131,
+   "n": 198651
+  },
+  "KL_vs_pos": {
+   "spearman": -0.008890771886160151,
+   "p": 7.410829605585248e-05,
+   "n": 198651
+  }
+ },
+ "rollout_vs_correctness": {
+  "geo0.5": null,
+  "geo1.0": null,
+  "negKL": null,
+  "top1": null
+ },
+ "region_split": {
+  "geo1.0": {
+   "pre_decision_mean": 0.9339460730552673,
+   "answer_region_mean": 0.945128321647644
+  },
+  "KL": {
+   "pre_decision_mean": 0.30494382977485657,
+   "answer_region_mean": 0.308298796415329
+  }
+ },
+ "logitlens_kl_mean_by_layer": {
+  "7": 10.389582633972168,
+  "14": 9.409713745117188,
+  "21": 5.095975875854492,
+  "28": 0.9811660647392273
+ },
+ "summary": {
+  "functional_tracks": false,
+  "geometric_tracks": false,
+  "verdict": "AMBIGUOUS: neither alignment tracks correctness at this N (low power or ceiling)."
+ }
+}

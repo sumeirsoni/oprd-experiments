@@ -1,0 +1,15 @@
+# large artifacts — regenerable, never commit
+tier0/hidden/
+tier0/t3/
+tier0/logs/
+cluster/logs/
+cluster/runs/
+
+# environments / caches
+.venv/
+__pycache__/
+*.pyc
+.claude/
+
+# OS noise
+.DS_Store

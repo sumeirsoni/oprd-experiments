@@ -1,0 +1,205 @@
+{
+ "pair": "same_arch",
+ "block_layer": 14,
+ "n_params_probed": 46797824,
+ "steps": 30,
+ "oprd_mse": {
+  "mean_pairwise_cosine": 0.6102453470230103,
+  "relative_variance": 0.3893672227859497,
+  "mean_grad_norm": 2.9596855640411377
+ },
+ "opd_ce": {
+  "mean_pairwise_cosine": 0.11374960839748383,
+  "relative_variance": 0.8574491739273071,
+  "mean_grad_norm": 0.3092780113220215
+ },
+ "power_analysis": {
+  "n_problems": 30,
+  "design": "two-sample, 80% power, alpha=.05 two-sided, Avg@16",
+  "table": [
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.0,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 30
+   },
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.0,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 8
+   },
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.2,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 118
+   },
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.2,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 30
+   },
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.5,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 251
+   },
+   {
+    "pass_rate": 0.1,
+    "rho_within_problem": 0.5,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 63
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.0,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 53
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.0,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 14
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.2,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 210
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.2,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 53
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.5,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 445
+   },
+   {
+    "pass_rate": 0.2,
+    "rho_within_problem": 0.5,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 112
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.0,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 69
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.0,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 18
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.2,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 275
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.2,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 69
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.5,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 584
+   },
+   {
+    "pass_rate": 0.3,
+    "rho_within_problem": 0.5,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 146
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.0,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 79
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.0,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 20
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.2,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 314
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.2,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 79
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.5,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 668
+   },
+   {
+    "pass_rate": 0.4,
+    "rho_within_problem": 0.5,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 167
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.0,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 82
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.0,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 21
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.2,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 328
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.2,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 82
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.5,
+    "effect_pts": 1.0,
+    "seeds_per_arm": 695
+   },
+   {
+    "pass_rate": 0.5,
+    "rho_within_problem": 0.5,
+    "effect_pts": 2.0,
+    "seeds_per_arm": 174
+   }
+  ]
+ },
+ "summary": {
+  "verdict": "OPRD gradient variance materially lower than OPD (0.389 vs 0.857 relative variance) - Theorem 1's variance claim holds as used."
+ }
+}

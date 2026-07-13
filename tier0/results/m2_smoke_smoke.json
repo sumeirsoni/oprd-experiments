@@ -1,0 +1,111 @@
+{
+ "pair": "smoke",
+ "layers": {
+  "0.5": {
+   "global_r": {
+    "raw": 0.9948400259017944,
+    "null_mean": 0.08212083291495219,
+    "null_sd": 0.055276447782444796,
+    "calibrated": 0.9127191929868422,
+    "null_ci95": [
+     0.013883731607347728,
+     0.22245539948344215
+    ],
+    "significant": true
+   },
+   "identity_mknn": {
+    "raw": 0.94890625,
+    "null_mean": 0.08287773437500003,
+    "null_sd": 0.05800195021277395,
+    "calibrated": 0.8660285156249999,
+    "null_ci95": [
+     0.026381835937499997,
+     0.22153808593750002
+    ],
+    "significant": true
+   },
+   "local_spearman": {
+    "raw": 0.9564303030303031,
+    "null_mean": 0.1128255412111889,
+    "null_sd": 0.052709203296521304,
+    "calibrated": 0.8436047618191141,
+    "null_ci95": [
+     0.05163136363636363,
+     0.2372162121212121
+    ],
+    "significant": true
+   },
+   "local_nl2": {
+    "raw": 0.02782321348786354,
+    "null_mean": 0.3336810150742531,
+    "null_sd": 0.011628149538833803,
+    "calibrated": -0.30585780158638953,
+    "null_ci95": [
+     0.3010317698121071,
+     0.346916725486517
+    ],
+    "significant": true
+   }
+  },
+  "1.0": {
+   "global_r": {
+    "raw": 0.9801902174949646,
+    "null_mean": 0.060599931951146574,
+    "null_sd": 0.04246255491787363,
+    "calibrated": 0.919590285543818,
+    "null_ci95": [
+     -0.004926259344210848,
+     0.16409258842468258
+    ],
+    "significant": true
+   },
+   "identity_mknn": {
+    "raw": 0.877734375,
+    "null_mean": 0.08746718749999999,
+    "null_sd": 0.06328533641319797,
+    "calibrated": 0.7902671875,
+    "null_ci95": [
+     0.024525390625,
+     0.23902734375
+    ],
+    "significant": true
+   },
+   "local_spearman": {
+    "raw": 0.8769272727272727,
+    "null_mean": 0.1228130909090909,
+    "null_sd": 0.05964958817229141,
+    "calibrated": 0.7541141818181818,
+    "null_ci95": [
+     0.055630909090909085,
+     0.2700278787878787
+    ],
+    "significant": true
+   },
+   "local_nl2": {
+    "raw": 0.0635422021150589,
+    "null_mean": 0.36616849213838576,
+    "null_sd": 0.013117042403674844,
+    "calibrated": -0.30262629002332686,
+    "null_ci95": [
+     0.3373892031610012,
+     0.38130043894052507
+    ],
+    "significant": true
+   }
+  }
+ },
+ "summary": {
+  "calibrated_z_mid_layer": {
+   "global": 16.511899969896618,
+   "identity": 14.931023827941013,
+   "local_distance": 16.00488516338294
+  },
+  "ranking": [
+   "global",
+   "local_distance",
+   "identity"
+  ],
+  "verdict": "local-distance dominates identity (calibrated z: {'global': 16.511899969896618, 'identity': 14.931023827941013, 'local_distance': 16.00488516338294}) - identity-only arm demotes to control; LN-Dist leads.",
+  "note": "block permutation (whole rollouts) as primary null; token-level exchangeability violated per ARH caveat"
+ }
+}

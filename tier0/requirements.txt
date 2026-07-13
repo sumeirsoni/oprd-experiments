@@ -1,0 +1,9 @@
+# versions the Tier 0/3 measurements actually ran with (macOS arm64)
+torch==2.13.0
+transformers==5.2.0
+numpy==2.5.1
+scipy==1.18.0
+safetensors==0.8.0
+# Mac-only generation backend; on CUDA clusters use vLLM instead
+mlx==0.32.0
+mlx-lm==0.31.3
