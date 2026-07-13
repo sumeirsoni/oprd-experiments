@@ -415,7 +415,7 @@ def main():
     res = {"losses": losses}
 
     diag_names = [d for d in a.diagnostics.split(",") if d]
-    if diag_names:
+    if a.track_stable_rank or diag_names:
         with torch.no_grad():
             sp, tp = [], []
             for r, ts in zip(rolls[:20], tstates[:20]):
@@ -425,8 +425,13 @@ def main():
                 sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]):].float().cpu())
                 tp.append(ts[lay_t[-1]][:glen].float())
                 del o
-        res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
-                                         [tok.decode(r["gen_ids"]) for r in rolls[:50]])
+        if diag_names:
+            res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
+                                             [tok.decode(r["gen_ids"]) for r in rolls[:50]])
+        if a.track_stable_rank:
+            X = torch.cat(sp)
+            sv = torch.linalg.svdvals(X - X.mean(0))
+            res["stable_rank_final_layer"] = float((sv**2).sum() / (sv[0]**2).clamp_min(1e-9))
 
     eval_names = [e for e in a.eval.split(",") if e]
     if eval_names:
