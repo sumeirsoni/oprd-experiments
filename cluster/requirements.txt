@@ -1,0 +1,14 @@
+# Linux/CUDA environment for Tier 1-2.
+# Install vLLM FIRST — it pins a compatible torch itself; do not pre-install torch.
+#   pip install vllm
+#   pip install -r requirements.txt
+# Versions are floors, not exact pins: vllm<->torch coupling is release-specific and
+# site CUDA versions differ, so an exact pin set from a Mac would be a guess.
+# (The Mac stack the measurements ran on is tier0/requirements.txt — do NOT use it
+# here; it pins mlx, which does not install on Linux.)
+vllm>=0.8
+transformers>=4.51
+datasets>=3.0
+numpy>=1.26
+scipy>=1.11
+safetensors>=0.4

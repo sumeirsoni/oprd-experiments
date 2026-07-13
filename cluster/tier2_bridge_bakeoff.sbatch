@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=oprd-t2-bridge
 #SBATCH --partition=gpu            # EDIT: your partition
-#SBATCH --gres=gpu:a100:1          # 1x A100-80GB per run (4B teacher frozen + 1.7B student)
+##SBATCH --account=REPLACE_ME     # EDIT: uncomment + set your allocation account
+#SBATCH --gres=gpu:a100:1          # EDIT if your site names GPUs differently (4B teacher + 1.7B student)
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
 #SBATCH --time=16:00:00
@@ -11,9 +12,19 @@
 # Tier 2 — six-arm cross-architecture bridge bake-off (adversarial review §5.7),
 # OPRD-Bridge Table 4 (Qwen3-4B -> Qwen3-1.7B-Base, shared vocab) and Table 6
 # (Phi-4-mini-reasoning -> Qwen3-1.7B-Base, cross-tokenizer) setups, 3 seeds.
-# STATUS: UNTESTED-ON-CLUSTER — written on a Mac, syntax-checked only. See README.
+# STATUS: never submitted to a real queue — smoke one task first (see cluster/README.md).
+# NOTE: with the default SKIP_PAIRS below, 18 of 36 tasks exit immediately (phi pair
+# unsupported), so the as-shipped submission is ~180 GPU-h, not 360.
 
 set -euo pipefail
+
+# ---- EDIT: environment ----------------------------------------------------
+# Compute nodes need python + torch/transformers/datasets/vllm on PATH and
+# (usually) internet or a pre-populated HF cache. Typical setup:
+#   module load cuda python            # your site's module names
+#   source $HOME/oprd-venv/bin/activate
+export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # point at scratch if home quota is small
+# ---------------------------------------------------------------------------
 
 ARMS=(pca_mse linear_map_mse minilmv2_selfrel ln_dist soft_knn_kl cka_gram)
 PAIRS=(qwen3_4b_to_1p7b phi4mini_to_qwen3_1p7b)

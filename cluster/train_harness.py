@@ -1,15 +1,15 @@
 """Shared training harness for Tier 1/2 OPRD experiments.
 
-Implements the full on-policy loop: student rollout generation (vLLM if available,
-transformers fallback), frozen-teacher prefill over student rollouts, seven loss arms,
-AdamW training with token-budgeted gradient accumulation, periodic rollout refresh,
-AIME Avg@N eval, and diagnostics.
+Full on-policy loop: student rollout generation (vLLM in an isolated subprocess on CUDA,
+transformers fallback elsewhere), frozen-teacher prefill over student rollouts, seven loss
+arms, AdamW with token-budgeted gradient accumulation, periodic rollout refresh, AIME Avg@N
+eval, and diagnostics.
 
 Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens only):
   pca_mse           OPRD-Bridge recipe: PCA-project teacher states to student dim
                     (fit on the initial rollout pool), MSE on supervised layers.
   linear_map_mse    TinyBERT-style: learned linear map W: d_s->d_t, MSE in teacher
-                    space; W trained jointly with the student.
+                    space; W trained jointly with the student (saved to wmap_final.pt).
   minilmv2_selfrel  Projector-free: row-wise KL between teacher and student
                     cosine self-relation matrices (softmax over window tokens).
   ln_dist           Local-window top-k distance matching: teacher's top-k neighbor
@@ -20,20 +20,28 @@ Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens
   cka_gram          1 - linear CKA between centered Gram matrices per window.
   pkt_tau           Tier 1: soft_knn_kl with tau as the swept variable.
 
-VERIFICATION STATUS: loss arms + training loop + eval plumbing smoke-tested
-end-to-end on Apple MPS with Qwen2.5-0.5B (see cluster/README.md). The vLLM
-backend and multi-GPU-scale behavior are UNTESTED — smoke-test one task on the
-cluster (--steps 5 --n-prompts 8 --rollout-refresh 0) before submitting arrays.
+vLLM runs as a SUBPROCESS (spawned per generation round): the main process offloads
+teacher/student/optimizer to CPU first, so the engine gets a clean GPU, and engine
+teardown is guaranteed by process exit. Per-request seeds keep Avg@N samples distinct.
 
-Cross-tokenizer pairs (Phi-4-mini -> Qwen) are NOT implemented: token-aligned
-losses are undefined by construction there; the anchor-fingerprint OT bridge is
-a separate stretch arm. The harness exits with a clear error if tokenizers differ.
+VERIFICATION STATUS: loss arms, training loop, refresh, eval plumbing, and --eval-only
+smoke-tested end-to-end on Apple MPS (Qwen2.5-0.5B; hf backend). Loss math, gradient
+flow, KL directions, and token alignment additionally verified by an independent
+adversarial review (2026-07-13). The vLLM worker is written against current vLLM docs
+(TokensPrompt API) but is UNTESTED on CUDA — run the 1-task smoke in cluster/README.md
+(which now includes a rollout-refresh step) before submitting arrays.
+
+Cross-tokenizer pairs (Phi-4-mini -> Qwen) are NOT implemented; the harness exits with
+a clear error if teacher/student vocabs differ (tier2 sbatch skips that pair by default).
 """
 import argparse
 import json
 import math
 import pathlib
 import re
+import shutil
+import subprocess
+import sys
 import time
 
 import numpy as np
@@ -46,6 +54,8 @@ DEV = ("cuda" if torch.cuda.is_available()
 AIME = {"aime24": ("Maxwell-Jia/AIME_2024", "train"),
         "aime25": ("MathArena/aime_2025", "train")}
 INSTR = "\n\nPlease reason step by step, and put your final answer within \\boxed{}."
+RELATIONAL = {"minilmv2_selfrel", "ln_dist", "soft_knn_kl", "pkt_tau", "cka_gram"}
+REL_WINDOW = 512  # relational losses cap the per-rollout window at this many tokens
 
 
 def parse_args():
@@ -69,9 +79,13 @@ def parse_args():
     p.add_argument("--rollout-refresh", type=int, default=100,
                    help="regenerate rollouts from current policy every N optimizer steps; 0 = never")
     p.add_argument("--backend", default="auto", choices=["auto", "vllm", "hf"])
+    p.add_argument("--gpu-mem-util", type=float, default=0.85,
+                   help="vLLM worker gpu_memory_utilization (main process offloads first)")
     p.add_argument("--track-stable-rank", action="store_true")
     p.add_argument("--eval", default="", help="comma list of: aime24,aime25")
     p.add_argument("--eval-avg-at", type=int, default=16)
+    p.add_argument("--eval-only", action="store_true",
+                   help="skip training; load <out>/ckpt_final.pt and run --eval only")
     p.add_argument("--diagnostics", default="", help="comma list of: calibrated_mknn,cka,dist_n")
     p.add_argument("--out", required=True)
     return p.parse_args()
@@ -100,8 +114,9 @@ def extract_boxed(text):
 def norm_ans(a):
     if a is None:
         return None
-    a = str(a).strip().replace(" ", "").replace("\\!", "").rstrip(".0") or "0"
-    return a
+    a = str(a).strip().replace(" ", "").replace("\\!", "")
+    a = re.sub(r"\.0+$", "", a)  # literal trailing .0 / .00 only — NOT rstrip charset
+    return a or "0"
 
 
 def load_prompt_texts(src, n, seed):
@@ -129,55 +144,97 @@ def chat_ids(tok, prompt):
 
 # ---------------------------------------------------------------- generation
 
-def generate_rollouts(student, tok, prompts, max_tokens, seed, backend, out):
-    """Returns list of {prompt_ids, gen_ids}. Samples temp 0.6 / top_p 0.95."""
-    use_vllm = backend == "vllm" or (backend == "auto" and DEV == "cuda")
+def _worker_main(spec_path):
+    """vLLM generation worker: runs in its own process so engine memory/teardown
+    never touches the training process. Reads a JSON spec, writes gen_ids JSON."""
+    spec = json.loads(pathlib.Path(spec_path).read_text())
+    from vllm import LLM, SamplingParams
+    try:
+        from vllm import TokensPrompt
+    except ImportError:
+        from vllm.inputs import TokensPrompt
+    llm = LLM(model=spec["model_dir"], dtype="bfloat16",
+              gpu_memory_utilization=spec["gpu_mem_util"])
+    prompts = [TokensPrompt(prompt_token_ids=p) for p in spec["prompt_ids"]]
+    sps = [SamplingParams(temperature=0.6, top_p=0.95,
+                          max_tokens=spec["max_tokens"], seed=s) for s in spec["seeds"]]
+    outs = llm.generate(prompts, sps)
+    gen = [list(o.outputs[0].token_ids) for o in outs]
+    pathlib.Path(spec["out_json"]).write_text(json.dumps({"gen_ids": gen}))
+
+
+def _move_optimizer(opt, device):
+    for st in opt.state.values():
+        for k, v in st.items():
+            if torch.is_tensor(v):
+                st[k] = v.to(device)
+
+
+def make_generator(student, teacher, opt, tok, a, out):
+    """Returns gen(prompt_texts, seeds) -> [{prompt_ids, gen_ids}].
+    seeds: one int per prompt (drives per-request vLLM seeds / hf global seeding)."""
+    use_vllm = a.backend == "vllm" or (a.backend == "auto" and DEV == "cuda")
     if use_vllm:
         try:
-            from vllm import LLM, SamplingParams
+            import vllm  # noqa: F401
         except ImportError:
             log("vllm not importable, falling back to hf generate", out)
             use_vllm = False
-    if use_vllm:
-        tmp = out / "tmp_policy"
-        student.save_pretrained(tmp, safe_serialization=True)
-        tok.save_pretrained(tmp)
-        llm = LLM(model=str(tmp), dtype="bfloat16", seed=seed, enforce_eager=False)
-        sp = SamplingParams(temperature=0.6, top_p=0.95, max_tokens=max_tokens, seed=seed)
-        pid = [chat_ids(tok, p) for p in prompts]
-        outs = llm.generate(prompt_token_ids=pid, sampling_params=sp)
-        res = [{"prompt_ids": pid[i], "gen_ids": list(o.outputs[0].token_ids)}
-               for i, o in enumerate(outs)]
-        del llm
-        torch.cuda.empty_cache()
+
+    def gen(prompt_texts, seeds):
+        assert len(prompt_texts) == len(seeds)
+        pid = [chat_ids(tok, p) for p in prompt_texts]
+        if use_vllm:
+            tmp = out / "tmp_policy"
+            student.save_pretrained(tmp, safe_serialization=True)
+            tok.save_pretrained(tmp)
+            # free the GPU for the worker: offload everything, restore after
+            student.to("cpu"); teacher.to("cpu"); _move_optimizer(opt, "cpu")
+            torch.cuda.empty_cache()
+            spec = {"model_dir": str(tmp), "prompt_ids": pid, "seeds": list(seeds),
+                    "max_tokens": a.max_tokens, "gpu_mem_util": a.gpu_mem_util,
+                    "out_json": str(out / "worker_out.json")}
+            spec_path = out / "worker_spec.json"
+            spec_path.write_text(json.dumps(spec))
+            log(f"vllm worker: {len(pid)} prompts", out)
+            r = subprocess.run([sys.executable, __file__, "--_worker", str(spec_path)],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+            gen_ids = json.loads((out / "worker_out.json").read_text())["gen_ids"]
+            shutil.rmtree(tmp, ignore_errors=True)
+            (out / "worker_out.json").unlink(missing_ok=True)
+            student.to(DEV); teacher.to(DEV); _move_optimizer(opt, DEV)
+            return [{"prompt_ids": pid[i], "gen_ids": gen_ids[i]} for i in range(len(pid))]
+        # hf fallback (mps/cpu, or --backend hf): slow but exercises the same contract
+        res = []
+        student.eval()
+        with torch.no_grad():
+            for i, p in enumerate(pid):
+                torch.manual_seed(seeds[i])  # per-sample seeding (global RNG drives sampling)
+                ids = torch.tensor([p], device=DEV)
+                seq = student.generate(ids, do_sample=True, temperature=0.6, top_p=0.95,
+                                       max_new_tokens=a.max_tokens,
+                                       pad_token_id=tok.eos_token_id)
+                res.append({"prompt_ids": p, "gen_ids": seq[0, ids.shape[1]:].tolist()})
+                if (i + 1) % 16 == 0:
+                    log(f"  hf-gen {i+1}/{len(pid)}", out)
+        student.train()
         return res
-    # hf fallback: generate from the in-memory student (works on mps/cpu; slow)
-    res = []
-    student.eval()
-    g = torch.Generator(device="cpu").manual_seed(seed)
-    with torch.no_grad():
-        for i, p in enumerate(prompts):
-            ids = torch.tensor([chat_ids(tok, p)], device=DEV)
-            genconf = dict(do_sample=True, temperature=0.6, top_p=0.95,
-                           max_new_tokens=max_tokens, pad_token_id=tok.eos_token_id)
-            seq = student.generate(ids, **genconf)
-            res.append({"prompt_ids": ids[0].tolist(),
-                        "gen_ids": seq[0, ids.shape[1]:].tolist()})
-            if (i + 1) % 16 == 0:
-                log(f"  hf-gen {i+1}/{len(prompts)}", out)
-    student.train()
-    return res
+
+    return gen
 
 
 @torch.no_grad()
 def teacher_prefill(teacher, rollouts, layers, out):
-    """Frozen-teacher hidden states at `layers` over gen-region tokens; fp16 cpu."""
+    """Frozen-teacher hidden states at `layers` over gen-region tokens; bf16 cpu
+    (bf16 not fp16: large-model activation outliers can overflow fp16's range)."""
     states = []
     for i, r in enumerate(rollouts):
         ids = torch.tensor([r["prompt_ids"] + r["gen_ids"]], device=DEV)
         gstart = len(r["prompt_ids"])
         o = teacher(input_ids=ids, output_hidden_states=True, use_cache=False)
-        states.append({li: o.hidden_states[li][0, gstart:].half().cpu() for li in layers})
+        states.append({li: o.hidden_states[li][0, gstart:].bfloat16().cpu() for li in layers})
         del o
         if DEV == "mps":
             torch.mps.empty_cache()
@@ -211,8 +268,8 @@ def cosine_sim(h):
 
 
 def loss_relational(arm, hs, ht, tau, topk):
-    """hs (T,d_s), ht (T,d_t) — window = this rollout's gen region (cap 512 tokens)."""
-    T = min(hs.shape[0], 512)
+    """hs (T,d_s), ht (T,d_t) — window = this rollout's gen region (cap REL_WINDOW)."""
+    T = min(hs.shape[0], REL_WINDOW)
     hs, ht = hs[:T], ht[:T]
     St, Ss = cosine_sim(ht), cosine_sim(hs)
     eye = torch.eye(T, device=hs.device, dtype=torch.bool)
@@ -254,7 +311,7 @@ def compute_loss(arm, s_states, t_states, layers, bases, wmap, tau, topk):
         elif arm == "linear_map_mse":
             per_layer.append(F.mse_loss(wmap[str(li)](hs), ht))
         elif arm == "cka_gram":
-            T = min(hs.shape[0], 512)
+            T = min(hs.shape[0], REL_WINDOW)
             per_layer.append(1 - linear_cka(hs[:T], ht[:T]))
         else:
             per_layer.append(loss_relational(arm, hs, ht, tau, topk))
@@ -263,29 +320,30 @@ def compute_loss(arm, s_states, t_states, layers, bases, wmap, tau, topk):
 
 # ---------------------------------------------------------------- eval / diagnostics
 
-@torch.no_grad()
-def eval_aime(student, tok, names, avg_at, max_tokens, seed, backend, out):
+def eval_aime(gen, tok, names, avg_at, seed, out):
+    """One batched generation call per dataset (per-request seeds keep samples distinct)."""
     from datasets import load_dataset
     results = {}
-    student.eval()
     for name in names:
         repo, split = AIME[name]
         ds = load_dataset(repo, split=split)
         pcol = next(c for c in ["Problem", "problem", "question"] if c in ds.column_names)
         acol = next(c for c in ["Answer", "answer", "solution"] if c in ds.column_names)
+        prompts, seeds = [], []
+        for pi, row in enumerate(ds):
+            prompts += [row[pcol]] * avg_at
+            seeds += [seed * 1_000_000 + pi * 1000 + c for c in range(avg_at)]
+        log(f"eval {name}: generating {len(prompts)} samples ({len(ds)}x{avg_at})", out)
+        rolls = gen(prompts, seeds)
         correct, total = 0, 0
         for pi, row in enumerate(ds):
-            prompts = [row[pcol]] * avg_at
-            rolls = generate_rollouts(student, tok, prompts, max_tokens,
-                                      seed * 1000 + pi, backend, out)
             gt = norm_ans(row[acol])
-            for r in rolls:
-                pred = norm_ans(extract_boxed(tok.decode(r["gen_ids"])))
+            for c in range(avg_at):
+                pred = norm_ans(extract_boxed(tok.decode(rolls[pi * avg_at + c]["gen_ids"])))
                 correct += int(pred is not None and pred == gt)
                 total += 1
-            log(f"  eval {name} problem {pi+1}/{len(ds)}", out)
         results[name] = {"avg_at": avg_at, "accuracy": correct / max(total, 1), "n": total}
-    student.train()
+        log(f"eval {name}: acc={results[name]['accuracy']:.4f}", out)
     return results
 
 
@@ -304,8 +362,7 @@ def diagnostics(names, s_pool, t_pool, rollout_texts):
         d["mknn_k10"] = float(agree.mean())
         d["mknn_null"] = 10 / (n - 1)  # chance level
     if "dist_n" in names:
-        grams = set()
-        tot = 0
+        grams, tot = set(), 0
         for t in rollout_texts:
             w = t.split()
             gs = list(zip(w, w[1:], w[2:], w[3:]))
@@ -333,19 +390,20 @@ def main():
                          "here — this harness supports shared-vocab pairs only (see docstring).")
 
     teacher = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=torch.bfloat16).to(DEV).eval()
-    student = AutoModelForCausalLM.from_pretrained(a.student, dtype=torch.float32).to(DEV)
+    student = AutoModelForCausalLM.from_pretrained(a.student, dtype=torch.float32)
     student.gradient_checkpointing_enable()
     student.config.use_cache = False
-    student.train()
+    student.to(DEV).train()
 
     fracs = [float(f) for f in a.supervised_layer_fracs.split(",")]
     nl_t, nl_s = teacher.config.num_hidden_layers, student.config.num_hidden_layers
-    lay_t = sorted({max(1, round(f * nl_t)) for f in fracs})
-    lay_s = sorted({max(1, round(f * nl_s)) for f in fracs})
-    lmap = dict(zip(lay_s, lay_t))  # student layer -> teacher layer
+    lmap = {}
+    for f in fracs:  # student layer -> teacher layer; first frac wins on rounding collisions
+        ls_ = max(1, round(f * nl_s))
+        lmap.setdefault(ls_, max(1, round(f * nl_t)))
+    lay_s = sorted(lmap)
+    lay_t = sorted(set(lmap.values()))
     log(f"supervised layers student={lay_s} teacher={lay_t}", out)
-
-    prompts = load_prompt_texts(a.prompts, a.n_prompts, a.seed)
 
     wmap = None
     params = list(student.parameters())
@@ -357,90 +415,122 @@ def main():
         params += list(wmap.parameters())
     opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=0.0)
     sched = torch.optim.lr_scheduler.LambdaLR(
-        opt, lambda s: min(1.0, (s + 1) / 10) * 0.5 * (1 + math.cos(math.pi * s / a.steps)))
+        opt, lambda s: min(1.0, (s + 1) / 10) * 0.5 * (1 + math.cos(math.pi * s / max(a.steps, 1))))
 
-    def refresh(step):
-        n_pool = min(len(prompts), max(64, a.batch_tokens // 256))
-        sel = [prompts[i] for i in np.random.default_rng(a.seed + step).permutation(
-            len(prompts))[:n_pool]]
-        log(f"refresh @step {step}: generating {len(sel)} rollouts", out)
-        rolls = generate_rollouts(student, tok, sel, a.max_tokens, a.seed + step, a.backend, out)
-        rolls = [r for r in rolls if len(r["gen_ids"]) >= 8]
-        tstates = teacher_prefill(teacher, rolls, lay_t, out)
-        return rolls, tstates
+    gen = make_generator(student, teacher, opt, tok, a, out)
+    res = {}
 
-    rolls, tstates = refresh(0)
-    bases = None
-    if a.loss == "pca_mse":
-        bases_t = fit_pca(tstates, lay_t, student.config.hidden_size, out)
-        bases = {ls: bases_t[lmap[ls]] for ls in lay_s}  # rekey by student layer
+    if a.eval_only:
+        ckpt = out / "ckpt_final.pt"
+        st = torch.load(ckpt, map_location="cpu")
+        student.load_state_dict({k: v.to(torch.float32) for k, v in st.items()})
+        if (out / "results.json").exists():  # merge, don't clobber the training results
+            res = json.loads((out / "results.json").read_text())
+        log(f"eval-only: loaded {ckpt}", out)
+    else:
+        prompts = load_prompt_texts(a.prompts, a.n_prompts, a.seed)
 
-    losses, ri = [], 0
-    for step in range(a.steps):
-        if a.rollout_refresh and step and step % a.rollout_refresh == 0:
-            rolls, tstates = refresh(step)
-            ri = 0
-        opt.zero_grad(set_to_none=True)
-        toks_done, batch_losses = 0, []
-        while toks_done < a.batch_tokens:
-            r, ts = rolls[ri % len(rolls)], tstates[ri % len(rolls)]
-            ri += 1
-            glen = min(len(r["gen_ids"]), a.max_tokens)
-            ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
-            gstart = len(r["prompt_ids"])
-            o = student(input_ids=ids, output_hidden_states=True)
-            s_states = {ls: o.hidden_states[ls][0, gstart:gstart + glen].float() for ls in lay_s}
-            t_states = {lmap[ls]: ts[lmap[ls]][:glen] for ls in lay_s}
-            loss = compute_loss(a.loss, s_states,
-                                {ls: t_states[lmap[ls]] for ls in lay_s},
-                                lay_s, bases, wmap, a.tau, a.topk)
-            (loss * glen / a.batch_tokens).backward()
-            batch_losses.append(float(loss.item()))
-            toks_done += glen
-            del o
-            if DEV == "mps":
-                torch.mps.empty_cache()
-        torch.nn.utils.clip_grad_norm_(params, 1.0)
-        opt.step()
-        sched.step()
-        losses.append(float(np.mean(batch_losses)))
-        if (step + 1) % 10 == 0 or step == 0:
-            log(f"step {step+1}/{a.steps} loss={losses[-1]:.5f} lr={sched.get_last_lr()[0]:.2e}", out)
-        if (step + 1) % 100 == 0:
-            torch.save({k: v.to(torch.bfloat16).cpu() for k, v in student.state_dict().items()},
-                       out / "ckpt_last.pt")
+        def refresh(step):
+            n_pool = min(len(prompts), max(64, a.batch_tokens // 256))
+            rng = np.random.default_rng(a.seed + step)
+            sel = [prompts[i] for i in rng.permutation(len(prompts))[:n_pool]]
+            seeds = [a.seed * 1_000_000 + step * 1000 + i for i in range(len(sel))]
+            log(f"refresh @step {step}: generating {len(sel)} rollouts", out)
+            rolls = gen(sel, seeds)
+            rolls = [r for r in rolls if len(r["gen_ids"]) >= 8]
+            if not rolls:
+                return None, None  # caller keeps the previous pool
+            tstates = teacher_prefill(teacher, rolls, lay_t, out)
+            return rolls, tstates
 
-    torch.save({k: v.to(torch.bfloat16).cpu() for k, v in student.state_dict().items()},
-               out / "ckpt_final.pt")
-    res = {"losses": losses}
+        rolls, tstates = refresh(0)
+        if not rolls:
+            raise SystemExit("initial rollout pool is empty (all generations < 8 tokens)")
+        bases = None
+        if a.loss == "pca_mse":
+            bases_t = fit_pca(tstates, lay_t, student.config.hidden_size, out)
+            bases = {ls: bases_t[lmap[ls]] for ls in lay_s}  # rekey by student layer
 
-    diag_names = [d for d in a.diagnostics.split(",") if d]
-    if a.track_stable_rank or diag_names:
-        with torch.no_grad():
-            sp, tp = [], []
-            for r, ts in zip(rolls[:20], tstates[:20]):
+        losses, ri = [], 0
+        for step in range(a.steps):
+            if a.rollout_refresh and step and step % a.rollout_refresh == 0:
+                new_rolls, new_tstates = refresh(step)
+                if new_rolls is None:
+                    log(f"refresh @step {step}: pool empty, keeping previous rollouts", out)
+                else:
+                    rolls, tstates, ri = new_rolls, new_tstates, 0
+            opt.zero_grad(set_to_none=True)
+            toks_done, batch_losses = 0, []
+            while toks_done < a.batch_tokens:
+                r, ts = rolls[ri % len(rolls)], tstates[ri % len(rolls)]
+                ri += 1
                 glen = min(len(r["gen_ids"]), a.max_tokens)
                 ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
+                gstart = len(r["prompt_ids"])
                 o = student(input_ids=ids, output_hidden_states=True)
-                sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]):].float().cpu())
-                tp.append(ts[lay_t[-1]][:glen].float())
+                s_states = {ls: o.hidden_states[ls][0, gstart:gstart + glen].float()
+                            for ls in lay_s}
+                t_states = {ls: ts[lmap[ls]][:glen] for ls in lay_s}
+                loss = compute_loss(a.loss, s_states, t_states, lay_s, bases, wmap,
+                                    a.tau, a.topk)
+                # weight by tokens the loss actually saw, clipped to the remaining budget
+                eff = min(glen, REL_WINDOW) if a.loss in RELATIONAL else glen
+                w = min(eff, a.batch_tokens - toks_done) / a.batch_tokens
+                (loss * w).backward()
+                batch_losses.append(float(loss.item()))
+                toks_done += eff
                 del o
-        if diag_names:
-            res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
-                                             [tok.decode(r["gen_ids"]) for r in rolls[:50]])
-        if a.track_stable_rank:
-            X = torch.cat(sp)
-            sv = torch.linalg.svdvals(X - X.mean(0))
-            res["stable_rank_final_layer"] = float((sv**2).sum() / (sv[0]**2).clamp_min(1e-9))
+                if DEV == "mps":
+                    torch.mps.empty_cache()
+            torch.nn.utils.clip_grad_norm_(params, 1.0)
+            opt.step()
+            sched.step()
+            losses.append(float(np.mean(batch_losses)))
+            if (step + 1) % 10 == 0 or step == 0:
+                log(f"step {step+1}/{a.steps} loss={losses[-1]:.5f} "
+                    f"lr={sched.get_last_lr()[0]:.2e}", out)
+            if (step + 1) % 100 == 0:
+                torch.save({k: v.to(torch.bfloat16).cpu()
+                            for k, v in student.state_dict().items()}, out / "ckpt_last.pt")
+
+        torch.save({k: v.to(torch.bfloat16).cpu() for k, v in student.state_dict().items()},
+                   out / "ckpt_final.pt")
+        if wmap is not None:
+            torch.save(wmap.state_dict(), out / "wmap_final.pt")
+        res["losses"] = losses
+
+        diag_names = [d for d in a.diagnostics.split(",") if d]
+        if a.track_stable_rank or diag_names:
+            with torch.no_grad():
+                sp, tp = [], []
+                for r, ts in zip(rolls[:20], tstates[:20]):
+                    glen = min(len(r["gen_ids"]), a.max_tokens)
+                    ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
+                    o = student(input_ids=ids, output_hidden_states=True)
+                    sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]):].float().cpu())
+                    tp.append(ts[lay_t[-1]][:glen].float())
+                    del o
+            if diag_names:
+                res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
+                                                 [tok.decode(r["gen_ids"]) for r in rolls[:50]])
+            if a.track_stable_rank:
+                X = torch.cat(sp)
+                sv = torch.linalg.svdvals(X - X.mean(0))
+                res["stable_rank_final_layer"] = float((sv**2).sum() / (sv[0]**2).clamp_min(1e-9))
+
+        # persist training results BEFORE eval so a walltime kill during eval loses only eval
+        (out / "results.json").write_text(json.dumps(res, indent=1))
 
     eval_names = [e for e in a.eval.split(",") if e]
     if eval_names:
-        res["eval"] = eval_aime(student, tok, eval_names, a.eval_avg_at,
-                                a.max_tokens, a.seed, a.backend, out)
-
-    (out / "results.json").write_text(json.dumps(res, indent=1))
+        student.eval()
+        res["eval"] = eval_aime(gen, tok, eval_names, a.eval_avg_at, a.seed, out)
+        (out / "results.json").write_text(json.dumps(res, indent=1))
     log(f"DONE -> {out}/results.json", out)
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--_worker":
+        _worker_main(sys.argv[2])
+    else:
+        main()

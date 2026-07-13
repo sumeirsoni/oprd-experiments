@@ -23,41 +23,41 @@ including deviations), [`evidence/`](evidence/) (paper digests).
 Full detail in [`cluster/README.md`](cluster/README.md). Short version:
 
 ```bash
-# 1. clone + enter
+# 1. clone + enter (put the clone — or at least cluster/runs/ — on SCRATCH: ~7-10GB/task)
 git clone <this-repo> && cd <repo>/cluster
 
-# 2. point the sbatch headers at your allocation (2 lines per file)
-#    edit in tier1_tau_sweep.sbatch and tier2_bridge_bakeoff.sbatch:
-#      #SBATCH --partition=<your gpu partition>
-#      ##SBATCH --account=<your account>        <- uncomment + fill
-#    and adjust `module load cuda python` to the site's module names
+# 2. env: pip install vllm first (it pins its own torch), then
+pip install -r requirements.txt        # cluster/requirements.txt — NOT tier0's (that's the Mac stack)
 
-# 3. env: python 3.12 + torch/transformers/datasets/numpy/scipy (+ vllm for fast
-#    generation; harness falls back to hf generate without it)
+# 3. edit the marked blocks in BOTH sbatch files:
+#    - "#SBATCH --partition" and the commented "--account" line
+#    - the "EDIT: environment" block (your module loads / venv activation;
+#      point HF_HOME at scratch — models+datasets download at job runtime)
 
-# 4. smoke-test ONE task before submitting arrays (harness is fully implemented —
-#    all 7 loss arms smoke-tested end-to-end on a Mac; vLLM/CUDA paths untested)
-python train_harness.py --loss pkt_tau --tau 0.1 --steps 5 --n-prompts 8 \
+# 4. smoke-test ONE task before submitting arrays — this exact command, it exercises
+#    the vLLM-after-optimizer path and eval-sample diversity that a shorter smoke misses:
+python train_harness.py --loss pkt_tau --tau 0.1 --steps 8 --n-prompts 8 \
   --teacher hbx/JustRL-DeepSeek-1.5B --student deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
   --prompts BytedTsinghua-SIA/DAPO-Math-17k --supervised-layer-fracs 0.25,0.5 \
-  --batch-tokens 2048 --rollout-refresh 0 --seed 0 --out runs/smoke
+  --batch-tokens 2048 --max-tokens 512 --rollout-refresh 5 --seed 0 \
+  --eval aime24 --eval-avg-at 2 --out runs/smoke
 
 # 5. submit
 mkdir -p logs runs
-sbatch tier1_tau_sweep.sbatch          # 24 tasks, ~96 GPU-h total
-sbatch tier2_bridge_bakeoff.sbatch     # 36 tasks, ~360 GPU-h total
+sbatch tier1_tau_sweep.sbatch          # 24 tasks, ~96 GPU-h
+sbatch tier2_bridge_bakeoff.sbatch     # 18 real tasks as shipped (phi pair auto-skips), ~180 GPU-h
 ```
 
 **The sbatch defaults already encode the Tier 0/3 verdicts** (supervised layer band 0.25–0.5,
-identity-only as control). The verdict→knob mapping is a table in `cluster/README.md`.
-Everything in `cluster/` is marked **UNTESTED-ON-CLUSTER** — written on a Mac, syntax-checked,
-never submitted. Budget ~450 A100-hours for the full matrix; halve by running Tier 2 at 2 seeds
-and topping up winners (seed budget per the M4 power table in `tier0-results.md`).
+identity-only as control). The verdict→knob mapping, environment details, disk/walltime notes,
+and what is verified vs. untested (vLLM/CUDA/Slurm paths can only be validated by the step-4
+smoke) are all in `cluster/README.md`. Total as shipped ≈ **280 A100-hours**; halving and
+top-up strategies are documented there.
 
 ## Repo map
 
 ```
-cluster/            Slurm scripts + harness stub for Tier 1–2  <- partner starts here
+cluster/            Slurm scripts + fully implemented training harness  <- partner starts here
 tier0-results.md    Tier 0 verdicts (go/no-go table on top)
 tier3-results.md    Tier 3 causal results + layer-ablation addendum
 tier0/scripts/      full measurement + training pipeline (Mac/MPS; reusable pieces for CUDA)
