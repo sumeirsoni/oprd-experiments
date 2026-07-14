@@ -26,7 +26,7 @@ set -euo pipefail
 export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # point at scratch if home quota is small
 # ---------------------------------------------------------------------------
 
-ARMS=(pca_mse linear_map_mse minilmv2_selfrel ln_dist soft_knn_kl cka_gram)
+ARMS=(oprd_bridge linear_map_mse minilmv2_selfrel ln_dist soft_knn_kl cka_gram)
 PAIRS=(qwen3_4b_to_1p7b phi4mini_to_qwen3_1p7b)
 SEEDS=(0 1 2)
 i=$SLURM_ARRAY_TASK_ID

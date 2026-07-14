@@ -66,6 +66,20 @@ array range. To enable later (after the bridge exists): `SKIP_PAIRS= sbatch tier
 - `tier2_bridge_bakeoff.sbatch` — 36 tasks (6 arms × 2 pairs × 3 seeds); 18 run as shipped
   (phi pair auto-skipped), 2000 steps each.
 - `train_harness.py` — the full shared training harness (all arms implemented).
+
+### Bridge procedure (per-arm answer to "does tier 2 follow the paper's two-phase recipe?")
+
+- `oprd_bridge` — **yes, faithfully**: Stage 1 fits the rank-8 teacher PCA and the student-side
+  linear projector with **both backbones frozen** (paper Eq. 12–13; we solve the convex Stage-1
+  objective in closed form instead of the paper's 20-epoch AdamW — exact optimum, same procedure),
+  then freezes the bridge permanently; Stage 2 distills L2-normalized projections (Eq. 14).
+  `--bridge-rank` (default 8) exposes the paper's r.
+- `linear_map_mse` — **deliberately not**: joint map+student training IS the TinyBERT convention
+  this arm represents; comparing it against `oprd_bridge` is exactly the frozen-vs-joint bridge
+  question. It is warm-started by frozen-backbone least squares so a failure reflects joint
+  training, not random initialization.
+- the other five arms are **projector-free by construction** (dimension-free losses) — there is
+  no bridge to warm up; that's their design point.
 - `requirements.txt` — Linux/CUDA dependency floors.
 
 ## How the ACTUAL Tier-0/3 verdicts (../tier0-results.md, ../tier3-results.md) set the knobs

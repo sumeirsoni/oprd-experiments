@@ -6,10 +6,18 @@ arms, AdamW with token-budgeted gradient accumulation, periodic rollout refresh,
 eval, and diagnostics.
 
 Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens only):
-  pca_mse           OPRD-Bridge recipe: PCA-project teacher states to student dim
-                    (fit on the initial rollout pool), MSE on supervised layers.
-  linear_map_mse    TinyBERT-style: learned linear map W: d_s->d_t, MSE in teacher
-                    space; W trained jointly with the student (saved to wmap_final.pt).
+  oprd_bridge       OPRD-Bridge paper recipe, faithful two-phase (digest §1.3):
+                    Stage 1 with BOTH backbones frozen — P_T = top-r teacher-covariance
+                    PCA (r = --bridge-rank, paper default 8), P_S = linear map fit by
+                    closed-form least squares (exact optimum of the paper's convex
+                    Stage-1 objective); everything then frozen. Stage 2: per-token L2
+                    distance between L2-normalized projections, student-only gradients.
+  linear_map_mse    TinyBERT-style CONTRAST arm: full-rank map W: d_s->d_t, MSE in
+                    teacher space, W trained JOINTLY with the student (the convention
+                    that distinguishes it from oprd_bridge's frozen bridge). Warm-started
+                    by closed-form least squares with both backbones frozen, so a failure
+                    is attributable to joint training, not random init. Saved to
+                    wmap_final.pt.
   minilmv2_selfrel  Projector-free: row-wise KL between teacher and student
                     cosine self-relation matrices (softmax over window tokens).
   ln_dist           Local-window top-k distance matching: teacher's top-k neighbor
@@ -61,8 +69,10 @@ REL_WINDOW = 512  # relational losses cap the per-rollout window at this many to
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--loss", required=True,
-                   choices=["pca_mse", "linear_map_mse", "minilmv2_selfrel",
+                   choices=["oprd_bridge", "linear_map_mse", "minilmv2_selfrel",
                             "ln_dist", "soft_knn_kl", "cka_gram", "pkt_tau"])
+    p.add_argument("--bridge-rank", type=int, default=8,
+                   help="oprd_bridge: rank r of the frozen PCA/projector bridge (paper default 8)")
     p.add_argument("--tau", type=float, default=1.0)
     p.add_argument("--topk", type=int, default=10)
     p.add_argument("--teacher", required=True)
@@ -245,21 +255,64 @@ def teacher_prefill(teacher, rollouts, layers, out):
 
 # ---------------------------------------------------------------- loss arms
 
-def fit_pca(states, layers, d_s, out):
-    """Per-layer PCA basis mapping teacher dim -> student dim, fit on ≤50k pooled tokens."""
-    bases = {}
-    for li in layers:
-        pool = torch.cat([s[li] for s in states]).float()
-        if pool.shape[0] > 50000:
-            pool = pool[torch.randperm(pool.shape[0])[:50000]]
-        mu = pool.mean(0)
-        _, _, V = torch.linalg.svd(pool - mu, full_matrices=False)
-        Vd = V[:d_s]
-        if Vd.shape[0] < d_s:  # pool rank < student dim: only possible in tiny smoke runs
-            Vd = torch.cat([Vd, torch.zeros(d_s - Vd.shape[0], Vd.shape[1])])
-        bases[li] = (mu.to(DEV), Vd.T.to(DEV))  # (d_t,), (d_t, d_s)
-    log(f"pca fit on {len(layers)} layers", out)
-    return bases
+@torch.no_grad()
+def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=16384):
+    """Frozen-student prefill over the initial rollout pool, aligned token-for-token with
+    the already-computed teacher states. Returns (S, T): dicts keyed by student layer,
+    S[ls] (N,d_s) / T[ls] (N,d_t) float32 cpu, N ≤ cap. Used only for Stage-1 bridge
+    fitting / projector init — both backbones frozen (paper Eq. 12-13 procedure)."""
+    S = {ls: [] for ls in lay_s}
+    T = {ls: [] for ls in lay_s}
+    n = 0
+    student.eval()
+    for r, ts in zip(rolls, tstates):
+        glen = min(len(r["gen_ids"]), max_tok)
+        ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
+        gstart = len(r["prompt_ids"])
+        o = student(input_ids=ids, output_hidden_states=True)
+        for ls in lay_s:
+            S[ls].append(o.hidden_states[ls][0, gstart:gstart + glen].float().cpu())
+            T[ls].append(ts[lmap[ls]][:glen].float())
+        del o
+        if DEV == "mps":
+            torch.mps.empty_cache()
+        n += glen
+        if n >= cap:
+            break
+    student.train()
+    log(f"stage-1 pool: {n} tokens over {len(lay_s)} layers", out)
+    return ({ls: torch.cat(v)[:cap] for ls, v in S.items()},
+            {ls: torch.cat(v)[:cap] for ls, v in T.items()})
+
+
+def fit_bridge(S, T, rank, out):
+    """OPRD-Bridge Stage 1 (both backbones frozen, then everything frozen):
+    P_T = top-r principal directions of the teacher covariance (paper Eq. 12);
+    P_S = linear map minimizing ||P_S h_S - P_T (h_T - mu)||^2 (paper Eq. 13) —
+    solved in closed form by least squares (exact optimum of the paper's convex
+    Stage-1 objective, in place of its 20-epoch AdamW loop)."""
+    bridge = {}
+    for ls in S:
+        Ht, Hs = T[ls].double(), S[ls].double()
+        mu = Ht.mean(0)
+        C = (Ht - mu).T @ (Ht - mu) / max(Ht.shape[0] - 1, 1)
+        evals, evecs = torch.linalg.eigh(C)
+        P_T = evecs[:, -rank:].flip(-1).T.contiguous()          # (r, d_t)
+        Y = (Ht - mu) @ P_T.T                                   # (N, r)
+        P_S = torch.linalg.lstsq(Hs, Y).solution.T.contiguous()  # (r, d_s)
+        resid = ((Hs @ P_S.T - Y) ** 2).mean().sqrt()
+        bridge[ls] = (mu.float().to(DEV), P_T.float().to(DEV), P_S.float().to(DEV))
+        log(f"bridge layer {ls}: r={rank}, stage-1 rms residual {resid:.4f}", out)
+    return bridge
+
+
+def init_linear_map(wmap, S, T, out):
+    """Closed-form least-squares warm start for the TinyBERT-style map (removes the
+    random-init failure mode; joint training afterwards is the arm's defining choice)."""
+    for ls in S:
+        W = torch.linalg.lstsq(S[ls].double(), T[ls].double()).solution.T  # (d_t, d_s)
+        wmap[str(ls)].weight.data.copy_(W.float().to(DEV))
+    log("linear_map warm-started via least squares (both backbones frozen)", out)
 
 
 def cosine_sim(h):
@@ -300,14 +353,16 @@ def linear_cka(X, Y):
     return xy / ((X.T @ X).norm() * (Y.T @ Y).norm()).clamp_min(1e-9)
 
 
-def compute_loss(arm, s_states, t_states, layers, bases, wmap, tau, topk):
+def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
     per_layer = []
     for li in layers:
         hs = s_states[li]
         ht = t_states[li].to(hs.device).float()
-        if arm == "pca_mse":
-            mu, P = bases[li]
-            per_layer.append(F.mse_loss(hs, (ht - mu) @ P))
+        if arm == "oprd_bridge":
+            mu, P_T, P_S = bridge[li]
+            a = F.normalize(hs @ P_S.T, dim=-1)          # paper Eq. 14: L2-normalized
+            b = F.normalize((ht - mu) @ P_T.T, dim=-1)   # projections, frozen bridge
+            per_layer.append((a - b).norm(dim=-1).mean())
         elif arm == "linear_map_mse":
             per_layer.append(F.mse_loss(wmap[str(li)](hs), ht))
         elif arm == "cka_gram":
@@ -446,10 +501,16 @@ def main():
         rolls, tstates = refresh(0)
         if not rolls:
             raise SystemExit("initial rollout pool is empty (all generations < 8 tokens)")
-        bases = None
-        if a.loss == "pca_mse":
-            bases_t = fit_pca(tstates, lay_t, student.config.hidden_size, out)
-            bases = {ls: bases_t[lmap[ls]] for ls in lay_s}  # rekey by student layer
+        bridge = None
+        if a.loss in ("oprd_bridge", "linear_map_mse"):
+            # Stage 1 (paper procedure): both backbones frozen, fit/init the projector(s)
+            S_pool, T_pool = collect_pool_states(student, rolls, tstates, lay_s, lmap,
+                                                 a.max_tokens, out)
+            if a.loss == "oprd_bridge":
+                bridge = fit_bridge(S_pool, T_pool, a.bridge_rank, out)  # then frozen forever
+            else:
+                init_linear_map(wmap, S_pool, T_pool, out)  # warm start; trains jointly after
+            del S_pool, T_pool
 
         losses, ri = [], 0
         for step in range(a.steps):
@@ -471,7 +532,7 @@ def main():
                 s_states = {ls: o.hidden_states[ls][0, gstart:gstart + glen].float()
                             for ls in lay_s}
                 t_states = {ls: ts[lmap[ls]][:glen] for ls in lay_s}
-                loss = compute_loss(a.loss, s_states, t_states, lay_s, bases, wmap,
+                loss = compute_loss(a.loss, s_states, t_states, lay_s, bridge, wmap,
                                     a.tau, a.topk)
                 # weight by tokens the loss actually saw, clipped to the remaining budget
                 eff = min(glen, REL_WINDOW) if a.loss in RELATIONAL else glen
