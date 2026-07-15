@@ -1,0 +1,10 @@
+[23:41:11] harness: loss=soft_knn_kl device=cuda
+[23:41:16] supervised layers student=[7, 14] teacher=[9, 18]
+[23:42:50] refresh @step 0: generating 64 rollouts
+[23:43:24] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s0/tmp_policy
+[23:45:01]   teacher prefill 25/64
+[23:45:02]   teacher prefill 50/64
+[23:45:11] step 1/2000 loss=0.00102 lr=2.00e-06
+[23:46:32] step 10/2000 loss=0.00040 lr=1.00e-05
+[23:48:02] step 20/2000 loss=0.00031 lr=1.00e-05
+[23:49:31] step 30/2000 loss=0.00026 lr=9.99e-06

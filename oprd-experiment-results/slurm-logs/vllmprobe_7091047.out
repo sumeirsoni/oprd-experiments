@@ -1,0 +1,42 @@
+------------------------- /opt/local/stow/.modulefiles -------------------------
+ffmpeg/6.1  ffmpeg/7.1  
+ffmpeg/6.1       libpng/1.5.30      Python3/3.9.19      SDL2/2.30.1          
+ffmpeg/7.1       LibRaw/0.21.2      Python3/3.10.4      sqlite/3.45.3        
+=== try import vllm as-is ===
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libavutil.so.57: cannot open shared object file: No such file or directory
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core5.so
+
+FFmpeg version 4:
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1503, in load_library
+    ctypes.CDLL(path)
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libavutil.so.56: cannot open shared object file: No such file or directory
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core4.so
+[end of libtorchcodec loading traceback].
+=== uninstall torchcodec and retry ===
+Found existing installation: torchcodec 0.14.0
+Uninstalling torchcodec-0.14.0:
+  Successfully uninstalled torchcodec-0.14.0
+vllm ok after uninstall
+=== which ffmpeg ===
+which: no ffmpeg in (/cmlscratch/ssoni11/oprd-experiments/venv/bin:/opt/local/stow/Python3-3.12.3/bin:/usr/share/Modules/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin)

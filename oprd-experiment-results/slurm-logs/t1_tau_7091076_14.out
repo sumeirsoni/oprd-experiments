@@ -1,0 +1,82 @@
+[19:07:22] harness: loss=pkt_tau device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 12813.09it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  26%|██▌       | 88/339 [00:00<00:00, 817.70it/s]Loading weights:  65%|██████▌   | 222/339 [00:00<00:00, 1088.38it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 1168.33it/s]
+[19:07:29] supervised layers student=[7, 14] teacher=[7, 14]
+[19:09:04] refresh @step 0: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:33<00:00, 33.75s/it]Writing model shards: 100%|██████████| 1/1 [00:33<00:00, 33.75s/it]
+[19:09:43] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau2.0_s1/tmp_policy
+[19:11:10]   teacher prefill 25/64
+[19:11:10]   teacher prefill 50/64
+[19:11:25] step 1/500 loss=0.00002 lr=2.00e-06
+[19:13:29] step 10/500 loss=0.00001 lr=9.99e-06
+[19:15:46] step 20/500 loss=0.00000 lr=9.96e-06
+[19:18:04] step 30/500 loss=0.00000 lr=9.91e-06
+[19:20:22] step 40/500 loss=0.00000 lr=9.84e-06
+[19:22:39] step 50/500 loss=0.00000 lr=9.76e-06
+[19:24:56] step 60/500 loss=0.00000 lr=9.65e-06
+[19:27:14] step 70/500 loss=0.00000 lr=9.52e-06
+[19:29:31] step 80/500 loss=0.00000 lr=9.38e-06
+[19:31:49] step 90/500 loss=0.00000 lr=9.22e-06
+[19:34:06] step 100/500 loss=0.00000 lr=9.05e-06
+[19:34:18] refresh @step 100: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.91s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.91s/it]
+[19:34:39] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau2.0_s1/tmp_policy
+[19:35:51]   teacher prefill 25/64
+[19:35:51]   teacher prefill 50/64
+[19:38:08] step 110/500 loss=0.00000 lr=8.85e-06
+[19:40:25] step 120/500 loss=0.00000 lr=8.64e-06
+[19:42:42] step 130/500 loss=0.00000 lr=8.42e-06
+[19:44:59] step 140/500 loss=0.00000 lr=8.19e-06
+[19:47:16] step 150/500 loss=0.00000 lr=7.94e-06
+[19:49:33] step 160/500 loss=0.00000 lr=7.68e-06
+[19:51:50] step 170/500 loss=0.00000 lr=7.41e-06
+[19:54:07] step 180/500 loss=0.00000 lr=7.13e-06
+[19:56:24] step 190/500 loss=0.00000 lr=6.84e-06
+[19:58:41] step 200/500 loss=0.00000 lr=6.55e-06
+[19:58:49] refresh @step 200: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:23<00:00, 23.93s/it]Writing model shards: 100%|██████████| 1/1 [00:23<00:00, 23.93s/it]
+[19:59:18] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau2.0_s1/tmp_policy
+[20:00:42]   teacher prefill 25/64
+[20:00:42]   teacher prefill 50/64
+[20:02:58] step 210/500 loss=0.00000 lr=6.24e-06
+[20:05:15] step 220/500 loss=0.00000 lr=5.94e-06
+[20:07:31] step 230/500 loss=0.00000 lr=5.63e-06
+[20:09:47] step 240/500 loss=0.00000 lr=5.31e-06
+[20:12:03] step 250/500 loss=0.00000 lr=5.00e-06
+[20:14:19] step 260/500 loss=0.00000 lr=4.69e-06
+[20:16:35] step 270/500 loss=0.00000 lr=4.37e-06
+[20:18:51] step 280/500 loss=0.00000 lr=4.06e-06
+[20:21:07] step 290/500 loss=0.00000 lr=3.76e-06
+[20:23:23] step 300/500 loss=0.00000 lr=3.45e-06
+[20:23:31] refresh @step 300: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.27s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.27s/it]
+[20:23:50] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau2.0_s1/tmp_policy
+[20:25:02]   teacher prefill 25/64
+[20:25:02]   teacher prefill 50/64
+[20:27:18] step 310/500 loss=0.00000 lr=3.16e-06
+[20:29:36] step 320/500 loss=0.00000 lr=2.87e-06
+[20:31:52] step 330/500 loss=0.00000 lr=2.59e-06
+[20:34:07] step 340/500 loss=0.00000 lr=2.32e-06
+[20:36:23] step 350/500 loss=0.00000 lr=2.06e-06
+[20:38:39] step 360/500 loss=0.00000 lr=1.81e-06
+[20:40:54] step 370/500 loss=0.00000 lr=1.58e-06
+[20:43:10] step 380/500 loss=0.00000 lr=1.36e-06
+[20:45:26] step 390/500 loss=0.00000 lr=1.15e-06
+[20:47:42] step 400/500 loss=0.00000 lr=9.55e-07
+[20:47:51] refresh @step 400: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.74s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.74s/it]
+[20:48:12] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau2.0_s1/tmp_policy
+[20:49:22]   teacher prefill 25/64
+[20:49:23]   teacher prefill 50/64
+[20:51:41] step 410/500 loss=0.00000 lr=7.78e-07
+[20:53:58] step 420/500 loss=0.00000 lr=6.18e-07
+[20:56:16] step 430/500 loss=0.00000 lr=4.76e-07
+[20:58:34] step 440/500 loss=0.00000 lr=3.51e-07
+[21:00:51] step 450/500 loss=0.00000 lr=2.45e-07
+[21:03:09] step 460/500 loss=0.00000 lr=1.57e-07
+[21:05:26] step 470/500 loss=0.00000 lr=8.86e-08
+[21:07:44] step 480/500 loss=0.00000 lr=3.94e-08
+[21:10:01] step 490/500 loss=0.00000 lr=9.87e-09
+[21:12:19] step 500/500 loss=0.00000 lr=0.00e+00
+[21:12:40] DONE -> runs/t1_tau2.0_s1/results.json

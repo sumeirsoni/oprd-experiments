@@ -1,0 +1,29 @@
+[23:24:20] harness: loss=minilmv2_selfrel device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12664.98it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  43%|████▎     | 132/310 [00:00<00:00, 1202.41it/s]Loading weights:  86%|████████▋ | 268/310 [00:00<00:00, 1283.40it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1303.14it/s]
+[23:24:26] supervised layers student=[7, 14] teacher=[9, 18]
+[23:25:57] refresh @step 0: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.83s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.83s/it]
+[23:26:19] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s0/tmp_policy
+[23:27:49]   teacher prefill 25/64
+[23:27:50]   teacher prefill 50/64
+[23:27:59] step 1/2000 loss=0.00117 lr=2.00e-06
+[23:29:20] step 10/2000 loss=0.00062 lr=1.00e-05
+[23:30:50] step 20/2000 loss=0.00046 lr=1.00e-05
+[23:32:21] step 30/2000 loss=0.00035 lr=9.99e-06
+[23:33:51] step 40/2000 loss=0.00031 lr=9.99e-06
+[23:35:20] step 50/2000 loss=0.00027 lr=9.98e-06
+[23:36:50] step 60/2000 loss=0.00025 lr=9.98e-06
+[23:38:19] step 70/2000 loss=0.00022 lr=9.97e-06
+[23:39:49] step 80/2000 loss=0.00021 lr=9.96e-06
+[23:41:19] step 90/2000 loss=0.00019 lr=9.95e-06
+[23:42:49] step 100/2000 loss=0.00018 lr=9.94e-06
+[23:43:02] refresh @step 100: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:29<00:00, 29.86s/it]Writing model shards: 100%|██████████| 1/1 [00:29<00:00, 29.86s/it]
+[23:43:39] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s0/tmp_policy
+[23:44:29]   teacher prefill 25/64
+[23:44:30]   teacher prefill 50/64
+[23:46:04] step 110/2000 loss=0.00030 lr=9.93e-06
+[23:47:37] step 120/2000 loss=0.00026 lr=9.91e-06
+[23:49:11] step 130/2000 loss=0.00023 lr=9.90e-06

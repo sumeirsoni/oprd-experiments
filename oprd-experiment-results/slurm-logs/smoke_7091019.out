@@ -1,0 +1,84 @@
+[00:35:42] harness: loss=pkt_tau device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  26%|██▌       | 87/339 [00:00<00:00, 863.98it/s]Loading weights:  51%|█████▏    | 174/339 [00:00<00:00, 701.76it/s]Loading weights:  73%|███████▎  | 247/339 [00:00<00:00, 647.35it/s]Loading weights:  96%|█████████▌| 324/339 [00:00<00:00, 642.90it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 683.75it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:01<06:16,  1.11s/it]Loading weights:   1%|          | 2/339 [00:01<02:59,  1.88it/s]Loading weights:  37%|███▋      | 124/339 [00:01<00:01, 160.65it/s]Loading weights:  49%|████▉     | 167/339 [00:01<00:00, 175.10it/s]Loading weights:  59%|█████▉    | 201/339 [00:01<00:00, 176.41it/s]Loading weights:  68%|██████▊   | 230/339 [00:01<00:00, 179.95it/s]Loading weights:  76%|███████▌  | 256/339 [00:02<00:00, 172.31it/s]Loading weights:  82%|████████▏ | 278/339 [00:02<00:00, 180.97it/s]Loading weights:  88%|████████▊ | 300/339 [00:02<00:00, 179.58it/s]Loading weights:  95%|█████████▍| 321/339 [00:02<00:00, 173.08it/s]Loading weights: 100%|██████████| 339/339 [00:02<00:00, 135.74it/s]
+[00:35:57] supervised layers student=[7, 14] teacher=[7, 14]
+[00:37:47] refresh @step 0: generating 8 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.49s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.49s/it]
+[00:38:05] vllm worker: 8 prompts
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 536, in <module>
+    main()
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 446, in main
+    rolls, tstates = refresh(0)
+                     ^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 439, in refresh
+    rolls = gen(sel, seeds)
+            ^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 203, in gen
+    raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+RuntimeError: vllm worker failed:
+the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core7.so
+
+FFmpeg version 6:
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1503, in load_library
+    ctypes.CDLL(path)
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libavutil.so.58: cannot open shared object file: No such file or directory
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core6.so
+
+FFmpeg version 5:
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1503, in load_library
+    ctypes.CDLL(path)
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libavutil.so.57: cannot open shared object file: No such file or directory
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core5.so
+
+FFmpeg version 4:
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1503, in load_library
+    ctypes.CDLL(path)
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libavutil.so.56: cannot open shared object file: No such file or directory
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/_internally_replaced_utils.py", line 93, in load_torchcodec_shared_libraries
+    torch.ops.load_library(core_library_path)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torch/_ops.py", line 1505, in load_library
+    raise OSError(f"Could not load this library: {path}") from e
+OSError: Could not load this library: /cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core4.so
+[end of libtorchcodec loading traceback].
+

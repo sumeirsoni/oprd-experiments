@@ -1,0 +1,52 @@
+[23:18:39] harness: loss=linear_map_mse device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12745.24it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  38%|███▊      | 119/310 [00:00<00:00, 1188.12it/s]Loading weights:  77%|███████▋  | 238/310 [00:00<00:00, 1168.66it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1199.82it/s]
+[23:18:45] supervised layers student=[7, 14] teacher=[9, 18]
+[23:20:19] refresh @step 0: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.89s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.89s/it]
+[23:20:41] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s0/tmp_policy
+[23:22:28]   teacher prefill 25/64
+[23:22:29]   teacher prefill 50/64
+[23:22:31] stage-1 pool: 16389 tokens over 2 layers
+[23:22:35] linear_map warm-started via least squares (both backbones frozen)
+[23:22:39] step 1/2000 loss=4.91635 lr=2.00e-06
+[23:23:21] step 10/2000 loss=7.24594 lr=1.00e-05
+[23:24:07] step 20/2000 loss=5.78600 lr=1.00e-05
+[23:24:54] step 30/2000 loss=4.48212 lr=9.99e-06
+[23:25:40] step 40/2000 loss=2.02515 lr=9.99e-06
+[23:26:27] step 50/2000 loss=0.97231 lr=9.98e-06
+[23:27:13] step 60/2000 loss=0.82736 lr=9.98e-06
+[23:27:59] step 70/2000 loss=1.04702 lr=9.97e-06
+[23:28:46] step 80/2000 loss=0.60278 lr=9.96e-06
+[23:29:32] step 90/2000 loss=0.33847 lr=9.95e-06
+[23:30:19] step 100/2000 loss=0.36681 lr=9.94e-06
+[23:30:28] refresh @step 100: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.89s/it]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.89s/it]
+[23:31:04] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s0/tmp_policy
+[23:32:12]   teacher prefill 25/64
+[23:32:13]   teacher prefill 50/64
+[23:33:02] step 110/2000 loss=6.05990 lr=9.93e-06
+[23:33:50] step 120/2000 loss=2.27841 lr=9.91e-06
+[23:34:38] step 130/2000 loss=3.52403 lr=9.90e-06
+[23:35:26] step 140/2000 loss=1.68414 lr=9.88e-06
+[23:36:14] step 150/2000 loss=2.24577 lr=9.86e-06
+[23:37:02] step 160/2000 loss=1.13462 lr=9.84e-06
+[23:37:50] step 170/2000 loss=2.61698 lr=9.82e-06
+[23:38:38] step 180/2000 loss=1.56756 lr=9.80e-06
+[23:39:27] step 190/2000 loss=0.98334 lr=9.78e-06
+[23:40:14] step 200/2000 loss=1.20943 lr=9.76e-06
+[23:40:40] refresh @step 200: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.13s/it]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.13s/it]
+[23:41:06] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s0/tmp_policy
+[23:42:01]   teacher prefill 25/64
+[23:42:02]   teacher prefill 50/64
+[23:42:50] step 210/2000 loss=5.13447 lr=9.73e-06
+[23:43:36] step 220/2000 loss=6.19877 lr=9.70e-06
+[23:44:24] step 230/2000 loss=6.75957 lr=9.68e-06
+[23:45:11] step 240/2000 loss=1.61061 lr=9.65e-06
+[23:45:58] step 250/2000 loss=1.55939 lr=9.62e-06
+[23:46:45] step 260/2000 loss=1.95016 lr=9.59e-06
+[23:47:32] step 270/2000 loss=1.85761 lr=9.56e-06
+[23:48:19] step 280/2000 loss=1.47062 lr=9.52e-06
+[23:49:07] step 290/2000 loss=2.06383 lr=9.49e-06
