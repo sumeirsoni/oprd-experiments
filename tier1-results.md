@@ -37,6 +37,13 @@ pool, 40k tokens): stable rank **21.99**.
 
 ## Caveats
 
+- **Loss scale varies ~τ² across the sweep** (KL over softmax(cos/τ) with bounded cosines:
+  at τ=5.0 losses sit at 1e-6 to 1e-7 and print as 0.00000 at 5 decimals; they are never
+  exactly zero, verified against raw results.json). Since lr is fixed, gradient magnitude
+  shrinks with τ² as well, so high-τ arms take smaller effective steps: "same 500 steps"
+  is not "same training progress" across τ. Any τ-vs-τ comparison should either normalize
+  the loss by τ² or tune lr per τ; the stable-rank conclusion is unaffected.
+
 - Stable-rank baseline uses Mac-generated rollouts, trained probes use cluster rollouts
   (same model, layer, and pool-size ballpark). Treat the ~5% contraction as approximate.
 - 500 steps is a short-horizon probe. Collapse dynamics over 5-10k steps remain untested.
