@@ -375,8 +375,10 @@ def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
 
 # ---------------------------------------------------------------- eval / diagnostics
 
-def eval_aime(gen, tok, names, avg_at, seed, out):
-    """One batched generation call per dataset (per-request seeds keep samples distinct)."""
+def eval_aime(gen, tok, names, avg_at, seed, out, max_tokens):
+    """One batched generation call per dataset (per-request seeds keep samples distinct).
+    Reports truncation_rate (hit the cap with no boxed answer) so the token budget is
+    empirically justified: if ~0, the cap did not bind and cannot explain low scores."""
     from datasets import load_dataset
     results = {}
     for name in names:
@@ -390,15 +392,22 @@ def eval_aime(gen, tok, names, avg_at, seed, out):
             seeds += [seed * 1_000_000 + pi * 1000 + c for c in range(avg_at)]
         log(f"eval {name}: generating {len(prompts)} samples ({len(ds)}x{avg_at})", out)
         rolls = gen(prompts, seeds)
-        correct, total = 0, 0
+        correct, total, answered, truncated = 0, 0, 0, 0
         for pi, row in enumerate(ds):
             gt = norm_ans(row[acol])
             for c in range(avg_at):
-                pred = norm_ans(extract_boxed(tok.decode(rolls[pi * avg_at + c]["gen_ids"])))
+                gids = rolls[pi * avg_at + c]["gen_ids"]
+                pred = norm_ans(extract_boxed(tok.decode(gids)))
                 correct += int(pred is not None and pred == gt)
+                answered += int(pred is not None)
+                truncated += int(pred is None and len(gids) >= max_tokens)
                 total += 1
-        results[name] = {"avg_at": avg_at, "accuracy": correct / max(total, 1), "n": total}
-        log(f"eval {name}: acc={results[name]['accuracy']:.4f}", out)
+        results[name] = {"avg_at": avg_at, "accuracy": correct / max(total, 1), "n": total,
+                         "answered_rate": answered / max(total, 1),
+                         "truncation_rate": truncated / max(total, 1)}
+        log(f"eval {name}: acc={results[name]['accuracy']:.4f} "
+            f"answered={results[name]['answered_rate']:.3f} "
+            f"truncated={results[name]['truncation_rate']:.3f}", out)
     return results
 
 
@@ -585,7 +594,7 @@ def main():
     eval_names = [e for e in a.eval.split(",") if e]
     if eval_names:
         student.eval()
-        res["eval"] = eval_aime(gen, tok, eval_names, a.eval_avg_at, a.seed, out)
+        res["eval"] = eval_aime(gen, tok, eval_names, a.eval_avg_at, a.seed, out, a.max_tokens)
         (out / "results.json").write_text(json.dumps(res, indent=1))
     log(f"DONE -> {out}/results.json", out)
 
