@@ -1,0 +1,28 @@
+hostname=cml30.umiacs.umd.edu
+=== module avail Python ===
+=== which python ===
+/usr/bin/python3
+Python 3.9.25
+=== ls modulefiles ===
+3.10.14
+3.10.4
+3.11.11
+3.11.9
+3.12.3
+3.13.1
+3.13.2
+3.13.5
+3.13.7
+3.14.0
+3.14.2
+3.14.4
+3.14.5
+3.8.19
+3.9.19
+FAIL Python3/3.12.3
+FAIL Python3/3.12
+FAIL Python3/3.11.11
+FAIL Python3/3.11.9
+FAIL Python3/3.10.14
+FAIL Python3/3.13.7
+PROBE_OK

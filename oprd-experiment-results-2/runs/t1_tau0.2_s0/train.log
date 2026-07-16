@@ -1,0 +1,74 @@
+[12:45:54] harness: loss=pkt_tau device=cuda
+[12:45:59] supervised layers student=[7, 14] teacher=[7, 14]
+[12:47:34] refresh @step 0: generating 64 rollouts
+[12:47:54] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau0.2_s0/tmp_policy
+[12:49:25]   teacher prefill 25/64
+[12:49:25]   teacher prefill 50/64
+[12:49:40] step 1/500 loss=0.00196 lr=2.00e-06
+[12:51:45] step 10/500 loss=0.00055 lr=9.99e-06
+[12:54:04] step 20/500 loss=0.00029 lr=9.96e-06
+[12:56:22] step 30/500 loss=0.00015 lr=9.91e-06
+[12:58:41] step 40/500 loss=0.00008 lr=9.84e-06
+[13:01:00] step 50/500 loss=0.00005 lr=9.76e-06
+[13:03:19] step 60/500 loss=0.00003 lr=9.65e-06
+[13:05:38] step 70/500 loss=0.00002 lr=9.52e-06
+[13:07:56] step 80/500 loss=0.00002 lr=9.38e-06
+[13:10:15] step 90/500 loss=0.00001 lr=9.22e-06
+[13:12:35] step 100/500 loss=0.00001 lr=9.05e-06
+[13:12:44] refresh @step 100: generating 64 rollouts
+[13:13:18] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau0.2_s0/tmp_policy
+[13:14:12]   teacher prefill 25/64
+[13:14:12]   teacher prefill 50/64
+[13:16:32] step 110/500 loss=0.00005 lr=8.85e-06
+[13:18:52] step 120/500 loss=0.00003 lr=8.64e-06
+[13:21:12] step 130/500 loss=0.00002 lr=8.42e-06
+[13:23:32] step 140/500 loss=0.00001 lr=8.19e-06
+[13:25:52] step 150/500 loss=0.00001 lr=7.94e-06
+[13:28:12] step 160/500 loss=0.00001 lr=7.68e-06
+[13:30:32] step 170/500 loss=0.00001 lr=7.41e-06
+[13:32:52] step 180/500 loss=0.00001 lr=7.13e-06
+[13:35:12] step 190/500 loss=0.00001 lr=6.84e-06
+[13:37:32] step 200/500 loss=0.00001 lr=6.55e-06
+[13:37:41] refresh @step 200: generating 64 rollouts
+[13:38:01] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau0.2_s0/tmp_policy
+[13:39:30]   teacher prefill 25/64
+[13:39:31]   teacher prefill 50/64
+[13:41:49] step 210/500 loss=0.00004 lr=6.24e-06
+[13:44:07] step 220/500 loss=0.00002 lr=5.94e-06
+[13:46:25] step 230/500 loss=0.00002 lr=5.63e-06
+[13:48:43] step 240/500 loss=0.00001 lr=5.31e-06
+[13:51:01] step 250/500 loss=0.00001 lr=5.00e-06
+[13:53:19] step 260/500 loss=0.00001 lr=4.69e-06
+[13:55:37] step 270/500 loss=0.00001 lr=4.37e-06
+[13:57:55] step 280/500 loss=0.00001 lr=4.06e-06
+[14:00:13] step 290/500 loss=0.00001 lr=3.76e-06
+[14:02:31] step 300/500 loss=0.00001 lr=3.45e-06
+[14:02:41] refresh @step 300: generating 64 rollouts
+[14:03:08] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau0.2_s0/tmp_policy
+[14:05:07]   teacher prefill 25/64
+[14:05:08]   teacher prefill 50/64
+[14:07:26] step 310/500 loss=0.00004 lr=3.16e-06
+[14:09:45] step 320/500 loss=0.00002 lr=2.87e-06
+[14:12:03] step 330/500 loss=0.00002 lr=2.59e-06
+[14:14:21] step 340/500 loss=0.00001 lr=2.32e-06
+[14:16:40] step 350/500 loss=0.00001 lr=2.06e-06
+[14:18:58] step 360/500 loss=0.00001 lr=1.81e-06
+[14:21:16] step 370/500 loss=0.00001 lr=1.58e-06
+[14:23:35] step 380/500 loss=0.00001 lr=1.36e-06
+[14:25:53] step 390/500 loss=0.00001 lr=1.15e-06
+[14:28:11] step 400/500 loss=0.00001 lr=9.55e-07
+[14:28:22] refresh @step 400: generating 64 rollouts
+[14:28:55] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t1_tau0.2_s0/tmp_policy
+[14:30:28]   teacher prefill 25/64
+[14:30:29]   teacher prefill 50/64
+[14:32:47] step 410/500 loss=0.00003 lr=7.78e-07
+[14:35:05] step 420/500 loss=0.00002 lr=6.18e-07
+[14:37:22] step 430/500 loss=0.00002 lr=4.76e-07
+[14:39:40] step 440/500 loss=0.00002 lr=3.51e-07
+[14:41:58] step 450/500 loss=0.00002 lr=2.45e-07
+[14:44:15] step 460/500 loss=0.00002 lr=1.57e-07
+[14:46:33] step 470/500 loss=0.00002 lr=8.86e-08
+[14:48:51] step 480/500 loss=0.00002 lr=3.94e-08
+[14:51:09] step 490/500 loss=0.00002 lr=9.87e-09
+[14:53:26] step 500/500 loss=0.00002 lr=0.00e+00
+[14:53:57] DONE -> runs/t1_tau0.2_s0/results.json

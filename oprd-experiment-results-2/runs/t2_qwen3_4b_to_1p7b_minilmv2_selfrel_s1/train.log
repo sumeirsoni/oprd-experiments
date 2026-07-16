@@ -1,0 +1,290 @@
+[06:07:29] harness: loss=minilmv2_selfrel device=cuda
+[06:07:34] supervised layers student=[7, 14] teacher=[9, 18]
+[06:09:06] refresh @step 0: generating 64 rollouts
+[06:09:30] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[06:11:17]   teacher prefill 25/63
+[06:11:18]   teacher prefill 50/63
+[06:11:26] step 1/2000 loss=0.00121 lr=2.00e-06
+[06:12:41] step 10/2000 loss=0.00064 lr=1.00e-05
+[06:14:03] step 20/2000 loss=0.00047 lr=1.00e-05
+[06:15:27] step 30/2000 loss=0.00036 lr=9.99e-06
+[06:16:49] step 40/2000 loss=0.00032 lr=9.99e-06
+[06:18:13] step 50/2000 loss=0.00028 lr=9.98e-06
+[06:19:35] step 60/2000 loss=0.00025 lr=9.98e-06
+[06:20:58] step 70/2000 loss=0.00023 lr=9.97e-06
+[06:22:20] step 80/2000 loss=0.00021 lr=9.96e-06
+[06:23:43] step 90/2000 loss=0.00020 lr=9.95e-06
+[06:25:05] step 100/2000 loss=0.00018 lr=9.94e-06
+[06:25:14] refresh @step 100: generating 64 rollouts
+[06:25:34] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[06:26:30]   teacher prefill 25/64
+[06:26:31]   teacher prefill 50/64
+[06:28:09] step 110/2000 loss=0.00032 lr=9.93e-06
+[06:29:45] step 120/2000 loss=0.00027 lr=9.91e-06
+[06:31:23] step 130/2000 loss=0.00022 lr=9.90e-06
+[06:33:02] step 140/2000 loss=0.00020 lr=9.88e-06
+[06:34:39] step 150/2000 loss=0.00020 lr=9.86e-06
+[06:36:16] step 160/2000 loss=0.00018 lr=9.84e-06
+[06:37:54] step 170/2000 loss=0.00016 lr=9.82e-06
+[06:39:31] step 180/2000 loss=0.00015 lr=9.80e-06
+[06:41:08] step 190/2000 loss=0.00015 lr=9.78e-06
+[06:42:45] step 200/2000 loss=0.00014 lr=9.76e-06
+[06:42:55] refresh @step 200: generating 64 rollouts
+[06:43:22] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[06:44:17]   teacher prefill 25/64
+[06:44:18]   teacher prefill 50/64
+[06:46:03] step 210/2000 loss=0.00028 lr=9.73e-06
+[06:47:46] step 220/2000 loss=0.00025 lr=9.70e-06
+[06:49:29] step 230/2000 loss=0.00021 lr=9.68e-06
+[06:51:13] step 240/2000 loss=0.00018 lr=9.65e-06
+[06:52:57] step 250/2000 loss=0.00017 lr=9.62e-06
+[06:54:41] step 260/2000 loss=0.00016 lr=9.59e-06
+[06:56:25] step 270/2000 loss=0.00015 lr=9.56e-06
+[06:58:08] step 280/2000 loss=0.00014 lr=9.52e-06
+[06:59:52] step 290/2000 loss=0.00013 lr=9.49e-06
+[07:01:36] step 300/2000 loss=0.00012 lr=9.46e-06
+[07:01:59] refresh @step 300: generating 64 rollouts
+[07:02:23] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[07:03:34]   teacher prefill 25/64
+[07:03:35]   teacher prefill 50/64
+[07:05:13] step 310/2000 loss=0.00026 lr=9.42e-06
+[07:06:49] step 320/2000 loss=0.00022 lr=9.38e-06
+[07:08:26] step 330/2000 loss=0.00019 lr=9.34e-06
+[07:10:03] step 340/2000 loss=0.00017 lr=9.30e-06
+[07:11:38] step 350/2000 loss=0.00016 lr=9.26e-06
+[07:13:16] step 360/2000 loss=0.00014 lr=9.22e-06
+[07:14:53] step 370/2000 loss=0.00014 lr=9.18e-06
+[07:16:29] step 380/2000 loss=0.00013 lr=9.14e-06
+[07:18:06] step 390/2000 loss=0.00012 lr=9.09e-06
+[07:19:41] step 400/2000 loss=0.00012 lr=9.05e-06
+[07:19:52] refresh @step 400: generating 64 rollouts
+[07:20:22] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[07:21:55]   teacher prefill 25/64
+[07:21:56]   teacher prefill 50/64
+[07:23:40] step 410/2000 loss=0.00026 lr=9.00e-06
+[07:25:23] step 420/2000 loss=0.00021 lr=8.95e-06
+[07:27:07] step 430/2000 loss=0.00018 lr=8.90e-06
+[07:28:51] step 440/2000 loss=0.00016 lr=8.85e-06
+[07:30:33] step 450/2000 loss=0.00015 lr=8.80e-06
+[07:32:19] step 460/2000 loss=0.00015 lr=8.75e-06
+[07:34:03] step 470/2000 loss=0.00014 lr=8.70e-06
+[07:35:46] step 480/2000 loss=0.00013 lr=8.64e-06
+[07:37:30] step 490/2000 loss=0.00012 lr=8.59e-06
+[07:39:13] step 500/2000 loss=0.00011 lr=8.54e-06
+[07:39:25] refresh @step 500: generating 64 rollouts
+[07:39:47] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[07:40:55]   teacher prefill 25/64
+[07:40:56]   teacher prefill 50/64
+[07:42:46] step 510/2000 loss=0.00025 lr=8.48e-06
+[07:44:36] step 520/2000 loss=0.00019 lr=8.42e-06
+[07:46:25] step 530/2000 loss=0.00016 lr=8.37e-06
+[07:48:13] step 540/2000 loss=0.00016 lr=8.31e-06
+[07:50:04] step 550/2000 loss=0.00014 lr=8.25e-06
+[07:51:53] step 560/2000 loss=0.00013 lr=8.19e-06
+[07:53:42] step 570/2000 loss=0.00012 lr=8.13e-06
+[07:55:31] step 580/2000 loss=0.00012 lr=8.06e-06
+[07:57:22] step 590/2000 loss=0.00012 lr=8.00e-06
+[07:59:12] step 600/2000 loss=0.00011 lr=7.94e-06
+[07:59:23] refresh @step 600: generating 64 rollouts
+[07:59:52] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[08:00:55]   teacher prefill 25/64
+[08:00:56]   teacher prefill 50/64
+[08:02:26] step 610/2000 loss=0.00026 lr=7.88e-06
+[08:03:56] step 620/2000 loss=0.00020 lr=7.81e-06
+[08:05:26] step 630/2000 loss=0.00016 lr=7.75e-06
+[08:06:56] step 640/2000 loss=0.00015 lr=7.68e-06
+[08:08:27] step 650/2000 loss=0.00014 lr=7.61e-06
+[08:09:57] step 660/2000 loss=0.00013 lr=7.55e-06
+[08:11:26] step 670/2000 loss=0.00012 lr=7.48e-06
+[08:12:56] step 680/2000 loss=0.00012 lr=7.41e-06
+[08:14:27] step 690/2000 loss=0.00011 lr=7.34e-06
+[08:15:57] step 700/2000 loss=0.00011 lr=7.27e-06
+[08:16:12] refresh @step 700: generating 64 rollouts
+[08:16:32] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[08:17:20]   teacher prefill 25/64
+[08:17:21]   teacher prefill 50/64
+[08:18:56] step 710/2000 loss=0.00021 lr=7.20e-06
+[08:20:29] step 720/2000 loss=0.00018 lr=7.13e-06
+[08:22:03] step 730/2000 loss=0.00016 lr=7.06e-06
+[08:23:37] step 740/2000 loss=0.00015 lr=6.99e-06
+[08:25:11] step 750/2000 loss=0.00014 lr=6.91e-06
+[08:26:45] step 760/2000 loss=0.00013 lr=6.84e-06
+[08:28:18] step 770/2000 loss=0.00012 lr=6.77e-06
+[08:29:53] step 780/2000 loss=0.00012 lr=6.69e-06
+[08:31:28] step 790/2000 loss=0.00011 lr=6.62e-06
+[08:33:01] step 800/2000 loss=0.00011 lr=6.55e-06
+[08:33:16] refresh @step 800: generating 64 rollouts
+[08:33:44] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[08:34:38]   teacher prefill 25/63
+[08:34:39]   teacher prefill 50/63
+[08:36:29] step 810/2000 loss=0.00022 lr=6.47e-06
+[08:38:18] step 820/2000 loss=0.00018 lr=6.39e-06
+[08:40:08] step 830/2000 loss=0.00016 lr=6.32e-06
+[08:41:58] step 840/2000 loss=0.00015 lr=6.24e-06
+[08:43:47] step 850/2000 loss=0.00014 lr=6.17e-06
+[08:45:37] step 860/2000 loss=0.00013 lr=6.09e-06
+[08:47:25] step 870/2000 loss=0.00013 lr=6.01e-06
+[08:49:16] step 880/2000 loss=0.00012 lr=5.94e-06
+[08:51:05] step 890/2000 loss=0.00011 lr=5.86e-06
+[08:52:55] step 900/2000 loss=0.00011 lr=5.78e-06
+[08:53:07] refresh @step 900: generating 64 rollouts
+[08:53:32] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[08:55:27]   teacher prefill 25/64
+[08:55:28]   teacher prefill 50/64
+[08:57:23] step 910/2000 loss=0.00022 lr=5.70e-06
+[08:59:16] step 920/2000 loss=0.00018 lr=5.63e-06
+[09:01:09] step 930/2000 loss=0.00016 lr=5.55e-06
+[09:03:05] step 940/2000 loss=0.00015 lr=5.47e-06
+[09:04:59] step 950/2000 loss=0.00014 lr=5.39e-06
+[09:06:55] step 960/2000 loss=0.00014 lr=5.31e-06
+[09:08:53] step 970/2000 loss=0.00012 lr=5.24e-06
+[09:10:46] step 980/2000 loss=0.00012 lr=5.16e-06
+[09:12:39] step 990/2000 loss=0.00012 lr=5.08e-06
+[09:14:33] step 1000/2000 loss=0.00012 lr=5.00e-06
+[09:14:46] refresh @step 1000: generating 64 rollouts
+[09:15:19] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[09:16:21]   teacher prefill 25/64
+[09:16:22]   teacher prefill 50/64
+[09:18:08] step 1010/2000 loss=0.00021 lr=4.92e-06
+[09:19:55] step 1020/2000 loss=0.00018 lr=4.84e-06
+[09:21:41] step 1030/2000 loss=0.00017 lr=4.76e-06
+[09:23:26] step 1040/2000 loss=0.00015 lr=4.69e-06
+[09:25:12] step 1050/2000 loss=0.00014 lr=4.61e-06
+[09:26:57] step 1060/2000 loss=0.00013 lr=4.53e-06
+[09:28:44] step 1070/2000 loss=0.00013 lr=4.45e-06
+[09:30:29] step 1080/2000 loss=0.00013 lr=4.37e-06
+[09:32:15] step 1090/2000 loss=0.00012 lr=4.30e-06
+[09:34:00] step 1100/2000 loss=0.00012 lr=4.22e-06
+[09:34:13] refresh @step 1100: generating 64 rollouts
+[09:34:34] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[09:35:29]   teacher prefill 25/64
+[09:35:30]   teacher prefill 50/64
+[09:37:17] step 1110/2000 loss=0.00022 lr=4.14e-06
+[09:39:04] step 1120/2000 loss=0.00019 lr=4.06e-06
+[09:40:50] step 1130/2000 loss=0.00017 lr=3.99e-06
+[09:42:39] step 1140/2000 loss=0.00015 lr=3.91e-06
+[09:44:25] step 1150/2000 loss=0.00015 lr=3.83e-06
+[09:46:12] step 1160/2000 loss=0.00014 lr=3.76e-06
+[09:47:58] step 1170/2000 loss=0.00013 lr=3.68e-06
+[09:49:45] step 1180/2000 loss=0.00013 lr=3.61e-06
+[09:51:32] step 1190/2000 loss=0.00013 lr=3.53e-06
+[09:53:18] step 1200/2000 loss=0.00012 lr=3.45e-06
+[09:53:30] refresh @step 1200: generating 64 rollouts
+[09:53:52] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[09:54:47]   teacher prefill 25/64
+[09:54:48]   teacher prefill 50/64
+[09:56:47] step 1210/2000 loss=0.00021 lr=3.38e-06
+[09:58:45] step 1220/2000 loss=0.00019 lr=3.31e-06
+[10:00:45] step 1230/2000 loss=0.00016 lr=3.23e-06
+[10:02:45] step 1240/2000 loss=0.00015 lr=3.16e-06
+[10:04:44] step 1250/2000 loss=0.00014 lr=3.09e-06
+[10:06:42] step 1260/2000 loss=0.00013 lr=3.01e-06
+[10:08:41] step 1270/2000 loss=0.00013 lr=2.94e-06
+[10:10:39] step 1280/2000 loss=0.00013 lr=2.87e-06
+[10:12:39] step 1290/2000 loss=0.00012 lr=2.80e-06
+[10:14:37] step 1300/2000 loss=0.00012 lr=2.73e-06
+[10:14:50] refresh @step 1300: generating 64 rollouts
+[10:15:12] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[10:16:09]   teacher prefill 25/64
+[10:16:10]   teacher prefill 50/64
+[10:18:05] step 1310/2000 loss=0.00022 lr=2.66e-06
+[10:20:00] step 1320/2000 loss=0.00020 lr=2.59e-06
+[10:21:58] step 1330/2000 loss=0.00018 lr=2.52e-06
+[10:23:52] step 1340/2000 loss=0.00016 lr=2.45e-06
+[10:25:46] step 1350/2000 loss=0.00015 lr=2.39e-06
+[10:27:43] step 1360/2000 loss=0.00015 lr=2.32e-06
+[10:29:38] step 1370/2000 loss=0.00014 lr=2.25e-06
+[10:31:33] step 1380/2000 loss=0.00014 lr=2.19e-06
+[10:33:27] step 1390/2000 loss=0.00014 lr=2.12e-06
+[10:35:23] step 1400/2000 loss=0.00014 lr=2.06e-06
+[10:35:37] refresh @step 1400: generating 64 rollouts
+[10:35:57] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[10:37:04]   teacher prefill 25/64
+[10:37:05]   teacher prefill 50/64
+[10:39:15] step 1410/2000 loss=0.00020 lr=2.00e-06
+[10:41:25] step 1420/2000 loss=0.00018 lr=1.94e-06
+[10:43:34] step 1430/2000 loss=0.00017 lr=1.87e-06
+[10:45:42] step 1440/2000 loss=0.00016 lr=1.81e-06
+[10:47:50] step 1450/2000 loss=0.00016 lr=1.75e-06
+[10:50:00] step 1460/2000 loss=0.00015 lr=1.69e-06
+[10:52:09] step 1470/2000 loss=0.00015 lr=1.63e-06
+[10:54:17] step 1480/2000 loss=0.00014 lr=1.58e-06
+[10:56:27] step 1490/2000 loss=0.00014 lr=1.52e-06
+[10:58:37] step 1500/2000 loss=0.00014 lr=1.46e-06
+[10:58:48] refresh @step 1500: generating 64 rollouts
+[10:59:10] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[11:00:05]   teacher prefill 25/64
+[11:00:06]   teacher prefill 50/64
+[11:02:04] step 1510/2000 loss=0.00022 lr=1.41e-06
+[11:04:01] step 1520/2000 loss=0.00019 lr=1.36e-06
+[11:05:59] step 1530/2000 loss=0.00019 lr=1.30e-06
+[11:07:58] step 1540/2000 loss=0.00018 lr=1.25e-06
+[11:09:55] step 1550/2000 loss=0.00017 lr=1.20e-06
+[11:11:51] step 1560/2000 loss=0.00017 lr=1.15e-06
+[11:13:49] step 1570/2000 loss=0.00016 lr=1.10e-06
+[11:15:48] step 1580/2000 loss=0.00016 lr=1.05e-06
+[11:17:46] step 1590/2000 loss=0.00015 lr=1.00e-06
+[11:19:44] step 1600/2000 loss=0.00015 lr=9.55e-07
+[11:19:59] refresh @step 1600: generating 64 rollouts
+[11:20:24] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[11:21:26]   teacher prefill 25/64
+[11:21:27]   teacher prefill 50/64
+[11:23:26] step 1610/2000 loss=0.00022 lr=9.09e-07
+[11:25:25] step 1620/2000 loss=0.00021 lr=8.65e-07
+[11:27:23] step 1630/2000 loss=0.00018 lr=8.21e-07
+[11:29:22] step 1640/2000 loss=0.00018 lr=7.78e-07
+[11:31:20] step 1650/2000 loss=0.00018 lr=7.37e-07
+[11:33:19] step 1660/2000 loss=0.00019 lr=6.96e-07
+[11:35:18] step 1670/2000 loss=0.00018 lr=6.57e-07
+[11:37:16] step 1680/2000 loss=0.00017 lr=6.18e-07
+[11:39:15] step 1690/2000 loss=0.00016 lr=5.81e-07
+[11:41:13] step 1700/2000 loss=0.00016 lr=5.45e-07
+[11:41:24] refresh @step 1700: generating 64 rollouts
+[11:41:47] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[11:42:58]   teacher prefill 25/64
+[11:42:59]   teacher prefill 50/64
+[11:44:41] step 1710/2000 loss=0.00021 lr=5.10e-07
+[11:46:24] step 1720/2000 loss=0.00020 lr=4.76e-07
+[11:48:07] step 1730/2000 loss=0.00020 lr=4.43e-07
+[11:49:49] step 1740/2000 loss=0.00019 lr=4.11e-07
+[11:51:31] step 1750/2000 loss=0.00018 lr=3.81e-07
+[11:53:13] step 1760/2000 loss=0.00018 lr=3.51e-07
+[11:54:56] step 1770/2000 loss=0.00018 lr=3.23e-07
+[11:56:37] step 1780/2000 loss=0.00018 lr=2.96e-07
+[11:58:19] step 1790/2000 loss=0.00017 lr=2.70e-07
+[12:00:01] step 1800/2000 loss=0.00017 lr=2.45e-07
+[12:00:14] refresh @step 1800: generating 64 rollouts
+[12:00:37] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[12:02:34]   teacher prefill 25/64
+[12:02:35]   teacher prefill 50/64
+[12:04:31] step 1810/2000 loss=0.00022 lr=2.21e-07
+[12:06:28] step 1820/2000 loss=0.00020 lr=1.99e-07
+[12:08:26] step 1830/2000 loss=0.00020 lr=1.77e-07
+[12:10:22] step 1840/2000 loss=0.00020 lr=1.57e-07
+[12:12:19] step 1850/2000 loss=0.00020 lr=1.38e-07
+[12:14:14] step 1860/2000 loss=0.00020 lr=1.20e-07
+[12:16:12] step 1870/2000 loss=0.00019 lr=1.04e-07
+[12:18:10] step 1880/2000 loss=0.00019 lr=8.86e-08
+[12:20:07] step 1890/2000 loss=0.00019 lr=7.45e-08
+[12:22:04] step 1900/2000 loss=0.00020 lr=6.16e-08
+[12:22:13] refresh @step 1900: generating 64 rollouts
+[12:22:34] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[12:23:29]   teacher prefill 25/64
+[12:23:30]   teacher prefill 50/64
+[12:25:26] step 1910/2000 loss=0.00020 lr=4.99e-08
+[12:27:24] step 1920/2000 loss=0.00020 lr=3.94e-08
+[12:29:17] step 1930/2000 loss=0.00019 lr=3.02e-08
+[12:31:12] step 1940/2000 loss=0.00019 lr=2.22e-08
+[12:33:11] step 1950/2000 loss=0.00020 lr=1.54e-08
+[12:35:07] step 1960/2000 loss=0.00021 lr=9.87e-09
+[12:37:01] step 1970/2000 loss=0.00022 lr=5.55e-09
+[12:38:56] step 1980/2000 loss=0.00021 lr=2.47e-09
+[12:40:52] step 1990/2000 loss=0.00020 lr=6.17e-10
+[12:42:47] step 2000/2000 loss=0.00019 lr=0.00e+00
+[12:43:12] eval aime24: generating 480 samples (30x16)
+[12:43:34] vllm worker: 480 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[12:45:02] eval aime24: acc=0.0271
+[12:45:02] eval aime25: generating 480 samples (30x16)
+[12:45:39] vllm worker: 480 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/tmp_policy
+[12:47:05] eval aime25: acc=0.0042
+[12:47:05] DONE -> runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/results.json

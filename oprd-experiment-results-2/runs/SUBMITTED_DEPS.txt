@@ -1,0 +1,6 @@
+smoke=7091075
+tier1=7091076
+tier2=7091077
+note=cuda/12.8.1 loaded; afterok smoke
+submitted=2026-07-14T00:54:28-04:00
+tier2=7093610 bridge_fix=1f55ead 2026-07-14T15:53:46-04:00

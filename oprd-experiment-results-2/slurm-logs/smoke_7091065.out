@@ -1,0 +1,70 @@
+[00:49:50] harness: loss=pkt_tau device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 9320.80it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  47%|████▋     | 160/339 [00:00<00:00, 1578.17it/s]Loading weights:  94%|█████████▍| 318/339 [00:00<00:00, 1564.65it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 1597.86it/s]
+[00:49:56] supervised layers student=[7, 14] teacher=[7, 14]
+[00:51:37] refresh @step 0: generating 8 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.84s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.84s/it]
+[00:51:58] vllm worker: 8 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/smoke/tmp_policy
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 540, in <module>
+    main()
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 450, in main
+    rolls, tstates = refresh(0)
+                     ^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 443, in refresh
+    rolls = gen(sel, seeds)
+            ^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 207, in gen
+    raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+RuntimeError: vllm worker failed:
+d=2621428)            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/sampling.py", line 68, in get_sampling_module
+(EngineCore pid=2621428)     module = gen_sampling_module().build_and_load()
+(EngineCore pid=2621428)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 316, in build_and_load
+(EngineCore pid=2621428)     self.build(verbose, need_lock=False)
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 301, in build
+(EngineCore pid=2621428)     self.write_ninja()
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 274, in write_ninja
+(EngineCore pid=2621428)     content = generate_ninja_build_for_op(
+(EngineCore pid=2621428)               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/cpp_ext.py", line 247, in generate_ninja_build_for_op
+(EngineCore pid=2621428)     cuda_home = get_cuda_path()
+(EngineCore pid=2621428)                 ^^^^^^^^^^^^^^^
+(EngineCore pid=2621428)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/cpp_ext.py", line 61, in get_cuda_path
+(EngineCore pid=2621428)     raise RuntimeError(
+(EngineCore pid=2621428) RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 538, in <module>
+    _worker_main(sys.argv[2])
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 156, in _worker_main
+    llm = LLM(model=spec["model_dir"], dtype="bfloat16",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/entrypoints/llm.py", line 349, in __init__
+    self.llm_engine = LLMEngine.from_engine_args(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/llm_engine.py", line 179, in from_engine_args
+    return cls(
+           ^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/llm_engine.py", line 105, in __init__
+    self.engine_core = EngineCoreClient.make_client(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 103, in make_client
+    return SyncMPClient(vllm_config, executor_class, log_stats)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/tracing/otel.py", line 178, in sync_wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 786, in __init__
+    super().__init__(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 573, in __init__
+    with launch_core_engines(
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/utils.py", line 1213, in launch_core_engines
+    wait_for_engine_startup(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/utils.py", line 1272, in wait_for_engine_startup
+    raise RuntimeError(
+RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+

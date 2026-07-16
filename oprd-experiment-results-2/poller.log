@@ -1,0 +1,130 @@
+poller_started interval=300s 2026-07-15T03:27:54-04:00
+03:27:56 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+03:32:58 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+03:37:59 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+03:43:00 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+03:48:02 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+03:53:03 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+03:58:05 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:03:06 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:08:08 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=140 scratch_free_g=61
+04:13:09 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:18:10 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=140 scratch_free_g=61
+04:23:12 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:28:13 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=148 scratch_free_g=53
+04:33:14 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:38:16 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+04:43:17 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:48:18 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:53:20 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+04:58:21 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=141 scratch_free_g=60
+05:03:23 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:08:24 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+05:13:25 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:18:27 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+05:23:28 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:28:30 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:33:31 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=142 scratch_free_g=59
+05:38:32 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:43:34 META prune=0 bytes=0 results=27 ckpt_final=26 ckpt_last=5 t2_completed_slots=8 t2_running=5 t2_results=2 scratch_used_g=135 scratch_free_g=66
+05:48:35 META prune=1 bytes=4063579339 results=28 ckpt_final=27 ckpt_last=4 t2_completed_slots=8 t2_running=5 t2_results=3 scratch_used_g=145 scratch_free_g=56
+05:53:36 META prune=0 bytes=0 results=28 ckpt_final=27 ckpt_last=4 t2_completed_slots=9 t2_running=5 t2_results=3 scratch_used_g=135 scratch_free_g=66
+05:58:38 META prune=0 bytes=0 results=28 ckpt_final=27 ckpt_last=4 t2_completed_slots=9 t2_running=5 t2_results=3 scratch_used_g=135 scratch_free_g=66
+06:03:39 META prune=0 bytes=0 results=28 ckpt_final=27 ckpt_last=5 t2_completed_slots=9 t2_running=5 t2_results=3 scratch_used_g=139 scratch_free_g=62
+06:08:41 META prune=1 bytes=4063579339 results=29 ckpt_final=28 ckpt_last=4 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=149 scratch_free_g=52
+06:13:42 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=4 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=139 scratch_free_g=62
+06:18:43 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=4 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=139 scratch_free_g=62
+06:23:45 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=4 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=139 scratch_free_g=62
+06:28:46 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+06:33:47 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=149 scratch_free_g=52
+06:38:49 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+06:43:50 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+06:48:52 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+06:53:53 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=156 scratch_free_g=45
+06:58:55 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:03:56 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=146 scratch_free_g=55
+07:08:58 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:13:59 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:19:01 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:24:02 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:29:03 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=147 scratch_free_g=54
+07:34:05 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=149 scratch_free_g=52
+07:39:07 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:44:08 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:49:09 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:54:11 META prune=0 bytes=0 results=29 ckpt_final=28 ckpt_last=5 t2_completed_slots=10 t2_running=5 t2_results=4 scratch_used_g=143 scratch_free_g=58
+07:59:12 META prune=1 bytes=4063579339 results=30 ckpt_final=29 ckpt_last=4 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:04:14 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=4 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=143 scratch_free_g=58
+08:09:15 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=4 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=149 scratch_free_g=52
+08:14:16 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=4 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=143 scratch_free_g=58
+08:19:18 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:24:19 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:29:20 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:34:22 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:39:23 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:44:25 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:49:26 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:54:28 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+08:59:29 META prune=0 bytes=0 results=30 ckpt_final=29 ckpt_last=5 t2_completed_slots=11 t2_running=5 t2_results=5 scratch_used_g=146 scratch_free_g=55
+09:04:30 META prune=2 bytes=8127158678 results=32 ckpt_final=31 ckpt_last=3 t2_completed_slots=11 t2_running=5 t2_results=7 scratch_used_g=157 scratch_free_g=44
+09:09:32 META prune=0 bytes=0 results=32 ckpt_final=31 ckpt_last=3 t2_completed_slots=13 t2_running=5 t2_results=7 scratch_used_g=152 scratch_free_g=49
+09:14:33 META prune=0 bytes=0 results=32 ckpt_final=31 ckpt_last=3 t2_completed_slots=13 t2_running=5 t2_results=7 scratch_used_g=146 scratch_free_g=55
+09:19:35 META prune=1 bytes=4063579339 results=33 ckpt_final=32 ckpt_last=2 t2_completed_slots=13 t2_running=5 t2_results=8 scratch_used_g=157 scratch_free_g=44
+09:24:36 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=3 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=147 scratch_free_g=54
+09:29:38 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=4 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=154 scratch_free_g=47
+09:34:39 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+09:39:41 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+09:44:42 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=164 scratch_free_g=37
+09:49:44 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+09:54:45 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+09:59:47 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:04:48 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:09:50 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:14:51 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:19:53 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:24:55 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:29:57 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=5 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:34:58 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:40:01 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=171 scratch_free_g=30
+10:45:02 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=5 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=158 scratch_free_g=43
+10:50:05 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=175 scratch_free_g=26
+10:55:06 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=162 scratch_free_g=39
+11:04:58 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=162 scratch_free_g=39
+11:10:00 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=162 scratch_free_g=39
+11:15:01 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=162 scratch_free_g=39
+11:20:03 META prune=0 bytes=0 results=33 ckpt_final=32 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=181 scratch_free_g=20
+11:25:05 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+11:30:07 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+11:35:09 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=89 scratch_free_g=112
+11:40:11 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+11:45:12 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+11:50:14 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+11:55:15 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+12:00:44 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=6 t2_results=8 scratch_used_g=82 scratch_free_g=119
+12:08:35 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=7 t2_results=8 scratch_used_g=82 scratch_free_g=119
+12:14:18 META prune=0 bytes=0 results=33 ckpt_final=8 ckpt_last=6 t2_completed_slots=20 t2_running=7 t2_results=8 scratch_used_g=82 scratch_free_g=119
+12:36:01 
+poller_started interval=300s 2026-07-15T12:50:03-04:00
+12:50:04 META prune=2 bytes=8127158678 results=35 ckpt_final=10 ckpt_last=5 t2_completed_slots=22 t2_running=7 t2_results=10 scratch_used_g=94 scratch_free_g=107
+12:55:10 META prune=0 bytes=0 results=35 ckpt_final=10 ckpt_last=5 t2_completed_slots=22 t2_running=7 t2_results=10 scratch_used_g=86 scratch_free_g=115
+13:02:15 META prune=0 bytes=0 results=35 ckpt_final=10 ckpt_last=6 t2_completed_slots=22 t2_running=7 t2_results=10 scratch_used_g=96 scratch_free_g=105
+13:18:39 META prune=0 bytes=0 results=35 ckpt_final=10 ckpt_last=7 t2_completed_slots=22 t2_running=7 t2_results=10 scratch_used_g=94 scratch_free_g=107
+14:48:33 
+poller_started interval=300s 2026-07-15T14:51:55-04:00
+14:51:55 META prune=0 bytes=0 results=36 ckpt_final=11 ckpt_last=7 t2_completed_slots=23 t2_running=7 t2_results=11 scratch_used_g=101 scratch_free_g=100
+14:56:05 META prune=0 bytes=0 results=36 ckpt_final=11 ckpt_last=7 t2_completed_slots=23 t2_running=7 t2_results=11 scratch_used_g=104 scratch_free_g=97
+14:56:57 META prune=0 bytes=0 results=36 ckpt_final=11 ckpt_last=7 t2_completed_slots=23 t2_running=7 t2_results=11 scratch_used_g=97 scratch_free_g=104
+15:10:48 
+poller_started interval=300s 2026-07-15T17:49:35-04:00
+17:49:35 META prune=0 bytes=0 results=38 ckpt_final=13 ckpt_last=5 t2_completed_slots=31 t2_running=5 t2_results=13 scratch_used_g=105 scratch_free_g=96
+17:54:37 META prune=0 bytes=0 results=38 ckpt_final=13 ckpt_last=5 t2_completed_slots=31 t2_running=5 t2_results=13 scratch_used_g=104 scratch_free_g=97
+18:47:47 
+poller_started interval=300s 2026-07-15T20:48:53-04:00
+20:48:54 META prune=0 bytes=0 results=40 ckpt_final=15 ckpt_last=3 t2_completed_slots=33 t2_running=3 t2_results=15 scratch_used_g=105 scratch_free_g=96
+20:53:55 META prune=0 bytes=0 results=40 ckpt_final=15 ckpt_last=3 t2_completed_slots=33 t2_running=3 t2_results=15 scratch_used_g=97 scratch_free_g=104
+20:58:57 META prune=0 bytes=0 results=40 ckpt_final=15 ckpt_last=3 t2_completed_slots=33 t2_running=3 t2_results=15 scratch_used_g=97 scratch_free_g=104
+21:03:59 META prune=0 bytes=0 results=40 ckpt_final=15 ckpt_last=3 t2_completed_slots=33 t2_running=3 t2_results=15 scratch_used_g=97 scratch_free_g=104
+21:09:01 META prune=0 bytes=0 results=40 ckpt_final=15 ckpt_last=3 t2_completed_slots=33 t2_running=3 t2_results=15 scratch_used_g=97 scratch_free_g=104
+21:44:43 
+23:52:38 Tier2 array drained. t2_results=18
+POLLER_DONE status=TIER2_COMPLETE t2_results=18

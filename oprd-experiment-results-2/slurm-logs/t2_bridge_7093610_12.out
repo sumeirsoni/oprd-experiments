@@ -1,0 +1,318 @@
+[02:45:05] harness: loss=oprd_bridge device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12899.57it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  41%|████      | 126/310 [00:00<00:00, 1243.57it/s]Loading weights:  85%|████████▌ | 264/310 [00:00<00:00, 1322.25it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1307.74it/s]
+[02:45:11] supervised layers student=[7, 14] teacher=[9, 18]
+[02:46:44] refresh @step 0: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.13s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.13s/it]
+[02:47:03] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[02:48:33]   teacher prefill 25/63
+[02:48:34]   teacher prefill 50/63
+[02:48:37] stage-1 pool: 16927 tokens over 2 layers
+[02:48:39] bridge layer 7: r=8, stage-1 rms residual 0.4449
+[02:48:40] bridge layer 14: r=8, stage-1 rms residual 65.4441
+[02:48:45] step 1/2000 loss=0.57667 lr=2.00e-06
+[02:49:28] step 10/2000 loss=0.53812 lr=1.00e-05
+[02:50:16] step 20/2000 loss=0.50066 lr=1.00e-05
+[02:51:03] step 30/2000 loss=0.48583 lr=9.99e-06
+[02:51:50] step 40/2000 loss=0.45012 lr=9.99e-06
+[02:52:38] step 50/2000 loss=0.41396 lr=9.98e-06
+[02:53:25] step 60/2000 loss=0.39025 lr=9.98e-06
+[02:54:12] step 70/2000 loss=0.38649 lr=9.97e-06
+[02:54:59] step 80/2000 loss=0.38919 lr=9.96e-06
+[02:55:46] step 90/2000 loss=0.45655 lr=9.95e-06
+[02:56:33] step 100/2000 loss=0.36714 lr=9.94e-06
+[02:56:44] refresh @step 100: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.60s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.60s/it]
+[02:57:07] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[02:58:31]   teacher prefill 25/64
+[02:58:32]   teacher prefill 50/64
+[02:59:20] step 110/2000 loss=0.41040 lr=9.93e-06
+[03:00:08] step 120/2000 loss=0.43176 lr=9.91e-06
+[03:00:55] step 130/2000 loss=0.36351 lr=9.90e-06
+[03:01:43] step 140/2000 loss=0.39611 lr=9.88e-06
+[03:02:30] step 150/2000 loss=0.33179 lr=9.86e-06
+[03:03:17] step 160/2000 loss=0.32755 lr=9.84e-06
+[03:04:05] step 170/2000 loss=0.43521 lr=9.82e-06
+[03:04:52] step 180/2000 loss=0.33238 lr=9.80e-06
+[03:05:40] step 190/2000 loss=0.31316 lr=9.78e-06
+[03:06:27] step 200/2000 loss=0.36556 lr=9.76e-06
+[03:06:37] refresh @step 200: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.69s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.70s/it]
+[03:06:57] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:07:52]   teacher prefill 25/64
+[03:07:53]   teacher prefill 50/64
+[03:08:41] step 210/2000 loss=0.35633 lr=9.73e-06
+[03:09:28] step 220/2000 loss=0.32678 lr=9.70e-06
+[03:10:17] step 230/2000 loss=0.29669 lr=9.68e-06
+[03:11:04] step 240/2000 loss=0.33352 lr=9.65e-06
+[03:11:52] step 250/2000 loss=0.32262 lr=9.62e-06
+[03:12:40] step 260/2000 loss=0.29435 lr=9.59e-06
+[03:13:28] step 270/2000 loss=0.31958 lr=9.56e-06
+[03:14:15] step 280/2000 loss=0.34179 lr=9.52e-06
+[03:15:03] step 290/2000 loss=0.30048 lr=9.49e-06
+[03:15:51] step 300/2000 loss=0.31298 lr=9.46e-06
+[03:16:00] refresh @step 300: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.86s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.86s/it]
+[03:16:23] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:17:23]   teacher prefill 25/64
+[03:17:24]   teacher prefill 50/64
+[03:18:11] step 310/2000 loss=0.31274 lr=9.42e-06
+[03:18:57] step 320/2000 loss=0.30070 lr=9.38e-06
+[03:19:44] step 330/2000 loss=0.27063 lr=9.34e-06
+[03:20:31] step 340/2000 loss=0.35389 lr=9.30e-06
+[03:21:18] step 350/2000 loss=0.30857 lr=9.26e-06
+[03:22:04] step 360/2000 loss=0.34195 lr=9.22e-06
+[03:22:51] step 370/2000 loss=0.29375 lr=9.18e-06
+[03:23:38] step 380/2000 loss=0.30914 lr=9.14e-06
+[03:24:25] step 390/2000 loss=0.40235 lr=9.09e-06
+[03:25:12] step 400/2000 loss=0.28009 lr=9.05e-06
+[03:25:22] refresh @step 400: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.69s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.69s/it]
+[03:25:43] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:27:40]   teacher prefill 25/64
+[03:27:41]   teacher prefill 50/64
+[03:28:31] step 410/2000 loss=0.33634 lr=9.00e-06
+[03:29:20] step 420/2000 loss=0.32155 lr=8.95e-06
+[03:30:11] step 430/2000 loss=0.29334 lr=8.90e-06
+[03:31:00] step 440/2000 loss=0.30466 lr=8.85e-06
+[03:31:50] step 450/2000 loss=0.28724 lr=8.80e-06
+[03:32:39] step 460/2000 loss=0.27620 lr=8.75e-06
+[03:33:29] step 470/2000 loss=0.26692 lr=8.70e-06
+[03:34:19] step 480/2000 loss=0.25180 lr=8.64e-06
+[03:35:08] step 490/2000 loss=0.23964 lr=8.59e-06
+[03:35:58] step 500/2000 loss=0.26418 lr=8.54e-06
+[03:36:08] refresh @step 500: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.55s/it]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.55s/it]
+[03:36:33] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:37:30]   teacher prefill 25/64
+[03:37:31]   teacher prefill 50/64
+[03:38:19] step 510/2000 loss=0.24296 lr=8.48e-06
+[03:39:05] step 520/2000 loss=0.23754 lr=8.42e-06
+[03:39:52] step 530/2000 loss=0.25037 lr=8.37e-06
+[03:40:39] step 540/2000 loss=0.21040 lr=8.31e-06
+[03:41:26] step 550/2000 loss=0.30406 lr=8.25e-06
+[03:42:13] step 560/2000 loss=0.26999 lr=8.19e-06
+[03:43:00] step 570/2000 loss=0.28144 lr=8.13e-06
+[03:43:46] step 580/2000 loss=0.19913 lr=8.06e-06
+[03:44:33] step 590/2000 loss=0.21552 lr=8.00e-06
+[03:45:20] step 600/2000 loss=0.25453 lr=7.94e-06
+[03:45:29] refresh @step 600: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.83s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.83s/it]
+[03:45:49] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:47:33]   teacher prefill 25/64
+[03:47:34]   teacher prefill 50/64
+[03:48:22] step 610/2000 loss=0.22483 lr=7.88e-06
+[03:49:10] step 620/2000 loss=0.21443 lr=7.81e-06
+[03:49:58] step 630/2000 loss=0.25798 lr=7.75e-06
+[03:50:45] step 640/2000 loss=0.20580 lr=7.68e-06
+[03:51:33] step 650/2000 loss=0.19980 lr=7.61e-06
+[03:52:21] step 660/2000 loss=0.28216 lr=7.55e-06
+[03:53:08] step 670/2000 loss=0.21574 lr=7.48e-06
+[03:53:56] step 680/2000 loss=0.20472 lr=7.41e-06
+[03:54:44] step 690/2000 loss=0.22176 lr=7.34e-06
+[03:55:32] step 700/2000 loss=0.22485 lr=7.27e-06
+[03:55:42] refresh @step 700: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:22<00:00, 22.15s/it]Writing model shards: 100%|██████████| 1/1 [00:22<00:00, 22.15s/it]
+[03:56:21] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[03:57:35]   teacher prefill 25/64
+[03:57:36]   teacher prefill 50/64
+[03:58:25] step 710/2000 loss=0.19266 lr=7.20e-06
+[03:59:12] step 720/2000 loss=0.23598 lr=7.13e-06
+[04:00:02] step 730/2000 loss=0.20236 lr=7.06e-06
+[04:00:50] step 740/2000 loss=0.23020 lr=6.99e-06
+[04:01:37] step 750/2000 loss=0.22155 lr=6.91e-06
+[04:02:24] step 760/2000 loss=0.22065 lr=6.84e-06
+[04:03:11] step 770/2000 loss=0.20399 lr=6.77e-06
+[04:03:59] step 780/2000 loss=0.20242 lr=6.69e-06
+[04:04:46] step 790/2000 loss=0.19285 lr=6.62e-06
+[04:05:33] step 800/2000 loss=0.17699 lr=6.55e-06
+[04:05:52] refresh @step 800: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.79s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.79s/it]
+[04:06:14] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:07:20]   teacher prefill 25/64
+[04:07:21]   teacher prefill 50/64
+[04:08:08] step 810/2000 loss=0.21309 lr=6.47e-06
+[04:08:57] step 820/2000 loss=0.23159 lr=6.39e-06
+[04:09:45] step 830/2000 loss=0.21938 lr=6.32e-06
+[04:10:34] step 840/2000 loss=0.20510 lr=6.24e-06
+[04:11:22] step 850/2000 loss=0.24806 lr=6.17e-06
+[04:12:11] step 860/2000 loss=0.21740 lr=6.09e-06
+[04:12:59] step 870/2000 loss=0.22926 lr=6.01e-06
+[04:13:48] step 880/2000 loss=0.19012 lr=5.94e-06
+[04:14:37] step 890/2000 loss=0.23528 lr=5.86e-06
+[04:15:25] step 900/2000 loss=0.19287 lr=5.78e-06
+[04:15:35] refresh @step 900: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.55s/it]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.55s/it]
+[04:16:01] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:16:57]   teacher prefill 25/64
+[04:16:58]   teacher prefill 50/64
+[04:17:47] step 910/2000 loss=0.21907 lr=5.70e-06
+[04:18:34] step 920/2000 loss=0.18104 lr=5.63e-06
+[04:19:21] step 930/2000 loss=0.17778 lr=5.55e-06
+[04:20:09] step 940/2000 loss=0.17784 lr=5.47e-06
+[04:20:57] step 950/2000 loss=0.16138 lr=5.39e-06
+[04:21:44] step 960/2000 loss=0.19983 lr=5.31e-06
+[04:22:31] step 970/2000 loss=0.20114 lr=5.24e-06
+[04:23:19] step 980/2000 loss=0.17885 lr=5.16e-06
+[04:24:06] step 990/2000 loss=0.16197 lr=5.08e-06
+[04:24:53] step 1000/2000 loss=0.16599 lr=5.00e-06
+[04:25:05] refresh @step 1000: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:28<00:00, 28.23s/it]Writing model shards: 100%|██████████| 1/1 [00:28<00:00, 28.23s/it]
+[04:25:39] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:26:56]   teacher prefill 25/64
+[04:26:57]   teacher prefill 50/64
+[04:27:45] step 1010/2000 loss=0.19292 lr=4.92e-06
+[04:28:33] step 1020/2000 loss=0.18603 lr=4.84e-06
+[04:29:24] step 1030/2000 loss=0.18500 lr=4.76e-06
+[04:30:12] step 1040/2000 loss=0.19383 lr=4.69e-06
+[04:30:59] step 1050/2000 loss=0.18307 lr=4.61e-06
+[04:31:47] step 1060/2000 loss=0.15116 lr=4.53e-06
+[04:32:34] step 1070/2000 loss=0.18556 lr=4.45e-06
+[04:33:22] step 1080/2000 loss=0.15405 lr=4.37e-06
+[04:34:10] step 1090/2000 loss=0.16484 lr=4.30e-06
+[04:34:58] step 1100/2000 loss=0.18098 lr=4.22e-06
+[04:35:08] refresh @step 1100: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.73s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.73s/it]
+[04:35:30] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:36:30]   teacher prefill 25/64
+[04:36:31]   teacher prefill 50/64
+[04:37:21] step 1110/2000 loss=0.20598 lr=4.14e-06
+[04:38:09] step 1120/2000 loss=0.18693 lr=4.06e-06
+[04:38:59] step 1130/2000 loss=0.17741 lr=3.99e-06
+[04:39:46] step 1140/2000 loss=0.17058 lr=3.91e-06
+[04:40:35] step 1150/2000 loss=0.16683 lr=3.83e-06
+[04:41:24] step 1160/2000 loss=0.20797 lr=3.76e-06
+[04:42:12] step 1170/2000 loss=0.14949 lr=3.68e-06
+[04:43:01] step 1180/2000 loss=0.16948 lr=3.61e-06
+[04:43:50] step 1190/2000 loss=0.18450 lr=3.53e-06
+[04:44:37] step 1200/2000 loss=0.16070 lr=3.45e-06
+[04:44:48] refresh @step 1200: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.02s/it]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.02s/it]
+[04:45:13] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:46:22]   teacher prefill 25/64
+[04:46:23]   teacher prefill 50/64
+[04:47:12] step 1210/2000 loss=0.16738 lr=3.38e-06
+[04:47:58] step 1220/2000 loss=0.15965 lr=3.31e-06
+[04:48:47] step 1230/2000 loss=0.16920 lr=3.23e-06
+[04:49:34] step 1240/2000 loss=0.14837 lr=3.16e-06
+[04:50:22] step 1250/2000 loss=0.14934 lr=3.09e-06
+[04:51:09] step 1260/2000 loss=0.16061 lr=3.01e-06
+[04:51:57] step 1270/2000 loss=0.14227 lr=2.94e-06
+[04:52:44] step 1280/2000 loss=0.13654 lr=2.87e-06
+[04:53:32] step 1290/2000 loss=0.14782 lr=2.80e-06
+[04:54:19] step 1300/2000 loss=0.13986 lr=2.73e-06
+[04:54:29] refresh @step 1300: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:23<00:00, 23.61s/it]Writing model shards: 100%|██████████| 1/1 [00:23<00:00, 23.61s/it]
+[04:54:59] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[04:56:28]   teacher prefill 25/64
+[04:56:29]   teacher prefill 50/64
+[04:57:18] step 1310/2000 loss=0.16508 lr=2.66e-06
+[04:58:08] step 1320/2000 loss=0.18114 lr=2.59e-06
+[04:58:57] step 1330/2000 loss=0.16051 lr=2.52e-06
+[04:59:47] step 1340/2000 loss=0.15889 lr=2.45e-06
+[05:00:36] step 1350/2000 loss=0.15970 lr=2.39e-06
+[05:01:26] step 1360/2000 loss=0.16838 lr=2.32e-06
+[05:02:15] step 1370/2000 loss=0.14266 lr=2.25e-06
+[05:03:06] step 1380/2000 loss=0.15412 lr=2.19e-06
+[05:03:55] step 1390/2000 loss=0.14819 lr=2.12e-06
+[05:04:44] step 1400/2000 loss=0.14700 lr=2.06e-06
+[05:04:55] refresh @step 1400: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:21<00:00, 21.63s/it]Writing model shards: 100%|██████████| 1/1 [00:21<00:00, 21.63s/it]
+[05:05:22] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:06:42]   teacher prefill 25/63
+[05:06:43]   teacher prefill 50/63
+[05:07:32] step 1410/2000 loss=0.16391 lr=2.00e-06
+[05:08:22] step 1420/2000 loss=0.16011 lr=1.94e-06
+[05:09:12] step 1430/2000 loss=0.15622 lr=1.87e-06
+[05:10:03] step 1440/2000 loss=0.15188 lr=1.81e-06
+[05:10:54] step 1450/2000 loss=0.15247 lr=1.75e-06
+[05:11:44] step 1460/2000 loss=0.14830 lr=1.69e-06
+[05:12:34] step 1470/2000 loss=0.14699 lr=1.63e-06
+[05:13:24] step 1480/2000 loss=0.14300 lr=1.58e-06
+[05:14:15] step 1490/2000 loss=0.14605 lr=1.52e-06
+[05:15:04] step 1500/2000 loss=0.14180 lr=1.46e-06
+[05:15:15] refresh @step 1500: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.44s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.44s/it]
+[05:15:35] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:16:51]   teacher prefill 25/64
+[05:16:52]   teacher prefill 50/64
+[05:17:40] step 1510/2000 loss=0.15795 lr=1.41e-06
+[05:18:27] step 1520/2000 loss=0.15242 lr=1.36e-06
+[05:19:15] step 1530/2000 loss=0.14117 lr=1.30e-06
+[05:20:03] step 1540/2000 loss=0.14354 lr=1.25e-06
+[05:20:51] step 1550/2000 loss=0.14104 lr=1.20e-06
+[05:21:39] step 1560/2000 loss=0.13880 lr=1.15e-06
+[05:22:27] step 1570/2000 loss=0.15348 lr=1.10e-06
+[05:23:15] step 1580/2000 loss=0.14787 lr=1.05e-06
+[05:24:02] step 1590/2000 loss=0.12033 lr=1.00e-06
+[05:24:50] step 1600/2000 loss=0.13033 lr=9.55e-07
+[05:25:00] refresh @step 1600: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.90s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.90s/it]
+[05:25:21] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:26:19]   teacher prefill 25/64
+[05:26:20]   teacher prefill 50/64
+[05:27:09] step 1610/2000 loss=0.14480 lr=9.09e-07
+[05:27:56] step 1620/2000 loss=0.13740 lr=8.65e-07
+[05:28:44] step 1630/2000 loss=0.13314 lr=8.21e-07
+[05:29:31] step 1640/2000 loss=0.13727 lr=7.78e-07
+[05:30:19] step 1650/2000 loss=0.13778 lr=7.37e-07
+[05:31:06] step 1660/2000 loss=0.14367 lr=6.96e-07
+[05:31:54] step 1670/2000 loss=0.14426 lr=6.57e-07
+[05:32:41] step 1680/2000 loss=0.14268 lr=6.18e-07
+[05:33:28] step 1690/2000 loss=0.14246 lr=5.81e-07
+[05:34:16] step 1700/2000 loss=0.13892 lr=5.45e-07
+[05:34:25] refresh @step 1700: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.21s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.21s/it]
+[05:34:46] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:35:56]   teacher prefill 25/64
+[05:35:58]   teacher prefill 50/64
+[05:36:47] step 1710/2000 loss=0.16160 lr=5.10e-07
+[05:37:35] step 1720/2000 loss=0.15628 lr=4.76e-07
+[05:38:23] step 1730/2000 loss=0.14924 lr=4.43e-07
+[05:39:10] step 1740/2000 loss=0.13457 lr=4.11e-07
+[05:39:57] step 1750/2000 loss=0.12744 lr=3.81e-07
+[05:40:45] step 1760/2000 loss=0.13502 lr=3.51e-07
+[05:41:34] step 1770/2000 loss=0.14340 lr=3.23e-07
+[05:42:22] step 1780/2000 loss=0.14676 lr=2.96e-07
+[05:43:09] step 1790/2000 loss=0.12885 lr=2.70e-07
+[05:43:57] step 1800/2000 loss=0.12728 lr=2.45e-07
+[05:44:09] refresh @step 1800: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.45s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.45s/it]
+[05:44:30] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:45:50]   teacher prefill 25/63
+[05:45:52]   teacher prefill 50/63
+[05:46:42] step 1810/2000 loss=0.15668 lr=2.21e-07
+[05:47:30] step 1820/2000 loss=0.15686 lr=1.99e-07
+[05:48:18] step 1830/2000 loss=0.15212 lr=1.77e-07
+[05:49:06] step 1840/2000 loss=0.15238 lr=1.57e-07
+[05:49:54] step 1850/2000 loss=0.14885 lr=1.38e-07
+[05:50:43] step 1860/2000 loss=0.14920 lr=1.20e-07
+[05:51:31] step 1870/2000 loss=0.14633 lr=1.04e-07
+[05:52:19] step 1880/2000 loss=0.14676 lr=8.86e-08
+[05:53:07] step 1890/2000 loss=0.14491 lr=7.45e-08
+[05:53:54] step 1900/2000 loss=0.14485 lr=6.16e-08
+[05:54:03] refresh @step 1900: generating 64 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.99s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.99s/it]
+[05:54:24] vllm worker: 64 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[05:55:23]   teacher prefill 25/63
+[05:55:24]   teacher prefill 50/63
+[05:56:12] step 1910/2000 loss=0.15300 lr=4.99e-08
+[05:57:00] step 1920/2000 loss=0.15124 lr=3.94e-08
+[05:57:48] step 1930/2000 loss=0.15173 lr=3.02e-08
+[05:58:36] step 1940/2000 loss=0.15627 lr=2.22e-08
+[05:59:23] step 1950/2000 loss=0.15569 lr=1.54e-08
+[06:00:11] step 1960/2000 loss=0.15213 lr=9.87e-09
+[06:00:59] step 1970/2000 loss=0.15018 lr=5.55e-09
+[06:01:47] step 1980/2000 loss=0.14799 lr=2.47e-09
+[06:02:36] step 1990/2000 loss=0.15191 lr=6.17e-10
+[06:03:24] step 2000/2000 loss=0.15637 lr=0.00e+00
+[06:03:52] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.11s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.11s/it]
+[06:04:13] vllm worker: 480 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[06:05:31] eval aime24: acc=0.0000
+[06:05:31] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.26s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.26s/it]
+[06:05:53] vllm worker: 480 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/tmp_policy
+[06:07:12] eval aime25: acc=0.0000
+[06:07:12] DONE -> runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s1/results.json
