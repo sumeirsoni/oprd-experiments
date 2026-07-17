@@ -27,6 +27,16 @@ Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens
                     neighbors, temperature --tau. (Tier-0 M1: control arm only.)
   cka_gram          1 - linear CKA between centered Gram matrices per window.
   pkt_tau           Tier 1: soft_knn_kl with tau as the swept variable.
+  opd_topk          POSITIVE CONTROL: plain on-policy distillation on outputs — sparse
+                    KL toward the teacher's renormalized top-16 next-token distribution
+                    over the student's own rollouts. No hidden states, no bridge. If this
+                    arm cannot beat the untrained baseline, the protocol cannot distill
+                    and no representation-arm result is interpretable.
+
+Rollout-length protocol: the paper generates LONG rollouts and supervises only the last
+k=2000 tokens. Reproduce with --rollout-tokens 12000 --supervise-last-k 2000. Training on
+short truncated rollouts (the old default) teaches never-concluding behavior and is the
+suspected cause of the tier-2 answered_rate collapse.
 
 vLLM runs as a SUBPROCESS (spawned per generation round): the main process offloads
 teacher/student/optimizer to CPU first, so the engine gets a clean GPU, and engine
@@ -70,7 +80,12 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--loss", required=True,
                    choices=["oprd_bridge", "linear_map_mse", "minilmv2_selfrel",
-                            "ln_dist", "soft_knn_kl", "cka_gram", "pkt_tau"])
+                            "ln_dist", "soft_knn_kl", "cka_gram", "pkt_tau", "opd_topk"])
+    p.add_argument("--rollout-tokens", type=int, default=0,
+                   help="training-rollout generation length; 0 = same as --max-tokens. "
+                        "Paper protocol: long rollouts (>=8k) with --supervise-last-k 2000")
+    p.add_argument("--supervise-last-k", type=int, default=0,
+                   help="apply the loss only to the last K gen tokens (paper's mask); 0 = all")
     p.add_argument("--bridge-rank", type=int, default=8,
                    help="oprd_bridge: rank r of the frozen PCA/projector bridge (paper default 8)")
     p.add_argument("--tau", type=float, default=1.0)
@@ -191,7 +206,7 @@ def make_generator(student, teacher, opt, tok, a, out):
             log("vllm not importable, falling back to hf generate", out)
             use_vllm = False
 
-    def gen(prompt_texts, seeds):
+    def gen(prompt_texts, seeds, max_tokens):
         assert len(prompt_texts) == len(seeds)
         pid = [chat_ids(tok, p) for p in prompt_texts]
         if use_vllm:
@@ -202,7 +217,7 @@ def make_generator(student, teacher, opt, tok, a, out):
             student.to("cpu"); teacher.to("cpu"); _move_optimizer(opt, "cpu")
             torch.cuda.empty_cache()
             spec = {"model_dir": str(tmp), "prompt_ids": pid, "seeds": list(seeds),
-                    "max_tokens": a.max_tokens, "gpu_mem_util": a.gpu_mem_util,
+                    "max_tokens": max_tokens, "gpu_mem_util": a.gpu_mem_util,
                     "out_json": str(out / "worker_out.json")}
             spec_path = out / "worker_spec.json"
             spec_path.write_text(json.dumps(spec))
@@ -224,7 +239,7 @@ def make_generator(student, teacher, opt, tok, a, out):
                 torch.manual_seed(seeds[i])  # per-sample seeding (global RNG drives sampling)
                 ids = torch.tensor([p], device=DEV)
                 seq = student.generate(ids, do_sample=True, temperature=0.6, top_p=0.95,
-                                       max_new_tokens=a.max_tokens,
+                                       max_new_tokens=max_tokens,
                                        pad_token_id=tok.eos_token_id)
                 res.append({"prompt_ids": p, "gen_ids": seq[0, ids.shape[1]:].tolist()})
                 if (i + 1) % 16 == 0:
@@ -236,21 +251,35 @@ def make_generator(student, teacher, opt, tok, a, out):
 
 
 @torch.no_grad()
-def teacher_prefill(teacher, rollouts, layers, out):
-    """Frozen-teacher hidden states at `layers` over gen-region tokens; bf16 cpu
-    (bf16 not fp16: large-model activation outliers can overflow fp16's range)."""
-    states = []
+def teacher_prefill(teacher, rollouts, layers, out, max_tok, last_k=0, topk_targets=False):
+    """Frozen-teacher pass over each rollout. Stores, for the SUPERVISED region only
+    (last `last_k` gen tokens if set, else all): hidden states at `layers` (bf16 cpu;
+    bf16 not fp16 because large-model activation outliers overflow fp16), plus, when
+    topk_targets, the teacher's renormalized top-16 next-token distribution (opd_topk).
+    Returns list of {"h": {layer: (sup,d_t)}, "off": int, "tk_ids", "tk_p"}."""
+    entries = []
     for i, r in enumerate(rollouts):
-        ids = torch.tensor([r["prompt_ids"] + r["gen_ids"]], device=DEV)
+        glen = min(len(r["gen_ids"]), max_tok)
+        ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
         gstart = len(r["prompt_ids"])
+        off = max(0, glen - last_k) if last_k else 0
         o = teacher(input_ids=ids, output_hidden_states=True, use_cache=False)
-        states.append({li: o.hidden_states[li][0, gstart:].bfloat16().cpu() for li in layers})
+        e = {"off": off,
+             "h": {li: o.hidden_states[li][0, gstart + off:gstart + glen].bfloat16().cpu()
+                   for li in layers}}
+        if topk_targets:
+            lg = o.logits[0, gstart + off - 1:gstart + glen - 1].float()
+            p = torch.softmax(lg, -1)
+            tp, ti = p.topk(16, dim=-1)
+            e["tk_p"] = (tp / tp.sum(-1, keepdim=True)).half().cpu()
+            e["tk_ids"] = ti.int().cpu()
+        entries.append(e)
         del o
         if DEV == "mps":
             torch.mps.empty_cache()
         if (i + 1) % 25 == 0:
             log(f"  teacher prefill {i+1}/{len(rollouts)}", out)
-    return states
+    return entries
 
 
 # ---------------------------------------------------------------- loss arms
@@ -267,16 +296,17 @@ def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=
     student.eval()
     for r, ts in zip(rolls, tstates):
         glen = min(len(r["gen_ids"]), max_tok)
+        off = ts["off"]
         ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
         gstart = len(r["prompt_ids"])
         o = student(input_ids=ids, output_hidden_states=True)
         for ls in lay_s:
-            S[ls].append(o.hidden_states[ls][0, gstart:gstart + glen].float().cpu())
-            T[ls].append(ts[lmap[ls]][:glen].float())
+            S[ls].append(o.hidden_states[ls][0, gstart + off:gstart + glen].float().cpu())
+            T[ls].append(ts["h"][lmap[ls]][:glen - off].float())
         del o
         if DEV == "mps":
             torch.mps.empty_cache()
-        n += glen
+        n += glen - off
         if n >= cap:
             break
     student.train()
@@ -391,7 +421,7 @@ def eval_aime(gen, tok, names, avg_at, seed, out, max_tokens):
             prompts += [row[pcol]] * avg_at
             seeds += [seed * 1_000_000 + pi * 1000 + c for c in range(avg_at)]
         log(f"eval {name}: generating {len(prompts)} samples ({len(ds)}x{avg_at})", out)
-        rolls = gen(prompts, seeds)
+        rolls = gen(prompts, seeds, max_tokens)
         correct, total, answered, truncated = 0, 0, 0, 0
         for pi, row in enumerate(ds):
             gt = norm_ans(row[acol])
@@ -494,17 +524,21 @@ def main():
     else:
         prompts = load_prompt_texts(a.prompts, a.n_prompts, a.seed)
 
+        rt = a.rollout_tokens or a.max_tokens  # training-rollout generation budget
+
         def refresh(step):
             n_pool = min(len(prompts), max(64, a.batch_tokens // 256))
             rng = np.random.default_rng(a.seed + step)
             sel = [prompts[i] for i in rng.permutation(len(prompts))[:n_pool]]
             seeds = [a.seed * 1_000_000 + step * 1000 + i for i in range(len(sel))]
-            log(f"refresh @step {step}: generating {len(sel)} rollouts", out)
-            rolls = gen(sel, seeds)
+            log(f"refresh @step {step}: generating {len(sel)} rollouts (<= {rt} tok)", out)
+            rolls = gen(sel, seeds, rt)
             rolls = [r for r in rolls if len(r["gen_ids"]) >= 8]
             if not rolls:
                 return None, None  # caller keeps the previous pool
-            tstates = teacher_prefill(teacher, rolls, lay_t, out)
+            tstates = teacher_prefill(teacher, rolls, lay_t, out, rt,
+                                      last_k=a.supervise_last_k,
+                                      topk_targets=(a.loss == "opd_topk"))
             return rolls, tstates
 
         rolls, tstates = refresh(0)
@@ -514,7 +548,7 @@ def main():
         if a.loss in ("oprd_bridge", "linear_map_mse"):
             # Stage 1 (paper procedure): both backbones frozen, fit/init the projector(s)
             S_pool, T_pool = collect_pool_states(student, rolls, tstates, lay_s, lmap,
-                                                 a.max_tokens, out)
+                                                 rt, out)
             if a.loss == "oprd_bridge":
                 bridge = fit_bridge(S_pool, T_pool, a.bridge_rank, out)  # then frozen forever
             else:
@@ -534,17 +568,27 @@ def main():
             while toks_done < a.batch_tokens:
                 r, ts = rolls[ri % len(rolls)], tstates[ri % len(rolls)]
                 ri += 1
-                glen = min(len(r["gen_ids"]), a.max_tokens)
+                glen = min(len(r["gen_ids"]), rt)
+                off = ts["off"]
+                sup = glen - off  # tokens actually supervised (last-k mask)
                 ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
                 gstart = len(r["prompt_ids"])
-                o = student(input_ids=ids, output_hidden_states=True)
-                s_states = {ls: o.hidden_states[ls][0, gstart:gstart + glen].float()
-                            for ls in lay_s}
-                t_states = {ls: ts[lmap[ls]][:glen] for ls in lay_s}
-                loss = compute_loss(a.loss, s_states, t_states, lay_s, bridge, wmap,
-                                    a.tau, a.topk)
+                if a.loss == "opd_topk":
+                    o = student(input_ids=ids)
+                    lq = torch.log_softmax(
+                        o.logits[0, gstart + off - 1:gstart + glen - 1].float(), -1)
+                    tk_ids = ts["tk_ids"].to(DEV).long()
+                    tk_p = ts["tk_p"].to(DEV).float()
+                    loss = -(tk_p * lq.gather(-1, tk_ids)).sum(-1).mean()
+                else:
+                    o = student(input_ids=ids, output_hidden_states=True)
+                    s_states = {ls: o.hidden_states[ls][0, gstart + off:gstart + glen].float()
+                                for ls in lay_s}
+                    t_states = {ls: ts["h"][lmap[ls]][:sup] for ls in lay_s}
+                    loss = compute_loss(a.loss, s_states, t_states, lay_s, bridge, wmap,
+                                        a.tau, a.topk)
                 # weight by tokens the loss actually saw, clipped to the remaining budget
-                eff = min(glen, REL_WINDOW) if a.loss in RELATIONAL else glen
+                eff = min(sup, REL_WINDOW) if a.loss in RELATIONAL else sup
                 w = min(eff, a.batch_tokens - toks_done) / a.batch_tokens
                 (loss * w).backward()
                 batch_losses.append(float(loss.item()))
@@ -574,11 +618,13 @@ def main():
             with torch.no_grad():
                 sp, tp = [], []
                 for r, ts in zip(rolls[:20], tstates[:20]):
-                    glen = min(len(r["gen_ids"]), a.max_tokens)
+                    glen = min(len(r["gen_ids"]), rt)
+                    off = ts["off"]
                     ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
                     o = student(input_ids=ids, output_hidden_states=True)
-                    sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]):].float().cpu())
-                    tp.append(ts[lay_t[-1]][:glen].float())
+                    sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]) + off:
+                                                         len(r["prompt_ids"]) + glen].float().cpu())
+                    tp.append(ts["h"][lay_t[-1]][:glen - off].float())
                     del o
             if diag_names:
                 res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
