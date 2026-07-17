@@ -47,14 +47,32 @@ extractor/prompting; trained OPRD-Bridge still does not leave the floor.
 4. mknn from training still tracks the AIME ordering among trained arms (minilmv2 tops
    both). Training failures (ln_dist / linear_map collapse) remain training outcomes.
 
-## Agreed next steps (order matters)
+## Analysis of the 24k table (Fable, 2026-07-17)
 
-1. ~~Re-eval all 18 ckpts + untrained baseline at 24k~~ **DONE** (2026-07-16, job 7101591).
-2. Winner-only all-layer variant (3 seeds), not a full-matrix rerun (~180 GPU-h saved).
-   Candidate: **minilmv2_selfrel** (only non-collapsed trained arm). Revisit whether any
-   winner is justified given baseline ≥ distill on AIME25.
-3. Mid-vs-all-layer on AIME, same-arch, no bridge (4 arms x 3 seeds, ~50 GPU-h): still on;
-   more valuable now that t2 shows alignment tracking AIME while t3 left mid-vs-all
-   metric-dependent — and same-arch is where the paper's strong numbers live.
-4. Open gap for the write-up: no first-hand OPD baseline arm in the cluster harness; add
-   one if we want the "vs OPD" comparison under our own protocol.
+1. **Conditional accuracy: the AIME24 gap is failure-to-answer, not wrong answers.**
+   acc/answered_rate: baseline 3.12/0.76 = 4.1% per answered attempt; minilmv2
+   2.71/0.63 = 4.3%. Identical. Training's primary casualty is concluding behavior
+   (answered_rate 0.76 -> 0.63..0.11, roughly ordered by how hard each loss pulls the
+   student). AIME25 shows a real conditional gap as well.
+2. **Suspected protocol defect (mine): training rollouts were 2000 tokens TOTAL, the
+   paper's are long with a last-2000-token loss mask.** Every arm supervised the student
+   exclusively on truncated never-concluding traces; the untrained baseline never saw
+   that data and answers most. This confounds "distillation <= untrained": the arm-vs-arm
+   ranking may survive (shared data), but the vs-baseline claim cannot be made from this
+   run. Fixed in harness 7d8aa3b (--rollout-tokens 12000 --supervise-last-k 2000).
+3. The faithful oprd_bridge hit the paper's internal diagnostic (~95% projection cosine)
+   and still scored 0.00 with answered_rate 0.18. If that repeats under the fixed
+   rollout protocol, it is a genuine empirical challenge to Table 4; before then, no.
+
+## Revised next steps (supersedes the list above; order matters)
+
+1. **Positive control first (new `opd_topk` arm, harness 7d8aa3b):** same-arch 1.5B pair,
+   opd_topk + minilmv2 + oprd_bridge (+ mid/all layer variants, absorbing the planned
+   mid-vs-all AIME experiment), all under the fixed protocol
+   (--rollout-tokens 12000 --supervise-last-k 2000, eval --max-tokens 24000). If opd_topk
+   cannot beat the untrained baseline, the protocol cannot distill and nothing else is
+   interpretable. ~6 arms x 3 seeds x ~4h ~= 70 GPU-h.
+2. Full t2 rerun under the fixed protocol (~180+ GPU-h, longer rollouts cost more):
+   now justified in principle because the current t2 is confounded, but gate it on the
+   positive control passing.
+3. Winner-only all-layer t2 variant: folded into step 1's layer variants; revisit after.
