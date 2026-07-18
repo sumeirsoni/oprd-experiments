@@ -86,6 +86,10 @@ def parse_args():
                         "Paper protocol: long rollouts (>=8k) with --supervise-last-k 2000")
     p.add_argument("--supervise-last-k", type=int, default=0,
                    help="apply the loss only to the last K gen tokens (paper's mask); 0 = all")
+    p.add_argument("--require-finished", action="store_true",
+                   help="drop training rollouts that hit the --rollout-tokens cap (no natural "
+                        "EOS): with --supervise-last-k, a capped trace's 'last K' is not truly "
+                        "last, so supervising it is unfaithful to the paper's mask")
     p.add_argument("--bridge-rank", type=int, default=8,
                    help="oprd_bridge: rank r of the frozen PCA/projector bridge (paper default 8)")
     p.add_argument("--tau", type=float, default=1.0)
@@ -534,6 +538,10 @@ def main():
             log(f"refresh @step {step}: generating {len(sel)} rollouts (<= {rt} tok)", out)
             rolls = gen(sel, seeds, rt)
             rolls = [r for r in rolls if len(r["gen_ids"]) >= 8]
+            n_fin = sum(len(r["gen_ids"]) < rt for r in rolls)
+            log(f"refresh @step {step}: {n_fin}/{len(rolls)} rollouts finished naturally", out)
+            if a.require_finished:
+                rolls = [r for r in rolls if len(r["gen_ids"]) < rt]
             if not rolls:
                 return None, None  # caller keeps the previous pool
             tstates = teacher_prefill(teacher, rolls, lay_t, out, rt,
@@ -543,7 +551,9 @@ def main():
 
         rolls, tstates = refresh(0)
         if not rolls:
-            raise SystemExit("initial rollout pool is empty (all generations < 8 tokens)")
+            raise SystemExit(
+                "initial rollout pool is empty (all generations < 8 tokens, or none finished "
+                "under --require-finished — raise --rollout-tokens or drop the flag)")
         bridge = None
         if a.loss in ("oprd_bridge", "linear_map_mse"):
             # Stage 1 (paper procedure): both backbones frozen, fit/init the projector(s)
