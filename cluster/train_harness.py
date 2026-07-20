@@ -32,6 +32,15 @@ Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens
                     over the student's own rollouts. No hidden states, no bridge. If this
                     arm cannot beat the untrained baseline, the protocol cannot distill
                     and no representation-arm result is interpretable.
+  depth_gram        DEPTH-trajectory arm (partner idea, evidence/note-depth-trajectory.md):
+                    per token, the pairwise cross-LAYER cosine Gram over the supervised
+                    layers — how the token's state evolves with depth. Window-mean-centered
+                    on both sides before MSE (tier-0 probe: raw depth-Grams are ~97%
+                    token-independent; only the residual is token-specific). Dimension-free,
+                    projector-free (cosines are within-model). Needs >=2 supervised layers;
+                    intended with a dense band, e.g.
+                    --supervised-layer-fracs 0.125,0.25,...,1.0. Nearest prior art is FDD
+                    (ACL 2025, vocab-space trajectories) — cite/compare in any write-up.
 
 Rollout-length protocol: the paper generates LONG rollouts and supervises only the last
 k=2000 tokens. Reproduce with --rollout-tokens 12000 --supervise-last-k 2000. Training on
@@ -72,7 +81,8 @@ DEV = ("cuda" if torch.cuda.is_available()
 AIME = {"aime24": ("Maxwell-Jia/AIME_2024", "train"),
         "aime25": ("MathArena/aime_2025", "train")}
 INSTR = "\n\nPlease reason step by step, and put your final answer within \\boxed{}."
-RELATIONAL = {"minilmv2_selfrel", "ln_dist", "soft_knn_kl", "pkt_tau", "cka_gram"}
+RELATIONAL = {"minilmv2_selfrel", "ln_dist", "soft_knn_kl", "pkt_tau", "cka_gram",
+              "depth_gram"}
 REL_WINDOW = 512  # relational losses cap the per-rollout window at this many tokens
 
 
@@ -80,7 +90,8 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--loss", required=True,
                    choices=["oprd_bridge", "linear_map_mse", "minilmv2_selfrel",
-                            "ln_dist", "soft_knn_kl", "cka_gram", "pkt_tau", "opd_topk"])
+                            "ln_dist", "soft_knn_kl", "cka_gram", "pkt_tau", "opd_topk",
+                            "depth_gram"])
     p.add_argument("--rollout-tokens", type=int, default=0,
                    help="training-rollout generation length; 0 = same as --max-tokens. "
                         "Paper protocol: long rollouts (>=8k) with --supervise-last-k 2000")
@@ -365,7 +376,9 @@ def cosine_sim(h):
 def loss_relational(arm, hs, ht, tau, topk):
     """hs (T,d_s), ht (T,d_t) — window = this rollout's gen region (cap REL_WINDOW)."""
     T = min(hs.shape[0], REL_WINDOW)
-    hs, ht = hs[:T], ht[:T]
+    hs, ht = hs[-T:], ht[-T:]  # LAST T of the supervised span (a capped span's tail is
+    # the rollout's true tail under --require-finished); hs[:T] was a bug — it supervised
+    # the first 512 of the last-2k window, where teacher-student divergence is lowest
     St, Ss = cosine_sim(ht), cosine_sim(hs)
     eye = torch.eye(T, device=hs.device, dtype=torch.bool)
     if arm == "minilmv2_selfrel":
@@ -395,7 +408,31 @@ def linear_cka(X, Y):
     return xy / ((X.T @ X).norm() * (Y.T @ Y).norm()).clamp_min(1e-9)
 
 
+def loss_depth_gram(s_list, t_list):
+    """s_list/t_list: per-layer (T,d) states, same layer order, dims may differ across
+    models. Per-token cross-layer cosine Gram, window-mean-centered on both sides
+    (calibration: raw depth-Grams are ~97% token-independent, tier-0 probe), MSE on
+    the residuals. Slices to the LAST REL_WINDOW tokens like the other relational arms."""
+    T = min(s_list[0].shape[0], REL_WINDOW)
+
+    def gram(hl):
+        H = torch.stack([F.normalize(h[-T:].float(), dim=-1) for h in hl])  # (L,T,d)
+        G = torch.einsum("ltd,mtd->tlm", H, H)
+        iu = torch.triu_indices(len(hl), len(hl), offset=1)
+        return G[:, iu[0], iu[1]]  # (T, L*(L-1)/2)
+
+    gs, gt = gram(s_list), gram(t_list)
+    return F.mse_loss(gs - gs.mean(0), gt - gt.mean(0))
+
+
 def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
+    if arm == "depth_gram":
+        if len(layers) < 2:
+            raise SystemExit("depth_gram needs >=2 supervised layers "
+                             "(use a dense --supervised-layer-fracs band)")
+        return loss_depth_gram([s_states[ls] for ls in layers],
+                               [t_states[ls].to(s_states[layers[0]].device).float()
+                                for ls in layers])
     per_layer = []
     for li in layers:
         hs = s_states[li]
@@ -409,7 +446,7 @@ def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
             per_layer.append(F.mse_loss(wmap[str(li)](hs), ht))
         elif arm == "cka_gram":
             T = min(hs.shape[0], REL_WINDOW)
-            per_layer.append(1 - linear_cka(hs[:T], ht[:T]))
+            per_layer.append(1 - linear_cka(hs[-T:], ht[-T:]))
         else:
             per_layer.append(loss_relational(arm, hs, ht, tau, topk))
     return torch.stack(per_layer).mean()
