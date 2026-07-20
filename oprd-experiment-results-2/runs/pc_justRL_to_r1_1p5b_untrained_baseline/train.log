@@ -1,0 +1,16 @@
+[13:18:51] harness: loss=opd_topk device=cuda
+[13:18:56] supervised layers student=[7, 14] teacher=[7, 14]
+[13:20:30] refresh @step 0: generating 8 rollouts (<= 512 tok)
+[13:20:50] vllm worker: 8 prompts
+[13:22:17] refresh @step 0: 0/8 rollouts finished naturally
+[13:22:27] DONE -> runs/pc_justRL_to_r1_1p5b_untrained_baseline/results.json
+[13:22:51] harness: loss=opd_topk device=cuda
+[13:22:56] supervised layers student=[7, 14] teacher=[7, 14]
+[13:23:02] eval-only: loaded runs/pc_justRL_to_r1_1p5b_untrained_baseline/ckpt_final.pt
+[13:23:04] eval aime24: generating 480 samples (30x16)
+[13:23:23] vllm worker: 480 prompts
+[13:34:03] eval aime24: acc=0.2833 answered=0.717 truncated=0.281
+[13:34:03] eval aime25: generating 480 samples (30x16)
+[13:34:24] vllm worker: 480 prompts
+[13:45:36] eval aime25: acc=0.2292 answered=0.769 truncated=0.231
+[13:45:36] DONE -> runs/pc_justRL_to_r1_1p5b_untrained_baseline/results.json

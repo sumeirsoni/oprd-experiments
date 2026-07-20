@@ -1,0 +1,314 @@
+[00:30:01] harness: loss=opd_topk device=cuda
+[00:30:29] supervised layers student=[7, 14] teacher=[7, 14]
+[00:32:14] refresh @step 0: generating 64 rollouts (<= 16000 tok)
+[00:32:30] vllm worker: 64 prompts
+[00:35:45] refresh @step 0: 53/64 rollouts finished naturally
+[00:35:48]   teacher prefill 25/53
+[00:35:50]   teacher prefill 50/53
+[00:36:19] step 1/2000 loss=1.07699 lr=2.00e-06
+[00:41:12] step 10/2000 loss=0.88346 lr=1.00e-05
+[00:46:29] step 20/2000 loss=0.78647 lr=1.00e-05
+[00:51:44] step 30/2000 loss=0.56382 lr=9.99e-06
+[00:56:59] step 40/2000 loss=0.67194 lr=9.99e-06
+[01:02:15] step 50/2000 loss=0.62450 lr=9.98e-06
+[01:07:21] step 60/2000 loss=0.58279 lr=9.98e-06
+[01:12:41] step 70/2000 loss=0.58183 lr=9.97e-06
+[01:18:07] step 80/2000 loss=0.59067 lr=9.96e-06
+[01:23:21] step 90/2000 loss=0.74925 lr=9.95e-06
+[01:28:27] step 100/2000 loss=0.56946 lr=9.94e-06
+[01:28:35] refresh @step 100: generating 64 rollouts (<= 16000 tok)
+[01:29:01] vllm worker: 64 prompts
+[01:31:12] refresh @step 100: 60/64 rollouts finished naturally
+[01:31:14]   teacher prefill 25/60
+[01:31:16]   teacher prefill 50/60
+[01:34:49] step 110/2000 loss=0.65068 lr=9.93e-06
+[01:38:26] step 120/2000 loss=0.59422 lr=9.91e-06
+[01:41:59] step 130/2000 loss=0.64316 lr=9.90e-06
+[01:45:36] step 140/2000 loss=0.58888 lr=9.88e-06
+[01:49:09] step 150/2000 loss=0.63267 lr=9.86e-06
+[01:52:45] step 160/2000 loss=0.58192 lr=9.84e-06
+[01:56:18] step 170/2000 loss=0.62939 lr=9.82e-06
+[01:59:55] step 180/2000 loss=0.58209 lr=9.80e-06
+[02:03:28] step 190/2000 loss=0.62913 lr=9.78e-06
+[02:07:05] step 200/2000 loss=0.58274 lr=9.76e-06
+[02:07:13] refresh @step 200: generating 64 rollouts (<= 16000 tok)
+[02:07:33] vllm worker: 64 prompts
+[02:09:17] refresh @step 200: 54/64 rollouts finished naturally
+[02:09:18]   teacher prefill 25/54
+[02:09:20]   teacher prefill 50/54
+[02:12:43] step 210/2000 loss=0.56500 lr=9.73e-06
+[02:16:07] step 220/2000 loss=0.49263 lr=9.70e-06
+[02:19:31] step 230/2000 loss=0.51381 lr=9.68e-06
+[02:22:54] step 240/2000 loss=0.55449 lr=9.65e-06
+[02:26:18] step 250/2000 loss=0.48652 lr=9.62e-06
+[02:29:41] step 260/2000 loss=0.50755 lr=9.59e-06
+[02:33:05] step 270/2000 loss=0.55065 lr=9.56e-06
+[02:36:28] step 280/2000 loss=0.48527 lr=9.52e-06
+[02:39:52] step 290/2000 loss=0.50650 lr=9.49e-06
+[02:43:16] step 300/2000 loss=0.54969 lr=9.46e-06
+[02:43:23] refresh @step 300: generating 64 rollouts (<= 16000 tok)
+[02:43:43] vllm worker: 64 prompts
+[02:45:40] refresh @step 300: 54/64 rollouts finished naturally
+[02:45:42]   teacher prefill 25/54
+[02:45:43]   teacher prefill 50/54
+[02:49:01] step 310/2000 loss=0.58839 lr=9.42e-06
+[02:52:06] step 320/2000 loss=0.53655 lr=9.38e-06
+[02:55:19] step 330/2000 loss=0.47467 lr=9.34e-06
+[02:58:37] step 340/2000 loss=0.58618 lr=9.30e-06
+[03:01:42] step 350/2000 loss=0.53335 lr=9.26e-06
+[03:04:55] step 360/2000 loss=0.47263 lr=9.22e-06
+[03:08:14] step 370/2000 loss=0.58434 lr=9.18e-06
+[03:11:18] step 380/2000 loss=0.53209 lr=9.14e-06
+[03:14:31] step 390/2000 loss=0.47204 lr=9.09e-06
+[03:17:50] step 400/2000 loss=0.58312 lr=9.05e-06
+[03:17:57] refresh @step 400: generating 64 rollouts (<= 16000 tok)
+[03:18:16] vllm worker: 64 prompts
+[03:19:57] refresh @step 400: 57/64 rollouts finished naturally
+[03:19:58]   teacher prefill 25/57
+[03:20:00]   teacher prefill 50/57
+[03:23:18] step 410/2000 loss=0.56764 lr=9.00e-06
+[03:26:27] step 420/2000 loss=0.60062 lr=8.95e-06
+[03:29:43] step 430/2000 loss=0.57511 lr=8.90e-06
+[03:32:54] step 440/2000 loss=0.47751 lr=8.85e-06
+[03:36:09] step 450/2000 loss=0.61901 lr=8.80e-06
+[03:39:24] step 460/2000 loss=0.52967 lr=8.75e-06
+[03:42:32] step 470/2000 loss=0.53345 lr=8.70e-06
+[03:45:49] step 480/2000 loss=0.60611 lr=8.64e-06
+[03:48:58] step 490/2000 loss=0.57066 lr=8.59e-06
+[03:52:16] step 500/2000 loss=0.55064 lr=8.54e-06
+[03:52:23] refresh @step 500: generating 64 rollouts (<= 16000 tok)
+[03:52:47] vllm worker: 64 prompts
+[03:54:32] refresh @step 500: 59/64 rollouts finished naturally
+[03:54:33]   teacher prefill 25/59
+[03:54:35]   teacher prefill 50/59
+[03:57:33] step 510/2000 loss=0.48844 lr=8.48e-06
+[04:00:37] step 520/2000 loss=0.44146 lr=8.42e-06
+[04:03:33] step 530/2000 loss=0.58495 lr=8.37e-06
+[04:06:38] step 540/2000 loss=0.52025 lr=8.31e-06
+[04:09:34] step 550/2000 loss=0.60845 lr=8.25e-06
+[04:12:37] step 560/2000 loss=0.62621 lr=8.19e-06
+[04:15:36] step 570/2000 loss=0.57070 lr=8.13e-06
+[04:18:37] step 580/2000 loss=0.62808 lr=8.06e-06
+[04:21:38] step 590/2000 loss=0.54599 lr=8.00e-06
+[04:24:40] step 600/2000 loss=0.60169 lr=7.94e-06
+[04:24:47] refresh @step 600: generating 64 rollouts (<= 16000 tok)
+[04:25:08] vllm worker: 64 prompts
+[04:26:46] refresh @step 600: 60/64 rollouts finished naturally
+[04:26:48]   teacher prefill 25/60
+[04:26:49]   teacher prefill 50/60
+[04:29:57] step 610/2000 loss=0.62066 lr=7.88e-06
+[04:33:20] step 620/2000 loss=0.45456 lr=7.81e-06
+[04:36:27] step 630/2000 loss=0.62966 lr=7.75e-06
+[04:39:50] step 640/2000 loss=0.44657 lr=7.68e-06
+[04:42:57] step 650/2000 loss=0.61262 lr=7.61e-06
+[04:46:20] step 660/2000 loss=0.44340 lr=7.55e-06
+[04:49:27] step 670/2000 loss=0.60920 lr=7.48e-06
+[04:52:50] step 680/2000 loss=0.44042 lr=7.41e-06
+[04:55:57] step 690/2000 loss=0.60776 lr=7.34e-06
+[04:59:20] step 700/2000 loss=0.43956 lr=7.27e-06
+[04:59:27] refresh @step 700: generating 64 rollouts (<= 16000 tok)
+[04:59:50] vllm worker: 64 prompts
+[05:01:32] refresh @step 700: 56/64 rollouts finished naturally
+[05:01:33]   teacher prefill 25/56
+[05:01:35]   teacher prefill 50/56
+[05:05:03] step 710/2000 loss=0.47882 lr=7.20e-06
+[05:08:28] step 720/2000 loss=0.51877 lr=7.13e-06
+[05:11:46] step 730/2000 loss=0.50348 lr=7.06e-06
+[05:15:13] step 740/2000 loss=0.54705 lr=6.99e-06
+[05:18:37] step 750/2000 loss=0.54553 lr=6.91e-06
+[05:22:02] step 760/2000 loss=0.47539 lr=6.84e-06
+[05:25:29] step 770/2000 loss=0.47013 lr=6.77e-06
+[05:28:49] step 780/2000 loss=0.48664 lr=6.69e-06
+[05:32:13] step 790/2000 loss=0.53754 lr=6.62e-06
+[05:35:36] step 800/2000 loss=0.56771 lr=6.55e-06
+[05:35:55] refresh @step 800: generating 64 rollouts (<= 16000 tok)
+[05:36:19] vllm worker: 64 prompts
+[05:38:39] refresh @step 800: 61/64 rollouts finished naturally
+[05:38:40]   teacher prefill 25/61
+[05:38:42]   teacher prefill 50/61
+[05:42:03] step 810/2000 loss=0.54526 lr=6.47e-06
+[05:45:13] step 820/2000 loss=0.63357 lr=6.39e-06
+[05:48:33] step 830/2000 loss=0.56937 lr=6.32e-06
+[05:51:43] step 840/2000 loss=0.60158 lr=6.24e-06
+[05:55:03] step 850/2000 loss=0.54843 lr=6.17e-06
+[05:58:16] step 860/2000 loss=0.55725 lr=6.09e-06
+[06:01:32] step 870/2000 loss=0.56403 lr=6.01e-06
+[06:04:44] step 880/2000 loss=0.52996 lr=5.94e-06
+[06:08:01] step 890/2000 loss=0.57575 lr=5.86e-06
+[06:11:14] step 900/2000 loss=0.57064 lr=5.78e-06
+[06:11:21] refresh @step 900: generating 64 rollouts (<= 16000 tok)
+[06:11:47] vllm worker: 64 prompts
+[06:13:52] refresh @step 900: 57/64 rollouts finished naturally
+[06:13:53]   teacher prefill 25/57
+[06:13:54]   teacher prefill 50/57
+[06:17:01] step 910/2000 loss=0.63387 lr=5.70e-06
+[06:20:10] step 920/2000 loss=0.63084 lr=5.63e-06
+[06:23:13] step 930/2000 loss=0.64468 lr=5.55e-06
+[06:26:19] step 940/2000 loss=0.55484 lr=5.47e-06
+[06:29:24] step 950/2000 loss=0.54736 lr=5.39e-06
+[06:32:30] step 960/2000 loss=0.65373 lr=5.31e-06
+[06:35:36] step 970/2000 loss=0.66038 lr=5.24e-06
+[06:38:39] step 980/2000 loss=0.60789 lr=5.16e-06
+[06:41:47] step 990/2000 loss=0.61494 lr=5.08e-06
+[06:44:52] step 1000/2000 loss=0.62959 lr=5.00e-06
+[06:45:05] refresh @step 1000: generating 64 rollouts (<= 16000 tok)
+[06:45:26] vllm worker: 64 prompts
+[06:47:31] refresh @step 1000: 57/64 rollouts finished naturally
+[06:47:33]   teacher prefill 25/57
+[06:47:34]   teacher prefill 50/57
+[06:50:57] step 1010/2000 loss=0.52308 lr=4.92e-06
+[06:54:17] step 1020/2000 loss=0.61495 lr=4.84e-06
+[06:57:35] step 1030/2000 loss=0.69771 lr=4.76e-06
+[07:00:58] step 1040/2000 loss=0.56026 lr=4.69e-06
+[07:04:18] step 1050/2000 loss=0.52800 lr=4.61e-06
+[07:07:41] step 1060/2000 loss=0.57722 lr=4.53e-06
+[07:10:58] step 1070/2000 loss=0.55308 lr=4.45e-06
+[07:14:21] step 1080/2000 loss=0.55167 lr=4.37e-06
+[07:17:42] step 1090/2000 loss=0.56549 lr=4.30e-06
+[07:21:00] step 1100/2000 loss=0.60624 lr=4.22e-06
+[07:21:07] refresh @step 1100: generating 64 rollouts (<= 16000 tok)
+[07:21:28] vllm worker: 64 prompts
+[07:23:30] refresh @step 1100: 61/64 rollouts finished naturally
+[07:23:32]   teacher prefill 25/61
+[07:23:34]   teacher prefill 50/61
+[07:26:47] step 1110/2000 loss=0.52777 lr=4.14e-06
+[07:29:58] step 1120/2000 loss=0.58938 lr=4.06e-06
+[07:33:10] step 1130/2000 loss=0.55991 lr=3.99e-06
+[07:36:23] step 1140/2000 loss=0.59208 lr=3.91e-06
+[07:39:33] step 1150/2000 loss=0.52402 lr=3.83e-06
+[07:42:47] step 1160/2000 loss=0.61046 lr=3.76e-06
+[07:45:56] step 1170/2000 loss=0.52427 lr=3.68e-06
+[07:49:09] step 1180/2000 loss=0.59694 lr=3.61e-06
+[07:52:20] step 1190/2000 loss=0.52395 lr=3.53e-06
+[07:55:34] step 1200/2000 loss=0.54822 lr=3.45e-06
+[07:55:41] refresh @step 1200: generating 64 rollouts (<= 16000 tok)
+[07:56:06] vllm worker: 64 prompts
+[07:58:13] refresh @step 1200: 58/64 rollouts finished naturally
+[07:58:14]   teacher prefill 25/58
+[07:58:16]   teacher prefill 50/58
+[08:01:38] step 1210/2000 loss=0.51314 lr=3.38e-06
+[08:05:02] step 1220/2000 loss=0.55033 lr=3.31e-06
+[08:08:18] step 1230/2000 loss=0.60880 lr=3.23e-06
+[08:11:42] step 1240/2000 loss=0.55173 lr=3.16e-06
+[08:14:59] step 1250/2000 loss=0.56558 lr=3.09e-06
+[08:18:22] step 1260/2000 loss=0.63537 lr=3.01e-06
+[08:21:43] step 1270/2000 loss=0.52859 lr=2.94e-06
+[08:24:57] step 1280/2000 loss=0.61638 lr=2.87e-06
+[08:28:21] step 1290/2000 loss=0.58628 lr=2.80e-06
+[08:31:41] step 1300/2000 loss=0.57755 lr=2.73e-06
+[08:31:49] refresh @step 1300: generating 64 rollouts (<= 16000 tok)
+[08:32:16] vllm worker: 64 prompts
+[08:34:04] refresh @step 1300: 49/64 rollouts finished naturally
+[08:34:05]   teacher prefill 25/49
+[08:37:37] step 1310/2000 loss=0.60745 lr=2.66e-06
+[08:41:07] step 1320/2000 loss=0.59301 lr=2.59e-06
+[08:44:35] step 1330/2000 loss=0.48976 lr=2.52e-06
+[08:48:07] step 1340/2000 loss=0.52097 lr=2.45e-06
+[08:51:32] step 1350/2000 loss=0.58871 lr=2.39e-06
+[08:55:04] step 1360/2000 loss=0.49230 lr=2.32e-06
+[08:58:32] step 1370/2000 loss=0.57682 lr=2.25e-06
+[09:02:04] step 1380/2000 loss=0.57504 lr=2.19e-06
+[09:05:31] step 1390/2000 loss=0.54948 lr=2.12e-06
+[09:09:04] step 1400/2000 loss=0.48878 lr=2.06e-06
+[09:09:14] refresh @step 1400: generating 64 rollouts (<= 16000 tok)
+[09:09:35] vllm worker: 64 prompts
+[09:11:15] refresh @step 1400: 56/64 rollouts finished naturally
+[09:11:16]   teacher prefill 25/56
+[09:11:18]   teacher prefill 50/56
+[09:14:35] step 1410/2000 loss=0.43449 lr=2.00e-06
+[09:17:49] step 1420/2000 loss=0.63791 lr=1.94e-06
+[09:21:12] step 1430/2000 loss=0.58178 lr=1.87e-06
+[09:24:24] step 1440/2000 loss=0.58020 lr=1.81e-06
+[09:27:42] step 1450/2000 loss=0.57927 lr=1.75e-06
+[09:30:58] step 1460/2000 loss=0.49977 lr=1.69e-06
+[09:34:13] step 1470/2000 loss=0.60809 lr=1.63e-06
+[09:37:34] step 1480/2000 loss=0.61776 lr=1.58e-06
+[09:40:46] step 1490/2000 loss=0.63136 lr=1.52e-06
+[09:44:06] step 1500/2000 loss=0.59018 lr=1.46e-06
+[09:44:15] refresh @step 1500: generating 64 rollouts (<= 16000 tok)
+[09:44:43] vllm worker: 64 prompts
+[09:46:21] refresh @step 1500: 60/64 rollouts finished naturally
+[09:46:22]   teacher prefill 25/60
+[09:46:24]   teacher prefill 50/60
+[09:49:43] step 1510/2000 loss=0.63987 lr=1.41e-06
+[09:53:11] step 1520/2000 loss=0.49509 lr=1.36e-06
+[09:56:29] step 1530/2000 loss=0.63874 lr=1.30e-06
+[09:59:57] step 1540/2000 loss=0.49448 lr=1.25e-06
+[10:03:15] step 1550/2000 loss=0.63816 lr=1.20e-06
+[10:06:43] step 1560/2000 loss=0.49350 lr=1.15e-06
+[10:10:01] step 1570/2000 loss=0.63792 lr=1.10e-06
+[10:13:29] step 1580/2000 loss=0.49299 lr=1.05e-06
+[10:16:47] step 1590/2000 loss=0.63778 lr=1.00e-06
+[10:20:15] step 1600/2000 loss=0.49275 lr=9.55e-07
+[10:20:22] refresh @step 1600: generating 64 rollouts (<= 16000 tok)
+[10:20:42] vllm worker: 64 prompts
+[10:22:23] refresh @step 1600: 59/64 rollouts finished naturally
+[10:22:25]   teacher prefill 25/59
+[10:22:26]   teacher prefill 50/59
+[10:25:55] step 1610/2000 loss=0.60254 lr=9.09e-07
+[10:29:22] step 1620/2000 loss=0.50537 lr=8.65e-07
+[10:32:48] step 1630/2000 loss=0.58934 lr=8.21e-07
+[10:36:16] step 1640/2000 loss=0.50708 lr=7.78e-07
+[10:39:41] step 1650/2000 loss=0.62764 lr=7.37e-07
+[10:43:08] step 1660/2000 loss=0.53059 lr=6.96e-07
+[10:46:35] step 1670/2000 loss=0.66477 lr=6.57e-07
+[10:50:05] step 1680/2000 loss=0.45312 lr=6.18e-07
+[10:53:29] step 1690/2000 loss=0.63400 lr=5.81e-07
+[10:57:00] step 1700/2000 loss=0.50419 lr=5.45e-07
+[10:57:09] refresh @step 1700: generating 64 rollouts (<= 16000 tok)
+[10:57:34] vllm worker: 64 prompts
+[10:59:11] refresh @step 1700: 57/64 rollouts finished naturally
+[10:59:12]   teacher prefill 25/57
+[10:59:14]   teacher prefill 50/57
+[11:02:31] step 1710/2000 loss=0.49943 lr=5.10e-07
+[11:05:50] step 1720/2000 loss=0.58249 lr=4.76e-07
+[11:09:11] step 1730/2000 loss=0.49868 lr=4.43e-07
+[11:12:25] step 1740/2000 loss=0.52945 lr=4.11e-07
+[11:15:50] step 1750/2000 loss=0.52039 lr=3.81e-07
+[11:19:05] step 1760/2000 loss=0.55659 lr=3.51e-07
+[11:22:29] step 1770/2000 loss=0.50269 lr=3.23e-07
+[11:25:46] step 1780/2000 loss=0.46676 lr=2.96e-07
+[11:29:01] step 1790/2000 loss=0.58665 lr=2.70e-07
+[11:32:23] step 1800/2000 loss=0.50011 lr=2.45e-07
+[11:32:31] refresh @step 1800: generating 64 rollouts (<= 16000 tok)
+[11:32:52] vllm worker: 64 prompts
+[11:35:04] refresh @step 1800: 59/64 rollouts finished naturally
+[11:35:06]   teacher prefill 25/59
+[11:35:07]   teacher prefill 50/59
+[11:38:10] step 1810/2000 loss=0.59300 lr=2.21e-07
+[11:41:10] step 1820/2000 loss=0.55827 lr=1.99e-07
+[11:44:11] step 1830/2000 loss=0.52084 lr=1.77e-07
+[11:47:09] step 1840/2000 loss=0.67076 lr=1.57e-07
+[11:50:12] step 1850/2000 loss=0.53924 lr=1.38e-07
+[11:53:11] step 1860/2000 loss=0.63854 lr=1.20e-07
+[11:56:11] step 1870/2000 loss=0.69264 lr=1.04e-07
+[11:59:13] step 1880/2000 loss=0.56229 lr=8.86e-08
+[12:02:10] step 1890/2000 loss=0.79282 lr=7.45e-08
+[12:05:14] step 1900/2000 loss=0.53917 lr=6.16e-08
+[12:05:25] refresh @step 1900: generating 64 rollouts (<= 16000 tok)
+[12:05:49] vllm worker: 64 prompts
+[12:08:09] refresh @step 1900: 57/64 rollouts finished naturally
+[12:08:10]   teacher prefill 25/57
+[12:08:12]   teacher prefill 50/57
+[12:11:10] step 1910/2000 loss=0.52207 lr=4.99e-08
+[12:13:59] step 1920/2000 loss=0.58334 lr=3.94e-08
+[12:16:55] step 1930/2000 loss=0.67897 lr=3.02e-08
+[12:19:48] step 1940/2000 loss=0.51957 lr=2.22e-08
+[12:22:43] step 1950/2000 loss=0.64068 lr=1.54e-08
+[12:25:39] step 1960/2000 loss=0.59410 lr=9.87e-09
+[12:28:29] step 1970/2000 loss=0.61067 lr=5.55e-09
+[12:31:28] step 1980/2000 loss=0.55145 lr=2.47e-09
+[12:34:14] step 1990/2000 loss=0.63877 lr=6.17e-10
+[12:37:12] step 2000/2000 loss=0.70393 lr=0.00e+00
+[12:37:44] eval aime24: generating 480 samples (30x16)
+[12:38:08] vllm worker: 480 prompts
+[14:32:50] harness: loss=opd_topk device=cuda
+[14:32:56] supervised layers student=[7, 14] teacher=[7, 14]
+[14:33:03] eval-only: loaded runs/pc_justRL_to_r1_1p5b_opd_topk_s1/ckpt_final.pt
+[14:33:05] eval aime24: generating 480 samples (30x16)
+[14:33:24] vllm worker: 480 prompts
+[14:40:10] eval aime24: acc=0.5083 answered=0.938 truncated=0.062
+[14:40:10] eval aime25: generating 480 samples (30x16)
+[14:40:30] vllm worker: 480 prompts
+[14:47:39] eval aime25: acc=0.3396 answered=0.915 truncated=0.085
+[14:47:39] DONE -> runs/pc_justRL_to_r1_1p5b_opd_topk_s1/results.json

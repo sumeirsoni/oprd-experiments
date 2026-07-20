@@ -115,6 +115,12 @@ def parse_args():
     p.add_argument("--eval-avg-at", type=int, default=16)
     p.add_argument("--eval-only", action="store_true",
                    help="skip training; load <out>/ckpt_final.pt and run --eval only")
+    p.add_argument("--resume-from", default="",
+                   help="load student weights from this ckpt (e.g. <out>/ckpt_last.pt) and "
+                        "continue training; use with --start-step")
+    p.add_argument("--start-step", type=int, default=0,
+                   help="0-based optimizer step to resume from; --steps is the TOTAL target. "
+                        "LR schedule is advanced to this index before the loop.")
     p.add_argument("--diagnostics", default="", help="comma list of: calibrated_mknn,cka,dist_n")
     p.add_argument("--out", required=True)
     return p.parse_args()
@@ -214,16 +220,18 @@ def make_generator(student, teacher, opt, tok, a, out):
         assert len(prompt_texts) == len(seeds)
         pid = [chat_ids(tok, p) for p in prompt_texts]
         if use_vllm:
-            tmp = out / "tmp_policy"
+            tmp = (out / "tmp_policy").resolve()
             student.save_pretrained(tmp, safe_serialization=True)
             tok.save_pretrained(tmp)
             # free the GPU for the worker: offload everything, restore after
             student.to("cpu"); teacher.to("cpu"); _move_optimizer(opt, "cpu")
             torch.cuda.empty_cache()
+            # absolute paths: relative model_dir breaks if tmp_policy vanishes mid-flight
+            # (and HF then mis-parses it as a hub repo id)
             spec = {"model_dir": str(tmp), "prompt_ids": pid, "seeds": list(seeds),
                     "max_tokens": max_tokens, "gpu_mem_util": a.gpu_mem_util,
-                    "out_json": str(out / "worker_out.json")}
-            spec_path = out / "worker_spec.json"
+                    "out_json": str((out / "worker_out.json").resolve())}
+            spec_path = (out / "worker_spec.json").resolve()
             spec_path.write_text(json.dumps(spec))
             log(f"vllm worker: {len(pid)} prompts", out)
             r = subprocess.run([sys.executable, __file__, "--_worker", str(spec_path)],
@@ -526,6 +534,24 @@ def main():
             res = json.loads((out / "results.json").read_text())
         log(f"eval-only: loaded {ckpt}", out)
     else:
+        start = a.start_step
+        if start < 0 or start >= a.steps:
+            raise SystemExit(f"--start-step {start} out of range for --steps {a.steps}")
+        if a.resume_from:
+            ckpt = pathlib.Path(a.resume_from)
+            if not ckpt.is_file():
+                ckpt = out / a.resume_from
+            st = torch.load(ckpt, map_location="cpu")
+            student.load_state_dict({k: v.to(torch.float32) for k, v in st.items()})
+            log(f"resume: loaded weights from {ckpt} (start-step={start}, total steps={a.steps})",
+                out)
+        elif start:
+            raise SystemExit("--start-step > 0 requires --resume-from")
+
+        # advance LR schedule to match the resumed step index
+        for _ in range(start):
+            sched.step()
+
         prompts = load_prompt_texts(a.prompts, a.n_prompts, a.seed)
 
         rt = a.rollout_tokens or a.max_tokens  # training-rollout generation budget
@@ -549,7 +575,7 @@ def main():
                                       topk_targets=(a.loss == "opd_topk"))
             return rolls, tstates
 
-        rolls, tstates = refresh(0)
+        rolls, tstates = refresh(start)
         if not rolls:
             raise SystemExit(
                 "initial rollout pool is empty (all generations < 8 tokens, or none finished "
@@ -566,7 +592,10 @@ def main():
             del S_pool, T_pool
 
         losses, ri = [], 0
-        for step in range(a.steps):
+        if (out / "results.json").exists():
+            prev = json.loads((out / "results.json").read_text())
+            losses = list(prev.get("losses", []))[:start]
+        for step in range(start, a.steps):
             if a.rollout_refresh and step and step % a.rollout_refresh == 0:
                 new_rolls, new_tstates = refresh(step)
                 if new_rolls is None:
@@ -576,7 +605,7 @@ def main():
             opt.zero_grad(set_to_none=True)
             toks_done, batch_losses = 0, []
             while toks_done < a.batch_tokens:
-                r, ts = rolls[ri % len(rolls)], tstates[ri % len(rolls)]
+                r, ts = rolls[ri % len(rolls)], tstates[ri % len(tstates)]
                 ri += 1
                 glen = min(len(r["gen_ids"]), rt)
                 off = ts["off"]
@@ -610,7 +639,7 @@ def main():
             opt.step()
             sched.step()
             losses.append(float(np.mean(batch_losses)))
-            if (step + 1) % 10 == 0 or step == 0:
+            if (step + 1) % 10 == 0 or step == start:
                 log(f"step {step+1}/{a.steps} loss={losses[-1]:.5f} "
                     f"lr={sched.get_last_lr()[0]:.2e}", out)
             if (step + 1) % 100 == 0:
@@ -622,6 +651,8 @@ def main():
         if wmap is not None:
             torch.save(wmap.state_dict(), out / "wmap_final.pt")
         res["losses"] = losses
+        res["resumed_from"] = a.resume_from or None
+        res["start_step"] = start
 
         diag_names = [d for d in a.diagnostics.split(",") if d]
         if a.track_stable_rank or diag_names:
