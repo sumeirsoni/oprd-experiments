@@ -4,8 +4,11 @@ Empirical program probing **On-Policy Representation Distillation** (OPRD, arXiv
 which representational structure actually transfers, where the useful signal lives relative to
 the LM head, and which cross-architecture bridge objective deserves training compute.
 
-Everything that runs without a cluster is **already done** (Tiers 0 and 3, on a MacBook).
-What's left — the Tier 1–2 training arms — is packaged in [`cluster/`](cluster/) for Slurm.
+Tiers 0/3, the Tier-1 sweep, the original confounded Tier-2 run, and the positive-control gate
+are complete. The next cluster experiment is the corrected cross-size Tier-2 bake-off packaged
+in [`cluster/`](cluster/): literal all-student-layer supervision, OPRD Eq. 11 depth mapping,
+16k rollouts, final-2k supervision, and one separately built immutable paper-scale bridge shared
+by every OPRD Stage-2 seed.
 
 ## Results so far (read these two files first)
 
@@ -18,41 +21,38 @@ Supporting docs: [`oprd-adversarial-review.md`](oprd-adversarial-review.md) (the
 that defined the tiers), `tier0-execution.plan.md` / `tier3-local.plan.md` (execution contracts,
 including deviations), [`evidence/`](evidence/) (paper digests).
 
-## ⚡ Run Tier 1–2 on the UMD cluster (5 steps)
+## Run Tier 1-2 on the UMD cluster
 
-Full detail in [`cluster/README.md`](cluster/README.md). Short version:
+Full detail is in [`cluster/README.md`](cluster/README.md). The external bridge smoke uses an
+explicit setup, preflight, submission, and terminal reconciliation sequence:
 
 ```bash
-# 1. clone + enter (put the clone — or at least cluster/runs/ — on SCRATCH: ~7-10GB/task)
-git clone <this-repo> && cd <repo>/cluster
+# 1. Put the clone on scratch.
+git clone <this-repo> /cmlscratch/$USER/oprd-experiments
+cd /cmlscratch/$USER/oprd-experiments
+mkdir -p cluster/logs
 
-# 2. env: pip install vllm first (it pins its own torch), then
-pip install -r requirements.txt        # cluster/requirements.txt — NOT tier0's (that's the Mac stack)
+# 2. Create and validate the pinned Python 3.12 CUDA environment on an H200.
+sbatch cluster/nexus/setup_env.sbatch
+# Wait for SETUP_OK and venv/.oprd-env-ready.json before continuing.
 
-# 3. edit the marked blocks in BOTH sbatch files:
-#    - "#SBATCH --partition" and the commented "--account" line
-#    - the "EDIT: environment" block (your module loads / venv activation;
-#      point HF_HOME at scratch — models+datasets download at job runtime)
+# 3. Validate paths, the environment marker, scratch blocks and inodes, quota reporting,
+#    Slurm commands, and the unclaimed canonical smoke artifact.
+BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh --preflight-only
 
-# 4. smoke-test ONE task before submitting arrays — this exact command, it exercises
-#    the vLLM-after-optimizer path and eval-sample diversity that a shorter smoke misses:
-python train_harness.py --loss pkt_tau --tau 0.1 --steps 8 --n-prompts 8 \
-  --teacher hbx/JustRL-DeepSeek-1.5B --student deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
-  --prompts BytedTsinghua-SIA/DAPO-Math-17k --supervised-layer-fracs 0.25,0.5 \
-  --batch-tokens 2048 --max-tokens 512 --rollout-refresh 5 --seed 0 \
-  --eval aime24 --eval-avg-at 2 --out runs/smoke
+# 4. Submit only the eight-prompt bridge smoke DAG. It stops after the two-step
+#    external-artifact Stage-2 backward smoke and never submits production Tier 2.
+BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh
 
-# 5. submit
-mkdir -p logs runs
-sbatch tier1_tau_sweep.sbatch          # 24 tasks, ~96 GPU-h
-sbatch tier2_bridge_bakeoff.sbatch     # 18 real tasks as shipped (phi pair auto-skips), ~180 GPU-h
+# 5. Reconcile every recorded Slurm job and authenticate all final outputs.
+cluster/nexus/submit_oprd_bridge.sh --status cluster/job_ids/<record>.json
 ```
 
-**The sbatch defaults already encode the Tier 0/3 verdicts** (supervised layer band 0.25–0.5,
-identity-only as control). The verdict→knob mapping, environment details, disk/walltime notes,
-and what is verified vs. untested (vLLM/CUDA/Slurm paths can only be validated by the step-4
-smoke) are all in `cluster/README.md`. Total as shipped ≈ **280 A100-hours**; halving and
-top-up strategies are documented there.
+The corrected Tier-2 wrapper fixes every representation arm to literal all-student-layer
+coverage and pins every runnable arm to the same model, tokenizer, and dataset identities. The
+OPRD arm additionally requires an explicit immutable artifact and manifest digest, rejects the
+smoke contract in production, and never fits Stage 1 inside a seed run. Environment details,
+resource caveats, the seven-group builder, and the smoke ladder are in `cluster/README.md`.
 
 ## Repo map
 

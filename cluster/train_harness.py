@@ -1,17 +1,14 @@
 """Shared training harness for Tier 1/2 OPRD experiments.
 
 Full on-policy loop: student rollout generation (vLLM in an isolated subprocess on CUDA,
-transformers fallback elsewhere), frozen-teacher prefill over student rollouts, seven loss
+transformers fallback elsewhere), frozen-teacher prefill over student rollouts, nine loss
 arms, AdamW with token-budgeted gradient accumulation, periodic rollout refresh, AIME Avg@N
 eval, and diagnostics.
 
 Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens only):
-  oprd_bridge       OPRD-Bridge paper recipe, faithful two-phase (digest §1.3):
-                    Stage 1 with BOTH backbones frozen — P_T = top-r teacher-covariance
-                    PCA (r = --bridge-rank, paper default 8), P_S = linear map fit by
-                    closed-form least squares (exact optimum of the paper's convex
-                    Stage-1 objective); everything then frozen. Stage 2: per-token L2
-                    distance between L2-normalized projections, student-only gradients.
+  oprd_bridge       Stage 2 of the OPRD-Bridge paper/official-code algorithm: consume one
+                    explicit immutable Stage-1 artifact, then optimize squared MSE between
+                    L2-normalized frozen bridge projections with student-only gradients.
   linear_map_mse    TinyBERT-style CONTRAST arm: full-rank map W: d_s->d_t, MSE in
                     teacher space, W trained JOINTLY with the student (the convention
                     that distinguishes it from oprd_bridge's frozen bridge). Warm-started
@@ -43,7 +40,8 @@ Loss arms (adversarial review §5.5/§5.7; supervised on generated-region tokens
                     (ACL 2025, vocab-space trajectories) — cite/compare in any write-up.
 
 Rollout-length protocol: the paper generates LONG rollouts and supervises only the last
-k=2000 tokens. Reproduce with --rollout-tokens 12000 --supervise-last-k 2000. Training on
+k=2000 tokens. The validated local protocol uses --rollout-tokens 16000
+--supervise-last-k 2000 --require-finished. Training on
 short truncated rollouts (the old default) teaches never-concluding behavior and is the
 suspected cause of the tier-2 answered_rate collapse.
 
@@ -51,17 +49,16 @@ vLLM runs as a SUBPROCESS (spawned per generation round): the main process offlo
 teacher/student/optimizer to CPU first, so the engine gets a clean GPU, and engine
 teardown is guaranteed by process exit. Per-request seeds keep Avg@N samples distinct.
 
-VERIFICATION STATUS: loss arms, training loop, refresh, eval plumbing, and --eval-only
-smoke-tested end-to-end on Apple MPS (Qwen2.5-0.5B; hf backend). Loss math, gradient
-flow, KL directions, and token alignment additionally verified by an independent
-adversarial review (2026-07-13). The vLLM worker is written against current vLLM docs
-(TokensPrompt API) but is UNTESTED on CUDA — run the 1-task smoke in cluster/README.md
-(which now includes a rollout-refresh step) before submitting arrays.
+VERIFICATION STATUS: loss arms and control flow were smoke-tested locally; the corrected
+long-rollout protocol passed a 1.5B CUDA/vLLM/Slurm positive-control gate. External-artifact
+Qwen3 OPRD Stage 2, all-layer CKA, and full-rank map memory remain unprofiled. Run the
+targeted one-task smokes in cluster/README.md before any array.
 
 Cross-tokenizer pairs (Phi-4-mini -> Qwen) are NOT implemented; the harness exits with
 a clear error if teacher/student vocabs differ (tier2 sbatch skips that pair by default).
 """
 import argparse
+import hashlib
 import json
 import math
 import pathlib
@@ -74,7 +71,19 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+from oprd_bridge import (
+    ARTIFACT_TYPE,
+    SCHEMA_VERSION as BRIDGE_SCHEMA_VERSION,
+    BridgeBank,
+    OPRDBridgeError,
+    load_bridge_artifact,
+    proportional_teacher_layer,
+    read_bridge_manifest,
+    resolve_layer_map,
+    stage1_contract_sha256,
+)
 
 DEV = ("cuda" if torch.cuda.is_available()
        else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -102,15 +111,43 @@ def parse_args():
                         "EOS): with --supervise-last-k, a capped trace's 'last K' is not truly "
                         "last, so supervising it is unfaithful to the paper's mask")
     p.add_argument("--bridge-rank", type=int, default=8,
-                   help="oprd_bridge: rank r of the frozen PCA/projector bridge (paper default 8)")
+                   help="oprd_bridge: expected rank of the immutable frozen bridge")
+    p.add_argument("--bridge-loss-coef", type=float, default=10.0,
+                   help="Stage 2 normalized-MSE coefficient (official launcher: 10)")
+    p.add_argument("--bridge-artifact", default="",
+                   help="completed immutable Stage-1 artifact required by oprd_bridge training")
+    p.add_argument("--bridge-manifest-sha256", default="",
+                   help="optional independently recorded expected artifact manifest SHA-256")
+    p.add_argument("--bridge-stage1-contract-sha256", default="",
+                   help="expected canonical Stage-1 contract digest; default is production")
+    p.add_argument("--student-revision", default="",
+                   help="immutable student model revision; required by oprd_bridge training")
+    p.add_argument("--teacher-revision", default="",
+                   help="immutable teacher model revision; required by oprd_bridge training")
+    p.add_argument("--tokenizer", default="",
+                   help="student-compatible tokenizer used by the bridge; default: --student")
+    p.add_argument("--tokenizer-revision", default="",
+                   help="immutable tokenizer revision; required by oprd_bridge training")
+    p.add_argument("--linear-map-init-rows", type=int, default=512,
+                   help="row cap for the expensive full-rank least-squares warm start")
     p.add_argument("--tau", type=float, default=1.0)
     p.add_argument("--topk", type=int, default=10)
     p.add_argument("--teacher", required=True)
     p.add_argument("--student", required=True)
     p.add_argument("--prompts", required=True,
-                   help="HF dataset id (prompt/question column) or local .jsonl with 'prompt'")
+                   help="HF dataset id or local .jsonl prompt source")
+    p.add_argument("--dataset-revision", default="",
+                   help="immutable HF dataset revision; ignored for local JSONL")
+    p.add_argument("--dataset-split", default="train",
+                   help="dataset split used for Stage-2 rollout prompts")
+    p.add_argument("--prompt-key", default="",
+                   help="exact prompt column; empty uses prompt/question/problem fallback")
     p.add_argument("--n-prompts", type=int, default=2000)
-    p.add_argument("--supervised-layer-fracs", default="0.25,0.5")
+    layer_group = p.add_mutually_exclusive_group()
+    layer_group.add_argument("--supervised-layers", default="",
+                             help="student transformer layers: 'all' or comma-separated 1-based indices")
+    layer_group.add_argument("--supervised-layer-fracs", default="",
+                             help="backward-compatible fractional student depths; default 0.25,0.5")
     p.add_argument("--steps", type=int, default=500)
     p.add_argument("--batch-tokens", type=int, default=16384)
     p.add_argument("--lr", type=float, default=1e-5)
@@ -135,6 +172,239 @@ def parse_args():
     p.add_argument("--diagnostics", default="", help="comma list of: calibrated_mknn,cka,dist_n")
     p.add_argument("--out", required=True)
     return p.parse_args()
+
+
+def _revision_kwargs(revision):
+    if revision and not revision.startswith("local-"):
+        return {"revision": revision}
+    return {}
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with pathlib.Path(path).open("rb") as handle:
+        while True:
+            block = handle.read(8 * 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _sha256_tree(path):
+    root = pathlib.Path(path)
+    digest = hashlib.sha256()
+    for child in sorted(value for value in root.rglob("*") if value.is_file()):
+        relative = child.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(bytes.fromhex(_sha256_file(child)))
+    return digest.hexdigest()
+
+
+def _require_sha256(value, option):
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise SystemExit(f"{option} must be a lowercase 64-character SHA-256 digest")
+
+
+def _require_immutable_revision(identifier, revision, option):
+    source = pathlib.Path(identifier).expanduser()
+    if source.is_file():
+        expected = f"local-file-sha256:{_sha256_file(source)}"
+    elif source.is_dir():
+        expected = f"local-tree-sha256:{_sha256_tree(source)}"
+    else:
+        expected = None
+    if expected is not None:
+        if revision != expected:
+            raise SystemExit(
+                f"{option} does not match the current local source: "
+                f"actual={expected!r}, supplied={revision!r}"
+            )
+        return
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
+        raise SystemExit(
+            f"{option} must be an immutable 40-character lowercase Hub commit SHA"
+        )
+
+
+def _validate_runtime_args(a):
+    positive_integers = {
+        "--n-prompts": a.n_prompts,
+        "--batch-tokens": a.batch_tokens,
+        "--bridge-rank": a.bridge_rank,
+        "--linear-map-init-rows": a.linear_map_init_rows,
+        "--topk": a.topk,
+        "--max-tokens": a.max_tokens,
+        "--eval-avg-at": a.eval_avg_at,
+    }
+    if not a.eval_only:
+        positive_integers["--steps"] = a.steps
+    for option, value in positive_integers.items():
+        if value < 1:
+            raise SystemExit(f"{option} must be positive")
+    for option, value in {
+        "--rollout-tokens": a.rollout_tokens,
+        "--supervise-last-k": a.supervise_last_k,
+        "--rollout-refresh": a.rollout_refresh,
+        "--start-step": a.start_step,
+    }.items():
+        if value < 0:
+            raise SystemExit(f"{option} must be nonnegative")
+    for option, value in {
+        "--lr": a.lr,
+        "--tau": a.tau,
+        "--bridge-loss-coef": a.bridge_loss_coef,
+    }.items():
+        if not math.isfinite(value) or value <= 0:
+            raise SystemExit(f"{option} must be finite and positive")
+    if not math.isfinite(a.gpu_mem_util) or not 0 < a.gpu_mem_util <= 1:
+        raise SystemExit("--gpu-mem-util must be finite and within (0, 1]")
+    if not a.dataset_split:
+        raise SystemExit("--dataset-split must be non-empty")
+    if a.dataset_revision:
+        _require_immutable_revision(
+            a.prompts, a.dataset_revision, "--dataset-revision"
+        )
+
+
+def _require_oprd_artifact_inputs(a):
+    required = {
+        "--bridge-artifact": a.bridge_artifact,
+        "--bridge-manifest-sha256": a.bridge_manifest_sha256,
+        "--student-revision": a.student_revision,
+        "--teacher-revision": a.teacher_revision,
+        "--tokenizer-revision": a.tokenizer_revision,
+        "--dataset-revision": a.dataset_revision,
+        "--prompt-key": a.prompt_key,
+    }
+    missing = [option for option, value in required.items() if not value]
+    if missing:
+        raise SystemExit(
+            "oprd_bridge training requires explicit immutable inputs: " + ", ".join(missing)
+        )
+    _require_sha256(a.bridge_manifest_sha256, "--bridge-manifest-sha256")
+    if a.bridge_stage1_contract_sha256:
+        _require_sha256(
+            a.bridge_stage1_contract_sha256,
+            "--bridge-stage1-contract-sha256",
+        )
+    _require_immutable_revision(a.student, a.student_revision, "--student-revision")
+    _require_immutable_revision(a.teacher, a.teacher_revision, "--teacher-revision")
+    _require_immutable_revision(
+        a.tokenizer or a.student,
+        a.tokenizer_revision,
+        "--tokenizer-revision",
+    )
+
+
+def _bridge_reference(manifest, manifest_sha256, artifact_path, stage2_identity):
+    stage1 = manifest["stage1"]
+    return {
+        "artifact_type": manifest["artifact_type"],
+        "schema_version": manifest["schema_version"],
+        "manifest_sha256": manifest_sha256,
+        "path": str(pathlib.Path(artifact_path).expanduser().resolve()),
+        "stage2_identity": dict(stage2_identity),
+        "identity": dict(manifest["identity"]),
+        "bridge": dict(manifest["bridge"]),
+        "stage1": {
+            "selected_epoch": stage1.get("selected_epoch"),
+            "selected_validation_cosine": stage1.get("selected_validation_cosine"),
+        },
+    }
+
+
+def _validate_resume_bridge_reference(saved, current):
+    if not isinstance(saved, dict):
+        raise SystemExit(
+            "OPRD resume requires an atomic training state with bridge artifact identity"
+        )
+    for field in (
+        "artifact_type",
+        "schema_version",
+        "manifest_sha256",
+        "stage2_identity",
+        "identity",
+        "bridge",
+        "stage1",
+    ):
+        if saved.get(field) != current.get(field):
+            raise SystemExit(
+                f"OPRD resume bridge {field} mismatch: "
+                f"checkpoint={saved.get(field)!r}, run={current.get(field)!r}"
+            )
+
+
+def _load_external_bridge(a, student_config, teacher_config, lmap):
+    tokenizer_id = a.tokenizer or a.student
+    _require_immutable_revision(a.student, a.student_revision, "--student-revision")
+    _require_immutable_revision(a.teacher, a.teacher_revision, "--teacher-revision")
+    _require_immutable_revision(
+        tokenizer_id, a.tokenizer_revision, "--tokenizer-revision"
+    )
+    expected_contract_sha256 = (
+        a.bridge_stage1_contract_sha256 or stage1_contract_sha256()
+    )
+    if not a.bridge_manifest_sha256:
+        raise SystemExit("OPRD bridge loading requires --bridge-manifest-sha256")
+    artifact_path = pathlib.Path(a.bridge_artifact).expanduser()
+    try:
+        manifest, manifest_sha256 = read_bridge_manifest(artifact_path)
+        if manifest_sha256 != a.bridge_manifest_sha256:
+            raise SystemExit(
+                "bridge manifest SHA-256 mismatch: "
+                f"artifact={manifest_sha256}, expected={a.bridge_manifest_sha256}"
+            )
+        bridge, stage1 = load_bridge_artifact(
+            artifact_path,
+            expected_student_model_id=a.student,
+            expected_student_model_revision=a.student_revision,
+            expected_teacher_model_id=a.teacher,
+            expected_teacher_model_revision=a.teacher_revision,
+            expected_tokenizer_id=tokenizer_id,
+            expected_tokenizer_revision=a.tokenizer_revision,
+            expected_stage1_contract_sha256=expected_contract_sha256,
+            expected_layer_map=lmap,
+            expected_rank=a.bridge_rank,
+            expected_student_dim=student_config.hidden_size,
+            expected_teacher_dim=teacher_config.hidden_size,
+            expected_manifest_sha256=a.bridge_manifest_sha256,
+            device="cpu",
+        )
+    except OPRDBridgeError as exc:
+        raise SystemExit(f"invalid OPRD bridge artifact: {exc}") from exc
+    reference = _bridge_reference(
+        manifest,
+        manifest_sha256,
+        artifact_path,
+        {
+            "prompts": a.prompts,
+            "dataset_revision": a.dataset_revision,
+            "dataset_split": a.dataset_split,
+            "prompt_key": a.prompt_key,
+            "n_prompts": a.n_prompts,
+            "seed": a.seed,
+            "rollout_tokens": a.rollout_tokens,
+            "max_tokens": a.max_tokens,
+            "supervise_last_k": a.supervise_last_k,
+            "require_finished": a.require_finished,
+            "rollout_refresh": a.rollout_refresh,
+            "batch_tokens": a.batch_tokens,
+            "learning_rate": a.lr,
+            "bridge_loss_coefficient": a.bridge_loss_coef,
+            "backend": a.backend,
+        },
+    )
+    if reference["artifact_type"] != ARTIFACT_TYPE:
+        raise SystemExit(f"unsupported bridge artifact type: {reference['artifact_type']!r}")
+    if reference["schema_version"] != BRIDGE_SCHEMA_VERSION:
+        raise SystemExit(
+            f"unsupported bridge artifact schema: {reference['schema_version']!r}"
+        )
+    return bridge, stage1, reference
 
 
 def log(msg, out=None):
@@ -165,15 +435,43 @@ def norm_ans(a):
     return a or "0"
 
 
-def load_prompt_texts(src, n, seed):
-    if src.endswith(".jsonl"):
-        rows = [json.loads(l) for l in open(src)]
-        texts = [r["prompt"] for r in rows]
+def load_prompt_texts(src, n, seed, *, revision="", split="train", prompt_key=""):
+    source = pathlib.Path(src).expanduser()
+    if source.suffix == ".jsonl" and source.is_file():
+        with source.open(encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        column = prompt_key or "prompt"
+        if any(column not in row for row in rows):
+            raise SystemExit(f"local prompt source lacks column {column!r}: {source}")
+        values = [row[column] for row in rows]
     else:
         from datasets import load_dataset
-        ds = load_dataset(src, split="train")
-        col = next(c for c in ["prompt", "question", "problem"] if c in ds.column_names)
-        texts = [r[col] if isinstance(r[col], str) else r[col][0]["content"] for r in ds]
+        kwargs = {"split": split}
+        if revision:
+            kwargs["revision"] = revision
+        dataset = load_dataset(src, **kwargs)
+        if prompt_key:
+            if prompt_key not in dataset.column_names:
+                raise SystemExit(
+                    f"prompt column {prompt_key!r} not found; columns={dataset.column_names}"
+                )
+            column = prompt_key
+        else:
+            try:
+                column = next(
+                    candidate
+                    for candidate in ("prompt", "question", "problem")
+                    if candidate in dataset.column_names
+                )
+            except StopIteration as exc:
+                raise SystemExit(
+                    f"no supported prompt column found; columns={dataset.column_names}"
+                ) from exc
+        values = [row[column] for row in dataset]
+    texts = [
+        value if isinstance(value, str) else value[0]["content"]
+        for value in values
+    ]
     rng = np.random.default_rng(seed)
     idx = rng.permutation(len(texts))[:n]
     return [texts[i] for i in idx]
@@ -186,6 +484,14 @@ def chat_ids(tok, prompt):
         ids = out["input_ids"] if hasattr(out, "keys") else out
         return ids[0] if ids and isinstance(ids[0], list) else list(ids)
     return tok.encode("Problem:\n" + prompt + INSTR + "\n\nSolution:\n")
+
+
+def hidden_forward(model, **kwargs):
+    """Run the transformer backbone without materializing unused vocabulary logits."""
+    backbone = getattr(model, "model", None)
+    if backbone is None:
+        return model(output_hidden_states=True, **kwargs)
+    return backbone(output_hidden_states=True, **kwargs)
 
 
 # ---------------------------------------------------------------- generation
@@ -216,9 +522,10 @@ def _move_optimizer(opt, device):
                 st[k] = v.to(device)
 
 
-def make_generator(student, teacher, opt, tok, a, out):
+def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
     """Returns gen(prompt_texts, seeds) -> [{prompt_ids, gen_ids}].
     seeds: one int per prompt (drives per-request vLLM seeds / hf global seeding)."""
+    aux_modules = aux_modules if aux_modules is not None else []
     use_vllm = a.backend == "vllm" or (a.backend == "auto" and DEV == "cuda")
     if use_vllm:
         try:
@@ -236,6 +543,8 @@ def make_generator(student, teacher, opt, tok, a, out):
             tok.save_pretrained(tmp)
             # free the GPU for the worker: offload everything, restore after
             student.to("cpu"); teacher.to("cpu"); _move_optimizer(opt, "cpu")
+            for module in aux_modules:
+                module.to("cpu")
             torch.cuda.empty_cache()
             # absolute paths: relative model_dir breaks if tmp_policy vanishes mid-flight
             # (and HF then mis-parses it as a hub repo id)
@@ -253,6 +562,8 @@ def make_generator(student, teacher, opt, tok, a, out):
             shutil.rmtree(tmp, ignore_errors=True)
             (out / "worker_out.json").unlink(missing_ok=True)
             student.to(DEV); teacher.to(DEV); _move_optimizer(opt, DEV)
+            for module in aux_modules:
+                module.to(DEV)
             return [{"prompt_ids": pid[i], "gen_ids": gen_ids[i]} for i in range(len(pid))]
         # hf fallback (mps/cpu, or --backend hf): slow but exercises the same contract
         res = []
@@ -274,30 +585,31 @@ def make_generator(student, teacher, opt, tok, a, out):
 
 
 @torch.no_grad()
-def teacher_prefill(teacher, rollouts, layers, out, max_tok, last_k=0, topk_targets=False):
-    """Frozen-teacher pass over each rollout. Stores, for the SUPERVISED region only
-    (last `last_k` gen tokens if set, else all): hidden states at `layers` (bf16 cpu;
-    bf16 not fp16 because large-model activation outliers overflow fp16), plus, when
-    topk_targets, the teacher's renormalized top-16 next-token distribution (opd_topk).
-    Returns list of {"h": {layer: (sup,d_t)}, "off": int, "tk_ids", "tk_p"}."""
+def teacher_prefill(teacher, rollouts, layers, out, max_tok, last_k=0,
+                    topk_targets=False, store_hidden=True):
+    """Cache supervised teacher states and/or sparse output targets without unused logits."""
     entries = []
     for i, r in enumerate(rollouts):
         glen = min(len(r["gen_ids"]), max_tok)
         ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
         gstart = len(r["prompt_ids"])
         off = max(0, glen - last_k) if last_k else 0
-        o = teacher(input_ids=ids, output_hidden_states=True, use_cache=False)
-        e = {"off": off,
-             "h": {li: o.hidden_states[li][0, gstart + off:gstart + glen].bfloat16().cpu()
-                   for li in layers}}
+        e = {"off": off, "h": {}}
         if topk_targets:
+            o = teacher(input_ids=ids, output_hidden_states=False, use_cache=False)
             lg = o.logits[0, gstart + off - 1:gstart + glen - 1].float()
             p = torch.softmax(lg, -1)
             tp, ti = p.topk(16, dim=-1)
             e["tk_p"] = (tp / tp.sum(-1, keepdim=True)).half().cpu()
             e["tk_ids"] = ti.int().cpu()
+            del o, lg, p, tp, ti
+        if store_hidden:
+            h = hidden_forward(teacher, input_ids=ids, use_cache=False)
+            e["h"] = {
+                li: h.hidden_states[li][0, gstart + off:gstart + glen].bfloat16().cpu()
+                for li in layers}
+            del h
         entries.append(e)
-        del o
         if DEV == "mps":
             torch.mps.empty_cache()
         if (i + 1) % 25 == 0:
@@ -308,64 +620,76 @@ def teacher_prefill(teacher, rollouts, layers, out, max_tok, last_k=0, topk_targ
 # ---------------------------------------------------------------- loss arms
 
 @torch.no_grad()
-def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=16384):
-    """Frozen-student prefill over the initial rollout pool, aligned token-for-token with
-    the already-computed teacher states. Returns (S, T): dicts keyed by student layer,
-    S[ls] (N,d_s) / T[ls] (N,d_t) float32 cpu, N ≤ cap. Used only for Stage-1 bridge
-    fitting / projector init — both backbones frozen (paper Eq. 12-13 procedure)."""
-    S = {ls: [] for ls in lay_s}
-    T = {ls: [] for ls in lay_s}
-    n = 0
+def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=0,
+                        seed=0):
+    """Collect seeded aligned rows for the linear-map calibration warm start."""
+    lengths = [max(0, min(len(r["gen_ids"]), max_tok) - ts["off"])
+               for r, ts in zip(rolls, tstates)]
+    total = sum(lengths)
+    if total < 1:
+        raise SystemExit("linear-map calibration pool has no supervised token rows")
+    take = total if not cap else min(cap, total)
+    chosen = (np.arange(total) if take == total else
+              np.sort(np.random.default_rng(seed).choice(total, size=take, replace=False)))
+    first = next(ts for ts, length in zip(tstates, lengths) if length)
+    student_dim = student.config.hidden_size
+    teacher_dim = first["h"][lmap[lay_s[0]]].shape[-1]
+    S = {ls: torch.empty((take, student_dim), dtype=torch.bfloat16) for ls in lay_s}
+    T = {ls: torch.empty((take, teacher_dim), dtype=torch.bfloat16) for ls in lay_s}
+    rollout_slices = []
     student.eval()
-    for r, ts in zip(rolls, tstates):
+    base = kept = 0
+    for r, ts, length in zip(rolls, tstates, lengths):
+        stop = base + length
+        lo, hi = np.searchsorted(chosen, [base, stop])
+        local = chosen[lo:hi] - base
+        base = stop
+        row_start, row_stop = kept, kept + len(local)
+        rollout_slices.append((row_start, row_stop))
+        kept = row_stop
+        if not len(local):
+            continue
         glen = min(len(r["gen_ids"]), max_tok)
         off = ts["off"]
         ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
         gstart = len(r["prompt_ids"])
-        o = student(input_ids=ids, output_hidden_states=True)
+        o = hidden_forward(student, input_ids=ids, use_cache=False)
+        idx = torch.as_tensor(local, dtype=torch.long)
         for ls in lay_s:
-            S[ls].append(o.hidden_states[ls][0, gstart + off:gstart + glen].float().cpu())
-            T[ls].append(ts["h"][lmap[ls]][:glen - off].float())
+            hs = o.hidden_states[ls][0, gstart + off:gstart + glen].bfloat16().cpu()
+            S[ls][row_start:row_stop].copy_(hs.index_select(0, idx))
+            T[ls][row_start:row_stop].copy_(
+                ts["h"][lmap[ls]][:length].index_select(0, idx))
         del o
         if DEV == "mps":
             torch.mps.empty_cache()
-        n += glen - off
-        if n >= cap:
-            break
     student.train()
-    log(f"stage-1 pool: {n} tokens over {len(lay_s)} layers", out)
-    return ({ls: torch.cat(v)[:cap] for ls, v in S.items()},
-            {ls: torch.cat(v)[:cap] for ls, v in T.items()})
+    action = "retained" if take == total else "sampled"
+    log(f"linear-map calibration: {action} {take}/{total} tokens over {len(lay_s)} layers", out)
+    return S, T, rollout_slices
 
 
-def fit_bridge(S, T, rank, out):
-    """OPRD-Bridge Stage 1 (both backbones frozen, then everything frozen):
-    P_T = top-r principal directions of the teacher covariance (paper Eq. 12);
-    P_S = linear map minimizing ||P_S h_S - P_T (h_T - mu)||^2 (paper Eq. 13) —
-    solved in closed form by least squares (exact optimum of the paper's convex
-    Stage-1 objective, in place of its 20-epoch AdamW loop)."""
-    bridge = {}
-    for ls in S:
-        Ht, Hs = T[ls].double(), S[ls].double()
-        mu = Ht.mean(0)
-        C = (Ht - mu).T @ (Ht - mu) / max(Ht.shape[0] - 1, 1)
-        evals, evecs = torch.linalg.eigh(C)
-        P_T = evecs[:, -rank:].flip(-1).T.contiguous()          # (r, d_t)
-        Y = (Ht - mu) @ P_T.T                                   # (N, r)
-        P_S = torch.linalg.lstsq(Hs, Y).solution.T.contiguous()  # (r, d_s)
-        resid = ((Hs @ P_S.T - Y) ** 2).mean().sqrt()
-        bridge[ls] = (mu.float().to(DEV), P_T.float().to(DEV), P_S.float().to(DEV))
-        log(f"bridge layer {ls}: r={rank}, stage-1 rms residual {resid:.4f}", out)
-    return bridge
+def save_training_state(path, student, wmap, step, losses, bridge_reference=None):
+    """Atomically save synchronized weight-level rescue state and loss history."""
+    payload = {"version": 2, "step": step, "losses": list(losses),
+               "student": {k: v.to(torch.bfloat16).cpu()
+                           for k, v in student.state_dict().items()},
+               "wmap": ({k: v.detach().cpu() for k, v in wmap.state_dict().items()}
+                        if wmap is not None else None),
+               "bridge_reference": bridge_reference}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, tmp)
+    tmp.replace(path)
 
 
 def init_linear_map(wmap, S, T, out):
     """Closed-form least-squares warm start for the TinyBERT-style map (removes the
     random-init failure mode; joint training afterwards is the arm's defining choice)."""
     for ls in S:
-        W = torch.linalg.lstsq(S[ls].double(), T[ls].double()).solution.T  # (d_t, d_s)
-        wmap[str(ls)].weight.data.copy_(W.float().to(DEV))
-    log("linear_map warm-started via least squares (both backbones frozen)", out)
+        W = torch.linalg.lstsq(S[ls].float(), T[ls].float()).solution.T  # (d_t, d_s)
+        wmap[str(ls)].weight.data.copy_(W.to(DEV))
+    log(f"linear_map warm-started via least squares on {len(next(iter(S.values())))} rows "
+        "(both backbones frozen)", out)
 
 
 def cosine_sim(h):
@@ -425,7 +749,8 @@ def loss_depth_gram(s_list, t_list):
     return F.mse_loss(gs - gs.mean(0), gt - gt.mean(0))
 
 
-def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
+def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk,
+                 bridge_loss_coef=1.0):
     if arm == "depth_gram":
         if len(layers) < 2:
             raise SystemExit("depth_gram needs >=2 supervised layers "
@@ -438,10 +763,9 @@ def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
         hs = s_states[li]
         ht = t_states[li].to(hs.device).float()
         if arm == "oprd_bridge":
-            mu, P_T, P_S = bridge[li]
-            a = F.normalize(hs @ P_S.T, dim=-1)          # paper Eq. 14: L2-normalized
-            b = F.normalize((ht - mu) @ P_T.T, dim=-1)   # projections, frozen bridge
-            per_layer.append((a - b).norm(dim=-1).mean())
+            a = F.normalize(bridge.project_student(li, hs), dim=-1)
+            b = F.normalize(bridge.project_teacher(li, ht), dim=-1)
+            per_layer.append(F.mse_loss(a, b))  # paper Eq. 14 / official normalized MSE
         elif arm == "linear_map_mse":
             per_layer.append(F.mse_loss(wmap[str(li)](hs), ht))
         elif arm == "cka_gram":
@@ -449,7 +773,8 @@ def compute_loss(arm, s_states, t_states, layers, bridge, wmap, tau, topk):
             per_layer.append(1 - linear_cka(hs[-T:], ht[-T:]))
         else:
             per_layer.append(loss_relational(arm, hs, ht, tau, topk))
-    return torch.stack(per_layer).mean()
+    loss = torch.stack(per_layer).mean()
+    return loss * bridge_loss_coef if arm == "oprd_bridge" else loss
 
 
 # ---------------------------------------------------------------- eval / diagnostics
@@ -519,36 +844,84 @@ def diagnostics(names, s_pool, t_pool, rollout_texts):
 
 def main():
     a = parse_args()
+    a.tokenizer = a.tokenizer or a.student
+    _validate_runtime_args(a)
+    if a.loss == "oprd_bridge" and not a.eval_only:
+        _require_oprd_artifact_inputs(a)
+        a.bridge_stage1_contract_sha256 = (
+            a.bridge_stage1_contract_sha256 or stage1_contract_sha256()
+        )
     out = pathlib.Path(a.out)
+    if not a.eval_only and not a.resume_from and out.exists() and any(out.iterdir()):
+        raise SystemExit(
+            f"fresh training requires a new or empty --out directory: {out}"
+        )
     out.mkdir(parents=True, exist_ok=True)
-    (out / "config.json").write_text(json.dumps(vars(a), indent=1))
+    invocation_config = ("eval_config.json" if a.eval_only else
+                         "resume_config.json" if a.resume_from else "config.json")
+    config_path = out / invocation_config
+    config_path.write_text(json.dumps(vars(a), indent=1))
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     log(f"harness: loss={a.loss} device={DEV}", out)
 
-    tok_t = AutoTokenizer.from_pretrained(a.teacher)
-    tok = AutoTokenizer.from_pretrained(a.student)
+    student_config = AutoConfig.from_pretrained(
+        a.student, **_revision_kwargs(a.student_revision)
+    )
+    teacher_config = AutoConfig.from_pretrained(
+        a.teacher, **_revision_kwargs(a.teacher_revision)
+    )
+    nl_t = teacher_config.num_hidden_layers
+    nl_s = student_config.num_hidden_layers
+    try:
+        lmap = resolve_layer_map(a.supervised_layers, a.supervised_layer_fracs, nl_s, nl_t)
+    except ValueError as e:
+        raise SystemExit(str(e)) from e
+    lay_s = list(lmap)
+    lay_t = sorted(set(lmap.values()))
+
+    bridge = None
+    bridge_meta = None
+    bridge_reference = None
+    if a.loss == "oprd_bridge" and not a.eval_only:
+        bridge, bridge_meta, bridge_reference = _load_external_bridge(
+            a, student_config, teacher_config, lmap
+        )
+        log(
+            "validated immutable bridge "
+            f"manifest={bridge_reference['manifest_sha256']} before model generation",
+            out,
+        )
+
+    config = vars(a) | {"resolved_student_layers": lay_s,
+                        "resolved_teacher_layers": lay_t,
+                        "resolved_layer_map": {str(k): v for k, v in lmap.items()},
+                        "bridge_reference": bridge_reference}
+    config_path.write_text(json.dumps(config, indent=1))
+    log(f"supervised layer map={list(lmap.items())}", out)
+
+    tok_t = AutoTokenizer.from_pretrained(
+        a.teacher, **_revision_kwargs(a.teacher_revision)
+    )
+    tok = AutoTokenizer.from_pretrained(
+        a.tokenizer, **_revision_kwargs(a.tokenizer_revision)
+    )
     if tok_t.get_vocab() != tok.get_vocab():
         raise SystemExit("cross-tokenizer pair detected: token-aligned losses are undefined "
                          "here — this harness supports shared-vocab pairs only (see docstring).")
 
-    teacher = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=torch.bfloat16).to(DEV).eval()
-    student = AutoModelForCausalLM.from_pretrained(a.student, dtype=torch.float32)
+    teacher = AutoModelForCausalLM.from_pretrained(
+        a.teacher, dtype=torch.bfloat16, **_revision_kwargs(a.teacher_revision)
+    ).to(DEV).eval()
+    student = AutoModelForCausalLM.from_pretrained(
+        a.student, dtype=torch.float32, **_revision_kwargs(a.student_revision)
+    )
     student.gradient_checkpointing_enable()
     student.config.use_cache = False
     student.to(DEV).train()
 
-    fracs = [float(f) for f in a.supervised_layer_fracs.split(",")]
-    nl_t, nl_s = teacher.config.num_hidden_layers, student.config.num_hidden_layers
-    lmap = {}
-    for f in fracs:  # student layer -> teacher layer; first frac wins on rounding collisions
-        ls_ = max(1, round(f * nl_s))
-        lmap.setdefault(ls_, max(1, round(f * nl_t)))
-    lay_s = sorted(lmap)
-    lay_t = sorted(set(lmap.values()))
-    log(f"supervised layers student={lay_s} teacher={lay_t}", out)
-
     wmap = None
+    aux_modules = []
     params = list(student.parameters())
     if a.loss == "linear_map_mse":
         wmap = torch.nn.ModuleDict({
@@ -556,11 +929,15 @@ def main():
                                      teacher.config.hidden_size, bias=False)
             for ls in lay_s}).to(DEV).float()
         params += list(wmap.parameters())
+        aux_modules.append(wmap)
+    if bridge is not None:
+        bridge.to(DEV).float().freeze()
+        aux_modules.append(bridge)
     opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=0.0)
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, lambda s: min(1.0, (s + 1) / 10) * 0.5 * (1 + math.cos(math.pi * s / max(a.steps, 1))))
 
-    gen = make_generator(student, teacher, opt, tok, a, out)
+    gen = make_generator(student, teacher, opt, tok, a, out, aux_modules)
     res = {}
 
     if a.eval_only:
@@ -572,24 +949,68 @@ def main():
         log(f"eval-only: loaded {ckpt}", out)
     else:
         start = a.start_step
-        if start < 0 or start >= a.steps:
+        if start < 0 or start > a.steps or (a.steps and start == a.steps):
             raise SystemExit(f"--start-step {start} out of range for --steps {a.steps}")
+        resume_ckpt = None
+        resume_losses, resume_wmap = [], None
         if a.resume_from:
-            ckpt = pathlib.Path(a.resume_from)
-            if not ckpt.is_file():
-                ckpt = out / a.resume_from
-            st = torch.load(ckpt, map_location="cpu")
+            resume_ckpt = pathlib.Path(a.resume_from)
+            if not resume_ckpt.is_file():
+                resume_ckpt = out / a.resume_from
+            state_path = (
+                resume_ckpt if resume_ckpt.name == "train_state_last.pt" else
+                resume_ckpt.parent / "train_state_last.pt"
+                if resume_ckpt.name in {"ckpt_last.pt", "ckpt_final.pt"} else None
+            )
+            if state_path is not None and state_path.is_file():
+                state = torch.load(state_path, map_location="cpu")
+                if state.get("step") != start:
+                    raise SystemExit(f"resume state step={state.get('step')} but --start-step={start}")
+                if a.loss == "oprd_bridge":
+                    _validate_resume_bridge_reference(
+                        state.get("bridge_reference"), bridge_reference
+                    )
+                st = state["student"]
+                resume_losses = list(state.get("losses", []))
+                resume_wmap = state.get("wmap")
+                log(f"resume: loaded atomic training state from {state_path}", out)
+            else:
+                if a.loss == "oprd_bridge":
+                    raise SystemExit(
+                        "OPRD resume requires train_state_last.pt with bridge artifact identity"
+                    )
+                st = torch.load(resume_ckpt, map_location="cpu")
+                log(f"resume: loaded legacy weights-only checkpoint from {resume_ckpt}", out)
             student.load_state_dict({k: v.to(torch.float32) for k, v in st.items()})
-            log(f"resume: loaded weights from {ckpt} (start-step={start}, total steps={a.steps})",
-                out)
+            log(f"resume: start-step={start}, total steps={a.steps}", out)
         elif start:
             raise SystemExit("--start-step > 0 requires --resume-from")
+        if a.loss == "linear_map_mse" and resume_ckpt is not None:
+            if resume_wmap is not None:
+                wmap.load_state_dict(resume_wmap)
+                log("resume: restored synchronized linear map from training state", out)
+            else:
+                map_name = "wmap_final.pt" if resume_ckpt.name == "ckpt_final.pt" else "wmap_last.pt"
+                map_path = resume_ckpt.parent / map_name
+                if not map_path.is_file():
+                    raise SystemExit(f"linear_map_mse resume requires {map_path}")
+                wmap.load_state_dict(torch.load(map_path, map_location="cpu"))
+                log(f"resume: loaded legacy linear map from {map_path}", out)
 
         # advance LR schedule to match the resumed step index
         for _ in range(start):
             sched.step()
 
-        prompts = load_prompt_texts(a.prompts, a.n_prompts, a.seed)
+        prompts = load_prompt_texts(
+            a.prompts,
+            a.n_prompts,
+            a.seed,
+            revision=a.dataset_revision,
+            split=a.dataset_split,
+            prompt_key=a.prompt_key,
+        )
+        diag_names = [d for d in a.diagnostics.split(",") if d]
+        need_teacher_hidden = (a.loss != "opd_topk" or a.track_stable_rank or bool(diag_names))
 
         rt = a.rollout_tokens or a.max_tokens  # training-rollout generation budget
 
@@ -609,7 +1030,8 @@ def main():
                 return None, None  # caller keeps the previous pool
             tstates = teacher_prefill(teacher, rolls, lay_t, out, rt,
                                       last_k=a.supervise_last_k,
-                                      topk_targets=(a.loss == "opd_topk"))
+                                      topk_targets=(a.loss == "opd_topk"),
+                                      store_hidden=need_teacher_hidden)
             return rolls, tstates
 
         rolls, tstates = refresh(start)
@@ -617,19 +1039,15 @@ def main():
             raise SystemExit(
                 "initial rollout pool is empty (all generations < 8 tokens, or none finished "
                 "under --require-finished — raise --rollout-tokens or drop the flag)")
-        bridge = None
-        if a.loss in ("oprd_bridge", "linear_map_mse"):
-            # Stage 1 (paper procedure): both backbones frozen, fit/init the projector(s)
-            S_pool, T_pool = collect_pool_states(student, rolls, tstates, lay_s, lmap,
-                                                 rt, out)
-            if a.loss == "oprd_bridge":
-                bridge = fit_bridge(S_pool, T_pool, a.bridge_rank, out)  # then frozen forever
-            else:
-                init_linear_map(wmap, S_pool, T_pool, out)  # warm start; trains jointly after
+        if a.loss == "linear_map_mse" and resume_ckpt is None:
+            S_pool, T_pool, _ = collect_pool_states(
+                student, rolls, tstates, lay_s, lmap, rt, out,
+                cap=a.linear_map_init_rows, seed=a.seed)
+            init_linear_map(wmap, S_pool, T_pool, out)
             del S_pool, T_pool
 
-        losses, ri = [], 0
-        if (out / "results.json").exists():
+        losses, ri = list(resume_losses), 0
+        if not losses and (out / "results.json").exists():
             prev = json.loads((out / "results.json").read_text())
             losses = list(prev.get("losses", []))[:start]
         for step in range(start, a.steps):
@@ -657,22 +1075,31 @@ def main():
                     tk_p = ts["tk_p"].to(DEV).float()
                     loss = -(tk_p * lq.gather(-1, tk_ids)).sum(-1).mean()
                 else:
-                    o = student(input_ids=ids, output_hidden_states=True)
+                    o = hidden_forward(student, input_ids=ids, use_cache=False)
                     s_states = {ls: o.hidden_states[ls][0, gstart + off:gstart + glen].float()
                                 for ls in lay_s}
                     t_states = {ls: ts["h"][lmap[ls]][:sup] for ls in lay_s}
                     loss = compute_loss(a.loss, s_states, t_states, lay_s, bridge, wmap,
-                                        a.tau, a.topk)
+                                        a.tau, a.topk, a.bridge_loss_coef)
                 # weight by tokens the loss actually saw, clipped to the remaining budget
                 eff = min(sup, REL_WINDOW) if a.loss in RELATIONAL else sup
                 w = min(eff, a.batch_tokens - toks_done) / a.batch_tokens
+                loss_value = float(loss.detach().item())
+                if not math.isfinite(loss_value):
+                    raise RuntimeError(
+                        f"non-finite training loss at optimizer step {step + 1}"
+                    )
                 (loss * w).backward()
-                batch_losses.append(float(loss.item()))
+                batch_losses.append(loss_value)
                 toks_done += eff
                 del o
                 if DEV == "mps":
                     torch.mps.empty_cache()
-            torch.nn.utils.clip_grad_norm_(params, 1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(params, 1.0)
+            if not bool(torch.isfinite(grad_norm).item()):
+                raise RuntimeError(
+                    f"non-finite gradient norm at optimizer step {step + 1}"
+                )
             opt.step()
             sched.step()
             losses.append(float(np.mean(batch_losses)))
@@ -680,9 +1107,20 @@ def main():
                 log(f"step {step+1}/{a.steps} loss={losses[-1]:.5f} "
                     f"lr={sched.get_last_lr()[0]:.2e}", out)
             if (step + 1) % 100 == 0:
+                save_training_state(
+                    out / "train_state_last.pt", student, wmap,
+                    step + 1, losses, bridge_reference=bridge_reference,
+                )
                 torch.save({k: v.to(torch.bfloat16).cpu()
                             for k, v in student.state_dict().items()}, out / "ckpt_last.pt")
+                if wmap is not None:  # compatibility artifact; exact resume uses train_state_last
+                    torch.save({k: v.detach().cpu() for k, v in wmap.state_dict().items()},
+                               out / "wmap_last.pt")
 
+        save_training_state(
+            out / "train_state_last.pt", student, wmap,
+            a.steps, losses, bridge_reference=bridge_reference,
+        )
         torch.save({k: v.to(torch.bfloat16).cpu() for k, v in student.state_dict().items()},
                    out / "ckpt_final.pt")
         if wmap is not None:
@@ -690,8 +1128,13 @@ def main():
         res["losses"] = losses
         res["resumed_from"] = a.resume_from or None
         res["start_step"] = start
+        res["student_layers"] = lay_s
+        res["teacher_layers"] = lay_t
+        res["layer_map"] = {str(k): v for k, v in lmap.items()}
+        if bridge_meta is not None:
+            res["bridge_stage1"] = bridge_meta
+            res["bridge_reference"] = bridge_reference
 
-        diag_names = [d for d in a.diagnostics.split(",") if d]
         if a.track_stable_rank or diag_names:
             with torch.no_grad():
                 sp, tp = [], []
@@ -699,10 +1142,10 @@ def main():
                     glen = min(len(r["gen_ids"]), rt)
                     off = ts["off"]
                     ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
-                    o = student(input_ids=ids, output_hidden_states=True)
+                    o = hidden_forward(student, input_ids=ids, use_cache=False)
                     sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]) + off:
                                                          len(r["prompt_ids"]) + glen].float().cpu())
-                    tp.append(ts["h"][lay_t[-1]][:glen - off].float())
+                    tp.append(ts["h"][lmap[lay_s[-1]]][:glen - off].float())
                     del o
             if diag_names:
                 res["diagnostics"] = diagnostics(diag_names, torch.cat(sp), torch.cat(tp),
