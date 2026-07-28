@@ -64,7 +64,7 @@ atomically quarantined before the fresh retry, and validated output is published
 
 ## Environment
 
-Submit `nexus/setup_env.sbatch` as a separate prerequisite. It loads Python 3.12.3, CUDA 12.8.1,
+Submit `nexus/setup_env.sbatch` as a separate prerequisite. It loads Python 3.12.7, CUDA 12.8.1,
 and a supported FFmpeg module, installs vLLM before the remaining requirement floors, validates
 CUDA and all required imports, and atomically writes `venv/.oprd-env-ready.json`. Do not submit the
 bridge DAG until the setup job reaches `COMPLETED`, prints `SETUP_OK`, and the marker's

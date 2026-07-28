@@ -103,6 +103,22 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertLess(check_index, marker_index)
         self.assertIn('            "setuptools",', script)
 
+    def test_bridge_scripts_use_available_python_module(self):
+        scripts = (
+            "setup_env.sbatch",
+            "submit_oprd_bridge.sh",
+            "oprd_bridge_corpus.sbatch",
+            "oprd_bridge_teacher.sbatch",
+            "oprd_bridge_student_groups.sbatch",
+            "oprd_bridge_publish.sbatch",
+            "oprd_bridge_stage2_smoke.sbatch",
+        )
+        for name in scripts:
+            with self.subTest(script=name):
+                script = (SOURCE_NEXUS / name).read_text()
+                self.assertIn("Python3/3.12.7", script)
+                self.assertNotIn("Python3/3.12.3", script)
+
     def test_stage2_smoke_uses_validated_no_replace_publication(self):
         script = (SOURCE_NEXUS / "oprd_bridge_stage2_smoke.sbatch").read_text()
         self.assertIn("SLURM_RESTART_COUNT", script)
