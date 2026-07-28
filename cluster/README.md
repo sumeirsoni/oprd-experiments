@@ -67,8 +67,9 @@ atomically quarantined before the fresh retry, and validated output is published
 Submit `nexus/setup_env.sbatch` as a separate prerequisite. Furong login and compute nodes expose
 different node-local Python 3.12 modules, so setup bootstraps `uv==0.9.8` once and installs a
 scratch-managed CPython 3.12.7 shared by setup, preflight, status, resume, and every DAG phase. It
-loads CUDA 12.8.1 and a supported FFmpeg module, installs vLLM before the remaining requirement
-floors, runs `pip check`, validates CUDA and all required imports, and atomically writes
+loads CUDA 12.8.1, installs a bundled FFmpeg executable from `imageio-ffmpeg==0.6.0`, installs
+vLLM before the remaining requirement floors, runs `pip check`, validates CUDA and all required
+imports, and atomically writes
 `venv/.oprd-env-ready.json`. A pre-existing module-backed venv is preserved as a sibling backup
 before migration. Do not submit the bridge DAG until the setup job reaches `COMPLETED`, prints
 `SETUP_OK`, and the marker's `requirements_sha256` matches `cluster/requirements.txt`.

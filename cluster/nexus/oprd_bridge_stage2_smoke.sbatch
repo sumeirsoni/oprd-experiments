@@ -44,8 +44,6 @@ set +u
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
 module use /opt/common/.modulefiles
 module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
-module load ffmpeg/7.1 || module load ffmpeg/6.1 || fail "cannot load a supported FFmpeg module"
-command -v ffmpeg >/dev/null 2>&1 || fail "ffmpeg is unavailable after module load"
 set -u
 
 SCRATCH_ROOT=${SCRATCH_ROOT:-/cmlscratch/$USER}
@@ -53,6 +51,8 @@ ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
 CLUSTER_DIR=$ROOT/cluster
 NEXUS_DIR=$CLUSTER_DIR/nexus
 PYTHON=${PYTHON:-$ROOT/venv/bin/python}
+export PATH="$ROOT/venv/bin:$PATH"
+command -v ffmpeg >/dev/null 2>&1 || fail "bundled FFmpeg is unavailable from the venv"
 OPS=$NEXUS_DIR/oprd_bridge_ops.py
 BRIDGE_BUILD_DIR=${BRIDGE_BUILD_DIR:?submit_oprd_bridge.sh must export BRIDGE_BUILD_DIR}
 BRIDGE_ARTIFACT=${BRIDGE_ARTIFACT:?submit_oprd_bridge.sh must export BRIDGE_ARTIFACT}

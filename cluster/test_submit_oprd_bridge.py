@@ -117,6 +117,9 @@ class SubmitBridgeTests(unittest.TestCase):
             setup.index('"$VENV/bin/python" -m pip install --index-url'),
         )
         self.assertIn('"managed_python_executable"', setup)
+        self.assertIn('"imageio-ffmpeg==0.6.0"', setup)
+        self.assertIn('imageio_ffmpeg.get_ffmpeg_exe()', setup)
+        self.assertNotIn('module load ffmpeg/', setup)
 
         runtime_scripts = (
             "submit_oprd_bridge.sh",
@@ -130,6 +133,8 @@ class SubmitBridgeTests(unittest.TestCase):
             with self.subTest(script=name):
                 script = (SOURCE_NEXUS / name).read_text()
                 self.assertNotIn("module load Python3/", script)
+                self.assertNotIn("module load ffmpeg/", script)
+                self.assertIn('export PATH="$ROOT/venv/bin:$PATH"', script)
                 self.assertIn("set +u", script)
 
     def test_stage2_smoke_uses_validated_no_replace_publication(self):

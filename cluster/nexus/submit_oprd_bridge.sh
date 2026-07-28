@@ -69,10 +69,10 @@ load_runtime_modules() {
   source "$modules_init" 2>/dev/null || fail "cannot initialize environment modules"
   module use /opt/common/.modulefiles
   module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
-  module load ffmpeg/7.1 || module load ffmpeg/6.1 ||
-    fail "cannot load a supported FFmpeg module"
-  command -v ffmpeg >/dev/null 2>&1 || fail "ffmpeg is unavailable after module load"
   set -u
+  export PATH="$ROOT/venv/bin:$PATH"
+  command -v ffmpeg >/dev/null 2>&1 ||
+    fail "bundled FFmpeg is unavailable from the venv"
 }
 
 submit_job() {

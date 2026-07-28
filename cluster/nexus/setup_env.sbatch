@@ -18,8 +18,6 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
 module use /opt/common/.modulefiles
 module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
-module load ffmpeg/7.1 || module load ffmpeg/6.1 || fail "cannot load a supported FFmpeg module"
-command -v ffmpeg >/dev/null 2>&1 || fail "ffmpeg is unavailable after module load"
 
 SCRATCH_ROOT=${SCRATCH_ROOT:-/cmlscratch/$USER}
 ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
@@ -123,7 +121,18 @@ fi
 "$VENV/bin/python" -m pip install --index-url https://pypi.org/simple "vllm>=0.8"
 "$VENV/bin/python" -m pip install --index-url https://pypi.org/simple \
   -r requirements.txt
+# Furong compute nodes do not expose the login node's FFmpeg modules. Use the
+# platform wheel's bundled executable from the shared venv on every node.
+"$VENV/bin/python" -m pip install --index-url https://pypi.org/simple \
+  "imageio-ffmpeg==0.6.0"
 "$VENV/bin/python" -m pip check
+BUNDLED_FFMPEG=$(
+  "$VENV/bin/python" -c \
+    'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'
+) || fail "cannot locate bundled FFmpeg"
+[[ -x $BUNDLED_FFMPEG ]] || fail "bundled FFmpeg is not executable: $BUNDLED_FFMPEG"
+ln -sfn "$BUNDLED_FFMPEG" "$VENV/bin/ffmpeg"
+export PATH="$VENV/bin:$PATH"
 
 FFMPEG_PATH=$(command -v ffmpeg)
 FFMPEG_OUTPUT=$(ffmpeg -version) || fail "ffmpeg -version failed"
@@ -182,6 +191,7 @@ payload = {
             "datasets",
             "vllm",
             "setuptools",
+            "imageio-ffmpeg",
         )
     },
 }
