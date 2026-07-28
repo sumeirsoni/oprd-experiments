@@ -98,14 +98,27 @@ class SubmitBridgeTests(unittest.TestCase):
         script = (SOURCE_NEXUS / "setup_env.sbatch").read_text()
         install_index = script.index('"setuptools<82"')
         check_index = script.index('"$VENV/bin/python" -m pip check')
-        marker_index = script.index('"$VENV/bin/python" - "$CLUSTER_DIR/requirements.txt"')
+        marker_index = script.index('  "$CLUSTER_DIR/requirements.txt" "$ENV_READY"')
         self.assertLess(install_index, check_index)
         self.assertLess(check_index, marker_index)
         self.assertIn('            "setuptools",', script)
 
-    def test_bridge_scripts_use_available_python_module(self):
-        scripts = (
-            "setup_env.sbatch",
+    def test_bridge_uses_shared_managed_python(self):
+        setup = (SOURCE_NEXUS / "setup_env.sbatch").read_text()
+        self.assertIn('MANAGED_PYTHON_VERSION=3.12.7', setup)
+        self.assertIn('"uv==0.9.8"', setup)
+        self.assertIn('UV_PYTHON_INSTALL_DIR', setup)
+        self.assertIn('--no-python-downloads python find', setup)
+        self.assertIn('SLURM_RESTART_COUNT', setup)
+        self.assertIn('venv.pre-managed.$ATTEMPT_TAG', setup)
+        self.assertIn('.oprd-env-ready.pre-setup.$ATTEMPT_TAG.json', setup)
+        self.assertLess(
+            setup.index('.oprd-env-ready.pre-setup.$ATTEMPT_TAG.json'),
+            setup.index('"$VENV/bin/python" -m pip install --index-url'),
+        )
+        self.assertIn('"managed_python_executable"', setup)
+
+        runtime_scripts = (
             "submit_oprd_bridge.sh",
             "oprd_bridge_corpus.sbatch",
             "oprd_bridge_teacher.sbatch",
@@ -113,11 +126,11 @@ class SubmitBridgeTests(unittest.TestCase):
             "oprd_bridge_publish.sbatch",
             "oprd_bridge_stage2_smoke.sbatch",
         )
-        for name in scripts:
+        for name in runtime_scripts:
             with self.subTest(script=name):
                 script = (SOURCE_NEXUS / name).read_text()
-                self.assertIn("Python3/3.12.7", script)
-                self.assertNotIn("Python3/3.12.3", script)
+                self.assertNotIn("module load Python3/", script)
+                self.assertIn("set +u", script)
 
     def test_stage2_smoke_uses_validated_no_replace_publication(self):
         script = (SOURCE_NEXUS / "oprd_bridge_stage2_smoke.sbatch").read_text()

@@ -65,14 +65,14 @@ PY
 
 load_runtime_modules() {
   local modules_init=${MODULES_INIT:-/etc/profile.d/modules.sh}
+  set +u
   source "$modules_init" 2>/dev/null || fail "cannot initialize environment modules"
-  module use /opt/local/stow/.modulefiles
-  module load Python3/3.12.7 || fail "cannot load Python3/3.12.7"
   module use /opt/common/.modulefiles
   module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
   module load ffmpeg/7.1 || module load ffmpeg/6.1 ||
     fail "cannot load a supported FFmpeg module"
   command -v ffmpeg >/dev/null 2>&1 || fail "ffmpeg is unavailable after module load"
+  set -u
 }
 
 submit_job() {
