@@ -41,10 +41,13 @@ fi
 "$VENV/bin/python" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version' ||
   fail "existing venv is not based on Python 3.12: $VENV"
 
-"$VENV/bin/python" -m pip install -U pip setuptools wheel
+# Torch 2.11 requires setuptools<82. Keep the packaging toolchain within that
+# runtime constraint instead of leaving a dependency-inconsistent environment.
+"$VENV/bin/python" -m pip install -U pip wheel "setuptools<82"
 # vLLM first selects its compatible Torch build; then install the remaining floors.
 "$VENV/bin/python" -m pip install "vllm>=0.8"
 "$VENV/bin/python" -m pip install -r requirements.txt
+"$VENV/bin/python" -m pip check
 
 FFMPEG_PATH=$(command -v ffmpeg)
 FFMPEG_OUTPUT=$(ffmpeg -version) || fail "ffmpeg -version failed"
@@ -94,6 +97,7 @@ payload = {
             "transformers",
             "datasets",
             "vllm",
+            "setuptools",
         )
     },
 }

@@ -94,6 +94,15 @@ class SubmitBridgeTests(unittest.TestCase):
             (bin_dir / name).chmod(0o755)
         return scratch, cluster, fake_python, modules, bin_dir, counter, log
 
+    def test_setup_environment_caps_setuptools_and_checks_dependencies(self):
+        script = (SOURCE_NEXUS / "setup_env.sbatch").read_text()
+        install_index = script.index('"setuptools<82"')
+        check_index = script.index('"$VENV/bin/python" -m pip check')
+        marker_index = script.index('"$VENV/bin/python" - "$CLUSTER_DIR/requirements.txt"')
+        self.assertLess(install_index, check_index)
+        self.assertLess(check_index, marker_index)
+        self.assertIn('            "setuptools",', script)
+
     def test_stage2_smoke_uses_validated_no_replace_publication(self):
         script = (SOURCE_NEXUS / "oprd_bridge_stage2_smoke.sbatch").read_text()
         self.assertIn("SLURM_RESTART_COUNT", script)
