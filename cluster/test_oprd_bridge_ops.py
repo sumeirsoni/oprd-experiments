@@ -147,6 +147,17 @@ class PreflightTests(unittest.TestCase):
                 "sacct": os.fspath(sacct),
                 "ffmpeg": os.fspath(ffmpeg),
             }
+            import_timeouts = []
+
+            def recording_runner(arguments, **kwargs):
+                if (
+                    len(arguments) >= 3
+                    and arguments[1] == "-c"
+                    and "import_module" in arguments[2]
+                ):
+                    import_timeouts.append(kwargs.get("timeout"))
+                return subprocess.run(arguments, **kwargs)
+
             report = ops.run_preflight(
                 scratch=scratch,
                 hf_home=hf_home,
@@ -161,8 +172,14 @@ class PreflightTests(unittest.TestCase):
                 quota_user="test-user",
                 allow_quota_unavailable=True,
                 which_fn=lambda command: commands.get(command),
+                runner=recording_runner,
             )
             self.assertTrue(report["ok"], report)
+            self.assertEqual(
+                import_timeouts,
+                [ops.PREFLIGHT_IMPORT_TIMEOUT_SECONDS] * 2,
+            )
+            self.assertGreaterEqual(ops.PREFLIGHT_IMPORT_TIMEOUT_SECONDS, 120)
             self.assertEqual(report["checks"]["python"]["version"], "3.12.9")
             self.assertEqual(
                 report["checks"]["environment_marker"]["packages"]["torch"],

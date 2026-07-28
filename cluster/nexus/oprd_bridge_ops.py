@@ -29,6 +29,7 @@ SCHEMA_VERSION = 1
 CLAIM_FILENAME = "claim.json"
 SMOKE_DIRECTORY = "stage2-backward-smoke"
 SMOKE_COMPLETE_FILENAME = "SMOKE_COMPLETE.json"
+PREFLIGHT_IMPORT_TIMEOUT_SECONDS = 180
 
 DAG_PHASES = (
     "corpus",
@@ -658,6 +659,7 @@ def run_preflight(
                         "import importlib,sys; importlib.import_module(sys.argv[1])",
                         module,
                     ],
+                    timeout=PREFLIGHT_IMPORT_TIMEOUT_SECONDS,
                 )
                 if imported.returncode != 0:
                     detail = (imported.stderr or imported.stdout).strip()
