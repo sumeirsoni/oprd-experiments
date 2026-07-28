@@ -20,8 +20,13 @@ class SubmitBridgeTests(unittest.TestCase):
         cluster = scratch / "oprd-experiments" / "cluster"
         nexus = cluster / "nexus"
         bin_dir = root / "bin"
+        cuda_home = root / "cuda-12.8.1"
+        cuda_bin = cuda_home / "bin"
+        cuda_lib64 = cuda_home / "lib64"
         nexus.mkdir(parents=True)
         bin_dir.mkdir()
+        cuda_bin.mkdir(parents=True)
+        cuda_lib64.mkdir()
         (cluster / "requirements.txt").write_text("test-only\n", encoding="utf-8")
         for name in ("build_oprd_bridge.py", "oprd_bridge.py", "train_harness.py"):
             (cluster / name).write_text(f"# test {name}\n", encoding="utf-8")
@@ -36,16 +41,36 @@ class SubmitBridgeTests(unittest.TestCase):
         ):
             shutil.copy2(SOURCE_NEXUS / name, nexus / name)
 
+        libcudart_path = (cuda_lib64 / "libcudart.so.12").resolve()
         fake_python = bin_dir / "python3.12"
         fake_python.write_text(
             "#!/bin/bash\n"
             "if [[ ${1:-} == --version ]]; then echo 'Python 3.12.9'; exit 0; fi\n"
-            "if [[ ${1:-} == -c && ${2:-} == *importlib.metadata* ]]; then echo '{\"torch\":\"test\"}'; exit 0; fi\n"
+            "if [[ ${1:-} == -c && ${2:-} == *importlib.metadata* ]]; then echo '{\"flashinfer-python\":\"test\",\"torch\":\"test\"}'; exit 0; fi\n"
+            f"if [[ ${{1:-}} == -c && ${{2:-}} == *mapped_libcudart_paths* ]]; then printf '%s\\n' {shlex_quote(json.dumps({'mapped_libcudart_paths': [str(libcudart_path)]}))}; exit 0; fi\n"
             "if [[ ${1:-} == -c && ${2:-} == import\\ importlib,* ]]; then exit 0; fi\n"
             f"exec {shlex_quote(sys.executable)} \"$@\"\n",
             encoding="utf-8",
         )
         fake_python.chmod(0o755)
+
+        nvcc = cuda_bin / "nvcc"
+        nvcc.write_text(
+            "#!/bin/bash\n"
+            "if [[ ${1:-} == --version ]]; then\n"
+            "  echo 'Cuda compilation tools, release 12.8, V12.8.93'\n"
+            "  exit 0\n"
+            "fi\n"
+            "while [[ $# -gt 0 ]]; do\n"
+            "  if [[ $1 == -o ]]; then shift; printf x > \"$1\"; exit 0; fi\n"
+            "  shift\n"
+            "done\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        nvcc.chmod(0o755)
+        libcudart = cuda_lib64 / "libcudart.so.12"
+        libcudart.write_bytes(b"test libcudart")
 
         venv = scratch / "oprd-experiments" / "venv"
         venv.mkdir(parents=True)
@@ -54,14 +79,79 @@ class SubmitBridgeTests(unittest.TestCase):
         marker.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "python_executable": str(fake_python.resolve()),
                     "requirements_sha256": hashlib.sha256(
                         requirements.read_bytes()
                     ).hexdigest(),
-                    "packages": {"torch": "test"},
+                    "packages": {
+                        "flashinfer-python": "test",
+                        "torch": "test",
+                    },
                     "ffmpeg_path": str((bin_dir / "ffmpeg").resolve()),
                     "ffmpeg_version": "ffmpeg version test",
+                    "cuda_home": str(cuda_home.resolve()),
+                    "cuda_nvcc": str(nvcc.resolve()),
+                    "cuda_nvcc_version": (
+                        "Cuda compilation tools, release 12.8, V12.8.93"
+                    ),
+                    "cuda_nvcc_sha256": hashlib.sha256(
+                        nvcc.read_bytes()
+                    ).hexdigest(),
+                    "runtime_ld_library_path": str(cuda_lib64.resolve()),
+                    "libcudart_path": str(libcudart.resolve()),
+                    "libcudart_sha256": hashlib.sha256(
+                        libcudart.read_bytes()
+                    ).hexdigest(),
+                    "flashinfer_workspace_base": str(
+                        (scratch / "flashinfer-workspace").resolve()
+                    ),
+                    "flashinfer_package_version": "test",
+                    "flashinfer_runtime": {
+                        "ok": True,
+                        "paths": {
+                            "flashinfer_cache_dir": str(
+                                (
+                                    scratch
+                                    / "flashinfer-workspace"
+                                    / ".cache"
+                                    / "flashinfer"
+                                ).resolve()
+                            ),
+                            "flashinfer_workspace_dir": str(
+                                (
+                                    scratch
+                                    / "flashinfer-workspace"
+                                    / ".cache"
+                                    / "flashinfer"
+                                    / "test"
+                                    / "90a"
+                                ).resolve()
+                            ),
+                            "flashinfer_jit_dir": str(
+                                (
+                                    scratch
+                                    / "flashinfer-workspace"
+                                    / ".cache"
+                                    / "flashinfer"
+                                    / "test"
+                                    / "90a"
+                                    / "cached_ops"
+                                ).resolve()
+                            ),
+                            "flashinfer_gen_src_dir": str(
+                                (
+                                    scratch
+                                    / "flashinfer-workspace"
+                                    / ".cache"
+                                    / "flashinfer"
+                                    / "test"
+                                    / "90a"
+                                    / "generated"
+                                ).resolve()
+                            ),
+                        },
+                    },
                 }
             )
             + "\n",
@@ -69,7 +159,15 @@ class SubmitBridgeTests(unittest.TestCase):
         )
 
         modules = root / "modules.sh"
-        modules.write_text("module() { return 0; }\n", encoding="utf-8")
+        modules.write_text(
+            "module() {\n"
+            "  if [[ ${1:-} == load && ${2:-} == cuda/12.8.1 ]]; then\n"
+            f"    export CUDA_HOME={shlex_quote(cuda_home.resolve())}\n"
+            "  fi\n"
+            "  return 0\n"
+            "}\n",
+            encoding="utf-8",
+        )
         (bin_dir / "ffmpeg").write_text(
             "#!/bin/bash\necho 'ffmpeg version test'\n", encoding="utf-8"
         )
@@ -85,6 +183,11 @@ class SubmitBridgeTests(unittest.TestCase):
         )
         (bin_dir / "ld").write_text(
             "#!/bin/bash\necho 'GNU ld test'\n", encoding="utf-8"
+        )
+        (bin_dir / "readelf").write_text(
+            "#!/bin/bash\n"
+            "echo ' 0x0000000000000001 (NEEDED) Shared library: [libcudart.so.12]'\n",
+            encoding="utf-8",
         )
         (bin_dir / "sacct").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
         (bin_dir / "quota").write_text(
@@ -103,7 +206,7 @@ class SubmitBridgeTests(unittest.TestCase):
             "printf '%s\\n' \"$((1000 + n))\"\n",
             encoding="utf-8",
         )
-        for name in ("ffmpeg", "gcc", "ld", "quota", "sacct", "sbatch"):
+        for name in ("ffmpeg", "gcc", "ld", "readelf", "quota", "sacct", "sbatch"):
             (bin_dir / name).chmod(0o755)
         return scratch, cluster, fake_python, modules, bin_dir, counter, log
 
@@ -114,7 +217,7 @@ class SubmitBridgeTests(unittest.TestCase):
         marker_index = script.index('  "$CLUSTER_DIR/requirements.txt" "$ENV_READY"')
         self.assertLess(install_index, check_index)
         self.assertLess(check_index, marker_index)
-        self.assertIn('            "setuptools",', script)
+        self.assertIn('        "setuptools",', script)
 
     def test_bridge_uses_shared_managed_python(self):
         setup = (SOURCE_NEXUS / "setup_env.sbatch").read_text()
@@ -135,11 +238,25 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn('BRIDGE_RUNTIME_PATH=', setup)
         self.assertIn('VLLM_CACHE_ROOT=', setup)
         self.assertIn('TRITON_CACHE_DIR=', setup)
+        self.assertIn('FLASHINFER_WORKSPACE_BASE=', setup)
+        self.assertIn('BRIDGE_RUNTIME_LD_LIBRARY_PATH=', setup)
+        self.assertIn('export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"', setup)
         self.assertIn('check-toolchain --scratch "$SCRATCH_ROOT"', setup)
+        self.assertIn('check-cuda-runtime', setup)
+        self.assertIn('"schema_version": 2', setup)
+        self.assertIn('"flashinfer-python",', setup)
+        self.assertIn('get_sampling_module()', setup)
+        self.assertNotIn('module purge', setup)
+        self.assertNotIn('module reset', setup)
         self.assertIn('"$VENV/bin/python" "$OPS" check-paths', setup)
         self.assertLess(
             setup.index('"$VENV/bin/python" "$OPS" check-paths'),
             setup.index('mkdir -p "$BRIDGE_HF_HOME"'),
+        )
+        self.assertIn('--path "$FLASHINFER_WORKSPACE_BASE"', setup)
+        self.assertLess(
+            setup.index('export VLLM_CACHE_ROOT TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE'),
+            setup.index('from flashinfer.sampling import get_sampling_module'),
         )
         self.assertNotIn('module load ffmpeg/', setup)
 
@@ -159,9 +276,34 @@ class SubmitBridgeTests(unittest.TestCase):
                 self.assertIn('export PATH="$BRIDGE_RUNTIME_PATH"', script)
                 self.assertIn("VLLM_CACHE_ROOT", script)
                 self.assertIn("TRITON_CACHE_DIR", script)
+                self.assertIn("FLASHINFER_WORKSPACE_BASE", script)
+                self.assertIn("BRIDGE_CUDA_HOME", script)
+                self.assertIn("BRIDGE_CUDA_NVCC", script)
+                self.assertIn("BRIDGE_RUNTIME_LD_LIBRARY_PATH", script)
+                self.assertIn('export CUDA_HOME="$BRIDGE_CUDA_HOME"', script)
+                self.assertIn(
+                    'export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"',
+                    script,
+                )
+                self.assertNotIn("module purge", script)
+                self.assertNotIn("module reset", script)
                 if name != "submit_oprd_bridge.sh":
                     self.assertIn(
                         'check-toolchain --scratch "$SCRATCH_ROOT"', script
+                    )
+                    self.assertIn('--cuda-home "$BRIDGE_CUDA_HOME"', script)
+                    self.assertIn('--cuda-nvcc "$BRIDGE_CUDA_NVCC"', script)
+                    self.assertIn(
+                        '--runtime-ld-library-path "$BRIDGE_RUNTIME_LD_LIBRARY_PATH"',
+                        script,
+                    )
+                    self.assertIn(
+                        '--flashinfer-workspace-base "$FLASHINFER_WORKSPACE_BASE"',
+                        script,
+                    )
+                    self.assertLess(
+                        script.index('"$OPS" check-runtime'),
+                        script.index('"$OPS" check-environment'),
                     )
                 self.assertIn("set +u", script)
 
@@ -176,6 +318,10 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn("--require-finished", script)
         self.assertIn("artifact_contract != contract", script)
         self.assertNotIn("SMOKE_STAGING=${SMOKE_STAGING", script)
+        self.assertLess(
+            script.index("STAGE2_SMOKE_ALREADY_VALID"),
+            script.index("from flashinfer.sampling import get_sampling_module"),
+        )
 
     def test_fresh_submission_records_exact_ordered_eleven_job_chain(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -198,8 +344,26 @@ class SubmitBridgeTests(unittest.TestCase):
                 "PYTHON": str(fake_python),
                 "MODULES_INIT": str(modules),
                 "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "BRIDGE_CUDA_HOME": str((root / "cuda-12.8.1").resolve()),
+                "BRIDGE_CUDA_NVCC": str(
+                    (root / "cuda-12.8.1" / "bin" / "nvcc").resolve()
+                ),
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(
+                    (root / "cuda-12.8.1" / "lib64").resolve()
+                ),
                 "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
                 "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                "FLASHINFER_WORKSPACE_BASE": str(
+                    (scratch / "flashinfer-workspace").resolve()
+                ),
+                "FAKE_LIBCUDART": str(
+                    (
+                        root
+                        / "cuda-12.8.1"
+                        / "lib64"
+                        / "libcudart.so.12"
+                    ).resolve()
+                ),
                 "BRIDGE_RUN_ID": "unit-test-run",
                 "SUBMIT_MIN_FREE_GIB": "0",
                 "SUBMIT_MIN_FREE_INODES": "0",
@@ -234,6 +398,21 @@ class SubmitBridgeTests(unittest.TestCase):
             self.assertTrue(
                 all(
                     f"TRITON_CACHE_DIR={environment['TRITON_CACHE_DIR']}" in line
+                    for line in lines
+                )
+            )
+            self.assertTrue(
+                all(
+                    f"CUDA_HOME={environment['BRIDGE_CUDA_HOME']}" in line
+                    and f"FLASHINFER_NVCC={environment['BRIDGE_CUDA_NVCC']}" in line
+                    and (
+                        "LD_LIBRARY_PATH="
+                        f"{environment['BRIDGE_RUNTIME_LD_LIBRARY_PATH']}"
+                    ) in line
+                    and (
+                        "FLASHINFER_WORKSPACE_BASE="
+                        f"{environment['FLASHINFER_WORKSPACE_BASE']}"
+                    ) in line
                     for line in lines
                 )
             )
@@ -272,12 +451,28 @@ class SubmitBridgeTests(unittest.TestCase):
                 environment["BRIDGE_RUNTIME_PATH"],
             )
             self.assertEqual(
+                record["configuration"]["cuda_home"],
+                environment["BRIDGE_CUDA_HOME"],
+            )
+            self.assertEqual(
+                record["configuration"]["cuda_nvcc"],
+                environment["BRIDGE_CUDA_NVCC"],
+            )
+            self.assertEqual(
+                record["configuration"]["runtime_ld_library_path"],
+                environment["BRIDGE_RUNTIME_LD_LIBRARY_PATH"],
+            )
+            self.assertEqual(
                 record["configuration"]["vllm_cache_root"],
                 environment["VLLM_CACHE_ROOT"],
             )
             self.assertEqual(
                 record["configuration"]["triton_cache_dir"],
                 environment["TRITON_CACHE_DIR"],
+            )
+            self.assertEqual(
+                record["configuration"]["flashinfer_workspace_base"],
+                environment["FLASHINFER_WORKSPACE_BASE"],
             )
             self.assertEqual(
                 record["phases"]["teacher"]["attempts"][0][
@@ -311,6 +506,18 @@ class SubmitBridgeTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(begun.returncode, 0, begun.stderr)
+            legacy_record = json.loads(record_path.read_text(encoding="utf-8"))
+            for key in (
+                "cuda_home",
+                "cuda_nvcc",
+                "runtime_ld_library_path",
+                "flashinfer_workspace_base",
+            ):
+                legacy_record["configuration"].pop(key)
+            record_path.write_text(
+                json.dumps(legacy_record, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
             adopted = subprocess.run(
                 [
                     "bash",
@@ -329,12 +536,85 @@ class SubmitBridgeTests(unittest.TestCase):
             self.assertEqual(adopted.returncode, 0, adopted.stdout + adopted.stderr)
             record = json.loads(record_path.read_text(encoding="utf-8"))
             self.assertNotIn("pending_submission", record["phases"]["stage2-smoke"])
+            self.assertNotIn("cuda_home", record["configuration"])
+            self.assertNotIn("flashinfer_workspace_base", record["configuration"])
             self.assertEqual(
                 record["phases"]["stage2-smoke"]["attempts"][-1]["job_id"],
                 "2000",
             )
 
-    def test_submission_rejects_cache_path_with_export_delimiter(self):
+    def test_submission_rejects_export_delimiters_before_side_effects(self):
+        cases = {
+            "VLLM_CACHE_ROOT": "bad,cache",
+            "FLASHINFER_WORKSPACE_BASE": "bad\nworkspace",
+            "BRIDGE_RUNTIME_LD_LIBRARY_PATH": "bad,library-path",
+            "BRIDGE_CUDA_HOME": "bad\ncuda-home",
+            "BRIDGE_CUDA_NVCC": "bad,nvcc",
+        }
+        for field, invalid_value in cases.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = pathlib.Path(temporary)
+                (
+                    scratch,
+                    cluster,
+                    fake_python,
+                    modules,
+                    bin_dir,
+                    counter,
+                    log,
+                ) = self.make_cluster_tree(root)
+                cuda_home = (root / "cuda-12.8.1").resolve()
+                environment = {
+                    **os.environ,
+                    "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                    "USER": "test-user",
+                    "SCRATCH_ROOT": str(scratch),
+                    "ROOT": str(scratch / "oprd-experiments"),
+                    "PYTHON": str(fake_python),
+                    "MODULES_INIT": str(modules),
+                    "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                    "BRIDGE_CUDA_HOME": str(cuda_home),
+                    "BRIDGE_CUDA_NVCC": str(cuda_home / "bin" / "nvcc"),
+                    "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(cuda_home / "lib64"),
+                    "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
+                    "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                    "FLASHINFER_WORKSPACE_BASE": str(
+                        (scratch / "flashinfer-workspace").resolve()
+                    ),
+                    "FAKE_LIBCUDART": str(
+                        (cuda_home / "lib64" / "libcudart.so.12").resolve()
+                    ),
+                    "BRIDGE_RUN_ID": "delimiter-run",
+                    "SUBMIT_MIN_FREE_GIB": "0",
+                    "SUBMIT_MIN_FREE_INODES": "0",
+                    "ALLOW_QUOTA_UNAVAILABLE": "1",
+                    "SBATCH_COUNTER": str(counter),
+                    "SBATCH_LOG": str(log),
+                }
+                environment[field] = invalid_value
+                completed = subprocess.run(
+                    ["bash", str(SUBMITTER)],
+                    cwd=REPOSITORY,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn(
+                    f"{field} cannot contain commas or newlines",
+                    completed.stderr,
+                )
+                self.assertEqual(counter.read_text(encoding="ascii"), "0\n")
+                self.assertFalse(
+                    (
+                        cluster
+                        / "job_ids"
+                        / "oprd_bridge_delimiter-run.json"
+                    ).exists()
+                )
+
+    def test_legacy_record_supports_status_and_explicit_claim_release(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (
@@ -346,6 +626,7 @@ class SubmitBridgeTests(unittest.TestCase):
                 counter,
                 log,
             ) = self.make_cluster_tree(root)
+            cuda_home = (root / "cuda-12.8.1").resolve()
             environment = {
                 **os.environ,
                 "PATH": f"{bin_dir}:{os.environ['PATH']}",
@@ -355,16 +636,22 @@ class SubmitBridgeTests(unittest.TestCase):
                 "PYTHON": str(fake_python),
                 "MODULES_INIT": str(modules),
                 "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
-                "VLLM_CACHE_ROOT": str(scratch / "bad,cache"),
+                "BRIDGE_CUDA_HOME": str(cuda_home),
+                "BRIDGE_CUDA_NVCC": str(cuda_home / "bin" / "nvcc"),
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(cuda_home / "lib64"),
+                "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
                 "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
-                "BRIDGE_RUN_ID": "delimiter-run",
+                "FLASHINFER_WORKSPACE_BASE": str(
+                    (scratch / "flashinfer-workspace").resolve()
+                ),
+                "BRIDGE_RUN_ID": "legacy-run",
                 "SUBMIT_MIN_FREE_GIB": "0",
                 "SUBMIT_MIN_FREE_INODES": "0",
                 "ALLOW_QUOTA_UNAVAILABLE": "1",
                 "SBATCH_COUNTER": str(counter),
                 "SBATCH_LOG": str(log),
             }
-            completed = subprocess.run(
+            submitted = subprocess.run(
                 ["bash", str(SUBMITTER)],
                 cwd=REPOSITORY,
                 env=environment,
@@ -372,15 +659,159 @@ class SubmitBridgeTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertNotEqual(completed.returncode, 0)
-            self.assertIn(
-                "VLLM_CACHE_ROOT cannot contain commas or newlines",
-                completed.stderr,
+            self.assertEqual(
+                submitted.returncode, 0, submitted.stdout + submitted.stderr
             )
-            self.assertEqual(counter.read_text(encoding="ascii"), "0\n")
-            self.assertFalse(
-                (cluster / "job_ids" / "oprd_bridge_delimiter-run.json").exists()
+            record_path = (
+                cluster / "job_ids" / "oprd_bridge_legacy-run.json"
             )
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            for key in (
+                "cuda_home",
+                "cuda_nvcc",
+                "runtime_ld_library_path",
+                "flashinfer_workspace_base",
+            ):
+                record["configuration"].pop(key)
+            record_path.write_text(
+                json.dumps(record, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            (bin_dir / "sacct").write_text(
+                "#!/bin/bash\n"
+                "cat <<'EOF'\n"
+                + "\n".join(
+                    f"{job_id}|CANCELLED|1:0"
+                    for job_id in range(1001, 1012)
+                )
+                + "\nEOF\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "sacct").chmod(0o755)
+
+            status = subprocess.run(
+                ["bash", str(SUBMITTER), "--status", str(record_path)],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(status.returncode, 1)
+            self.assertNotIn("incomplete immutable configuration", status.stderr)
+            reconciled = json.loads(record_path.read_text(encoding="utf-8"))
+            self.assertEqual(reconciled["dag_status"], "failed")
+            self.assertNotIn("cuda_home", reconciled["configuration"])
+            claim = pathlib.Path(reconciled["claim_dir"])
+            self.assertTrue(claim.is_dir())
+
+            released = subprocess.run(
+                [
+                    "bash",
+                    str(SUBMITTER),
+                    "--release-claim",
+                    str(record_path),
+                ],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(
+                released.returncode, 0, released.stdout + released.stderr
+            )
+            self.assertFalse(claim.exists())
+            unchanged = json.loads(record_path.read_text(encoding="utf-8"))
+            self.assertNotIn("cuda_home", unchanged["configuration"])
+            self.assertNotIn(
+                "flashinfer_workspace_base", unchanged["configuration"]
+            )
+
+    def test_legacy_record_resume_rejects_changed_source_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (
+                scratch,
+                cluster,
+                fake_python,
+                modules,
+                bin_dir,
+                counter,
+                log,
+            ) = self.make_cluster_tree(root)
+            cuda_home = (root / "cuda-12.8.1").resolve()
+            environment = {
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "USER": "test-user",
+                "SCRATCH_ROOT": str(scratch),
+                "ROOT": str(scratch / "oprd-experiments"),
+                "PYTHON": str(fake_python),
+                "MODULES_INIT": str(modules),
+                "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "BRIDGE_CUDA_HOME": str(cuda_home),
+                "BRIDGE_CUDA_NVCC": str(cuda_home / "bin" / "nvcc"),
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(cuda_home / "lib64"),
+                "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
+                "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                "FLASHINFER_WORKSPACE_BASE": str(
+                    (scratch / "flashinfer-workspace").resolve()
+                ),
+                "BRIDGE_RUN_ID": "legacy-resume-run",
+                "SUBMIT_MIN_FREE_GIB": "0",
+                "SUBMIT_MIN_FREE_INODES": "0",
+                "ALLOW_QUOTA_UNAVAILABLE": "1",
+                "SBATCH_COUNTER": str(counter),
+                "SBATCH_LOG": str(log),
+            }
+            submitted = subprocess.run(
+                ["bash", str(SUBMITTER)],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(
+                submitted.returncode, 0, submitted.stdout + submitted.stderr
+            )
+            record_path = (
+                cluster / "job_ids" / "oprd_bridge_legacy-resume-run.json"
+            )
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            pathlib.Path(record["build_dir"]).mkdir(parents=True)
+            for key in (
+                "cuda_home",
+                "cuda_nvcc",
+                "runtime_ld_library_path",
+                "flashinfer_workspace_base",
+            ):
+                record["configuration"].pop(key)
+            record_path.write_text(
+                json.dumps(record, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            claim = pathlib.Path(record["claim_dir"])
+            build = pathlib.Path(record["build_dir"])
+            (cluster / "build_oprd_bridge.py").write_text(
+                "# authenticated source changed\n", encoding="utf-8"
+            )
+
+            resumed = subprocess.run(
+                ["bash", str(SUBMITTER), "--resume", str(record_path)],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(resumed.returncode, 0)
+            self.assertIn("bridge source bundle changed", resumed.stderr)
+            self.assertEqual(counter.read_text(encoding="ascii"), "11\n")
+            self.assertTrue(record_path.is_file())
+            self.assertTrue(build.is_dir())
+            self.assertTrue(claim.is_dir())
+            unchanged = json.loads(record_path.read_text(encoding="utf-8"))
+            self.assertNotIn("cuda_home", unchanged["configuration"])
 
     def test_resume_submits_only_failed_suffix(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -403,8 +834,26 @@ class SubmitBridgeTests(unittest.TestCase):
                 "PYTHON": str(fake_python),
                 "MODULES_INIT": str(modules),
                 "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "BRIDGE_CUDA_HOME": str((root / "cuda-12.8.1").resolve()),
+                "BRIDGE_CUDA_NVCC": str(
+                    (root / "cuda-12.8.1" / "bin" / "nvcc").resolve()
+                ),
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(
+                    (root / "cuda-12.8.1" / "lib64").resolve()
+                ),
                 "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
                 "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                "FLASHINFER_WORKSPACE_BASE": str(
+                    (scratch / "flashinfer-workspace").resolve()
+                ),
+                "FAKE_LIBCUDART": str(
+                    (
+                        root
+                        / "cuda-12.8.1"
+                        / "lib64"
+                        / "libcudart.so.12"
+                    ).resolve()
+                ),
                 "BRIDGE_RUN_ID": "resume-run",
                 "SUBMIT_MIN_FREE_GIB": "0",
                 "SUBMIT_MIN_FREE_INODES": "0",
@@ -441,10 +890,17 @@ class SubmitBridgeTests(unittest.TestCase):
             )
             (bin_dir / "sacct").chmod(0o755)
 
+            resumed_environment = {
+                **environment,
+                "BRIDGE_CUDA_HOME": "/ambient/cuda",
+                "BRIDGE_CUDA_NVCC": "/ambient/cuda/bin/nvcc",
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": "/ambient/cuda/lib64",
+                "FLASHINFER_WORKSPACE_BASE": "/ambient/flashinfer",
+            }
             resumed = subprocess.run(
                 ["bash", str(SUBMITTER), "--resume", str(record_path)],
                 cwd=REPOSITORY,
-                env=environment,
+                env=resumed_environment,
                 text=True,
                 capture_output=True,
                 check=False,
@@ -454,6 +910,22 @@ class SubmitBridgeTests(unittest.TestCase):
             self.assertEqual(len(lines), 18)
             resumed_lines = lines[11:]
             self.assertEqual(len(resumed_lines), 7)
+            self.assertTrue(
+                all(
+                    f"CUDA_HOME={environment['BRIDGE_CUDA_HOME']}" in line
+                    and f"FLASHINFER_NVCC={environment['BRIDGE_CUDA_NVCC']}" in line
+                    and (
+                        "LD_LIBRARY_PATH="
+                        f"{environment['BRIDGE_RUNTIME_LD_LIBRARY_PATH']}"
+                    ) in line
+                    and (
+                        "FLASHINFER_WORKSPACE_BASE="
+                        f"{environment['FLASHINFER_WORKSPACE_BASE']}"
+                    ) in line
+                    and "/ambient/" not in line
+                    for line in resumed_lines
+                )
+            )
             self.assertNotIn("--dependency", resumed_lines[0])
             self.assertIn("GROUP_INDEX=2", resumed_lines[0])
             for offset, line in enumerate(resumed_lines[1:], 1):

@@ -70,13 +70,20 @@ PY
 
 load_runtime_modules() {
   local modules_init=${MODULES_INIT:-/etc/profile.d/modules.sh}
+  local module_cuda_home
   set +u
   source "$modules_init" 2>/dev/null || fail "cannot initialize environment modules"
   module use /opt/common/.modulefiles
   module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
+  module_cuda_home=${CUDA_HOME:-}
   set -u
+  [[ "$module_cuda_home" == "$BRIDGE_CUDA_HOME" ]] ||
+    fail "cuda/12.8.1 resolved unexpected CUDA_HOME: $module_cuda_home"
   export PATH="$BRIDGE_RUNTIME_PATH"
-  export VLLM_CACHE_ROOT TRITON_CACHE_DIR
+  export CUDA_HOME="$BRIDGE_CUDA_HOME"
+  export FLASHINFER_NVCC="$BRIDGE_CUDA_NVCC"
+  export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"
+  export VLLM_CACHE_ROOT TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE
   command -v ffmpeg >/dev/null 2>&1 ||
     fail "bundled FFmpeg is unavailable from the venv"
 }
@@ -100,6 +107,11 @@ run_preflight() {
     --scratch "$SCRATCH_ROOT" \
     --hf-home "$BRIDGE_HF_HOME" \
     --python "$PYTHON" \
+    --runtime-path "$BRIDGE_RUNTIME_PATH" \
+    --cuda-home "$BRIDGE_CUDA_HOME" \
+    --cuda-nvcc "$BRIDGE_CUDA_NVCC" \
+    --runtime-ld-library-path "$BRIDGE_RUNTIME_LD_LIBRARY_PATH" \
+    --flashinfer-workspace-base "$FLASHINFER_WORKSPACE_BASE" \
     --environment-marker "$ENV_READY" \
     --requirements-file "$CLUSTER_DIR/requirements.txt" \
     --import torch \
@@ -140,13 +152,21 @@ if not isinstance(scratch, str) or not scratch:
     raise SystemExit("record has no scratch root")
 if not isinstance(root, str) or not root:
     raise SystemExit("record has no repository root")
+cuda_home = config.get("cuda_home", "/opt/common/cuda/cuda-12.8.1")
+cuda_nvcc = config.get("cuda_nvcc", f"{cuda_home}/bin/nvcc")
+runtime_ld_library_path = config.get(
+    "runtime_ld_library_path", f"{cuda_home}/lib64"
+)
 runtime_path = config.get(
     "runtime_path",
-    f"{root}/venv/bin:/opt/common/cuda/cuda-12.8.1/bin:"
+    f"{root}/venv/bin:{cuda_home}/bin:"
     "/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin",
 )
 vllm_cache_root = config.get("vllm_cache_root", f"{scratch}/vllm-cache")
 triton_cache_dir = config.get("triton_cache_dir", f"{scratch}/triton-cache")
+flashinfer_workspace_base = config.get(
+    "flashinfer_workspace_base", f"{scratch}/flashinfer-workspace"
+)
 keys = (
     "python",
     "bridge_builder",
@@ -172,8 +192,12 @@ values = [
     record.get("run_id"),
     root,
     runtime_path,
+    cuda_home,
+    cuda_nvcc,
+    runtime_ld_library_path,
     vllm_cache_root,
     triton_cache_dir,
+    flashinfer_workspace_base,
     *[config.get(key) for key in keys],
 ]
 if any(not isinstance(value, str) or not value for value in values):
@@ -185,31 +209,35 @@ PY
   while IFS= read -r line; do
     RECORD_VALUES[${#RECORD_VALUES[@]}]=$line
   done <<<"$record_output"
-  [[ ${#RECORD_VALUES[@]} -eq 24 ]] || fail "record returned an unexpected configuration field count"
+  [[ ${#RECORD_VALUES[@]} -eq 28 ]] || fail "record returned an unexpected configuration field count"
   SCRATCH_ROOT=${RECORD_VALUES[0]}
   BRIDGE_BUILD_DIR=${RECORD_VALUES[1]}
   BRIDGE_ARTIFACT=${RECORD_VALUES[2]}
   BRIDGE_RUN_ID=${RECORD_VALUES[3]}
   ROOT=${RECORD_VALUES[4]}
   BRIDGE_RUNTIME_PATH=${RECORD_VALUES[5]}
-  VLLM_CACHE_ROOT=${RECORD_VALUES[6]}
-  TRITON_CACHE_DIR=${RECORD_VALUES[7]}
-  PYTHON=${RECORD_VALUES[8]}
-  BRIDGE_BUILDER=${RECORD_VALUES[9]}
-  BRIDGE_HF_HOME=${RECORD_VALUES[10]}
-  BRIDGE_SMOKE=${RECORD_VALUES[11]}
-  ALLOW_PAPER_SCALE=${RECORD_VALUES[12]}
-  BRIDGE_PAIR=${RECORD_VALUES[13]}
-  BRIDGE_RANK=${RECORD_VALUES[14]}
-  TEACHER=${RECORD_VALUES[15]}
-  STUDENT=${RECORD_VALUES[16]}
-  TOKENIZER=${RECORD_VALUES[17]}
-  PROMPTS=${RECORD_VALUES[18]}
-  SUBMIT_MIN_FREE_GIB=${RECORD_VALUES[19]}
-  SUBMIT_MIN_FREE_INODES=${RECORD_VALUES[20]}
-  ALLOW_QUOTA_UNAVAILABLE=${RECORD_VALUES[21]}
-  RECORDED_ENVIRONMENT_MARKER_SHA256=${RECORD_VALUES[22]}
-  RECORDED_SOURCE_BUNDLE_SHA256=${RECORD_VALUES[23]}
+  BRIDGE_CUDA_HOME=${RECORD_VALUES[6]}
+  BRIDGE_CUDA_NVCC=${RECORD_VALUES[7]}
+  BRIDGE_RUNTIME_LD_LIBRARY_PATH=${RECORD_VALUES[8]}
+  VLLM_CACHE_ROOT=${RECORD_VALUES[9]}
+  TRITON_CACHE_DIR=${RECORD_VALUES[10]}
+  FLASHINFER_WORKSPACE_BASE=${RECORD_VALUES[11]}
+  PYTHON=${RECORD_VALUES[12]}
+  BRIDGE_BUILDER=${RECORD_VALUES[13]}
+  BRIDGE_HF_HOME=${RECORD_VALUES[14]}
+  BRIDGE_SMOKE=${RECORD_VALUES[15]}
+  ALLOW_PAPER_SCALE=${RECORD_VALUES[16]}
+  BRIDGE_PAIR=${RECORD_VALUES[17]}
+  BRIDGE_RANK=${RECORD_VALUES[18]}
+  TEACHER=${RECORD_VALUES[19]}
+  STUDENT=${RECORD_VALUES[20]}
+  TOKENIZER=${RECORD_VALUES[21]}
+  PROMPTS=${RECORD_VALUES[22]}
+  SUBMIT_MIN_FREE_GIB=${RECORD_VALUES[23]}
+  SUBMIT_MIN_FREE_INODES=${RECORD_VALUES[24]}
+  ALLOW_QUOTA_UNAVAILABLE=${RECORD_VALUES[25]}
+  RECORDED_ENVIRONMENT_MARKER_SHA256=${RECORD_VALUES[26]}
+  RECORDED_SOURCE_BUNDLE_SHA256=${RECORD_VALUES[27]}
   CLUSTER_DIR=$ROOT/cluster
   NEXUS_DIR=$CLUSTER_DIR/nexus
   OPS=$NEXUS_DIR/oprd_bridge_ops.py
@@ -342,7 +370,11 @@ PROMPTS=${PROMPTS:-BytedTsinghua-SIA/DAPO-Math-17k}
 BRIDGE_HF_HOME=${BRIDGE_HF_HOME:-$SCRATCH_ROOT/hf-cache}
 VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT:-$SCRATCH_ROOT/vllm-cache}
 TRITON_CACHE_DIR=${TRITON_CACHE_DIR:-$SCRATCH_ROOT/triton-cache}
-BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:-$ROOT/venv/bin:/opt/common/cuda/cuda-12.8.1/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin}
+FLASHINFER_WORKSPACE_BASE=${FLASHINFER_WORKSPACE_BASE:-$SCRATCH_ROOT/flashinfer-workspace}
+BRIDGE_CUDA_HOME=${BRIDGE_CUDA_HOME:-/opt/common/cuda/cuda-12.8.1}
+BRIDGE_CUDA_NVCC=${BRIDGE_CUDA_NVCC:-$BRIDGE_CUDA_HOME/bin/nvcc}
+BRIDGE_RUNTIME_LD_LIBRARY_PATH=${BRIDGE_RUNTIME_LD_LIBRARY_PATH:-$BRIDGE_CUDA_HOME/lib64}
+BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:-$ROOT/venv/bin:$BRIDGE_CUDA_HOME/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin}
 BRIDGE_BUILDER=${BRIDGE_BUILDER:-$CLUSTER_DIR/build_oprd_bridge.py}
 BRIDGE_RUN_ID=${BRIDGE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}
 BRIDGE_BUILD_PARENT=${BRIDGE_BUILD_PARENT:-$CLUSTER_DIR/artifacts/oprd_bridge/.builds}
@@ -376,10 +408,11 @@ fi
 [[ "$SUBMIT_MIN_FREE_INODES" =~ ^[0-9]+$ ]] || fail "SUBMIT_MIN_FREE_INODES must be a nonnegative integer"
 [[ "$ALLOW_QUOTA_UNAVAILABLE" == 0 || "$ALLOW_QUOTA_UNAVAILABLE" == 1 ]] || fail "ALLOW_QUOTA_UNAVAILABLE must be 0 or 1"
 for export_name in \
-  BRIDGE_RUNTIME_PATH SCRATCH_ROOT ROOT PYTHON BRIDGE_BUILDER BRIDGE_BUILD_DIR \
-  BRIDGE_ARTIFACT BRIDGE_HF_HOME VLLM_CACHE_ROOT TRITON_CACHE_DIR \
-  BRIDGE_RUN_ID JOB_RECORD BRIDGE_SMOKE BRIDGE_PAIR BRIDGE_RANK TEACHER \
-  STUDENT TOKENIZER PROMPTS
+  BRIDGE_RUNTIME_PATH BRIDGE_CUDA_HOME BRIDGE_CUDA_NVCC \
+  BRIDGE_RUNTIME_LD_LIBRARY_PATH SCRATCH_ROOT ROOT PYTHON BRIDGE_BUILDER \
+  BRIDGE_BUILD_DIR BRIDGE_ARTIFACT BRIDGE_HF_HOME VLLM_CACHE_ROOT \
+  TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE BRIDGE_RUN_ID JOB_RECORD \
+  BRIDGE_SMOKE BRIDGE_PAIR BRIDGE_RANK TEACHER STUDENT TOKENIZER PROMPTS
 do
   validate_export_value "$export_name" "${!export_name}"
 done
@@ -396,14 +429,15 @@ load_runtime_modules
 run_preflight
 
 if [[ "$MODE" == preflight ]]; then
-  printf 'PREFLIGHT_OK build=%s artifact=%s hf_home=%s vllm_cache=%s triton_cache=%s\n' \
+  printf 'PREFLIGHT_OK build=%s artifact=%s hf_home=%s vllm_cache=%s triton_cache=%s flashinfer_workspace=%s\n' \
     "$BRIDGE_BUILD_DIR" "$BRIDGE_ARTIFACT" "$BRIDGE_HF_HOME" \
-    "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+    "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" "$FLASHINFER_WORKSPACE_BASE"
   exit 0
 fi
 
 mkdir -p "$CLUSTER_DIR/logs" "$BRIDGE_BUILD_PARENT" "$(dirname "$BRIDGE_ARTIFACT")" \
-  "$JOB_RECORD_DIR" "$BRIDGE_HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+  "$JOB_RECORD_DIR" "$BRIDGE_HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" \
+  "$FLASHINFER_WORKSPACE_BASE"
 umask 077
 ENVIRONMENT_MARKER_SHA256=$(file_sha256 "$ENV_READY") || fail "cannot hash environment-ready marker"
 
@@ -474,8 +508,12 @@ if [[ "$MODE" == fresh ]]; then
     --config "bridge_builder=$BRIDGE_BUILDER" \
     --config "hf_home=$BRIDGE_HF_HOME" \
     --config "runtime_path=$BRIDGE_RUNTIME_PATH" \
+    --config "cuda_home=$BRIDGE_CUDA_HOME" \
+    --config "cuda_nvcc=$BRIDGE_CUDA_NVCC" \
+    --config "runtime_ld_library_path=$BRIDGE_RUNTIME_LD_LIBRARY_PATH" \
     --config "vllm_cache_root=$VLLM_CACHE_ROOT" \
     --config "triton_cache_dir=$TRITON_CACHE_DIR" \
+    --config "flashinfer_workspace_base=$FLASHINFER_WORKSPACE_BASE" \
     --config "bridge_smoke=$BRIDGE_SMOKE" \
     --config "allow_paper_scale=$ALLOW_PAPER_SCALE" \
     --config "bridge_pair=$BRIDGE_PAIR" \
@@ -524,7 +562,7 @@ else
   printf 'Resuming at phase %s from record %s\n' "${PHASES[$START_INDEX]}" "$JOB_RECORD"
 fi
 
-EXPORTS="PATH=$BRIDGE_RUNTIME_PATH,BRIDGE_RUNTIME_PATH=$BRIDGE_RUNTIME_PATH,SCRATCH_ROOT=$SCRATCH_ROOT,ROOT=$ROOT,PYTHON=$PYTHON,BRIDGE_BUILDER=$BRIDGE_BUILDER,BRIDGE_BUILD_DIR=$BRIDGE_BUILD_DIR,BRIDGE_ARTIFACT=$BRIDGE_ARTIFACT,BRIDGE_HF_HOME=$BRIDGE_HF_HOME,HF_HOME=$BRIDGE_HF_HOME,VLLM_CACHE_ROOT=$VLLM_CACHE_ROOT,TRITON_CACHE_DIR=$TRITON_CACHE_DIR,BRIDGE_RUN_ID=$BRIDGE_RUN_ID,JOB_RECORD=$JOB_RECORD,BRIDGE_SMOKE=$BRIDGE_SMOKE,BRIDGE_PAIR=$BRIDGE_PAIR,BRIDGE_RANK=$BRIDGE_RANK,TEACHER=$TEACHER,STUDENT=$STUDENT,TOKENIZER=$TOKENIZER,PROMPTS=$PROMPTS"
+EXPORTS="PATH=$BRIDGE_RUNTIME_PATH,BRIDGE_RUNTIME_PATH=$BRIDGE_RUNTIME_PATH,BRIDGE_CUDA_HOME=$BRIDGE_CUDA_HOME,CUDA_HOME=$BRIDGE_CUDA_HOME,BRIDGE_CUDA_NVCC=$BRIDGE_CUDA_NVCC,FLASHINFER_NVCC=$BRIDGE_CUDA_NVCC,BRIDGE_RUNTIME_LD_LIBRARY_PATH=$BRIDGE_RUNTIME_LD_LIBRARY_PATH,LD_LIBRARY_PATH=$BRIDGE_RUNTIME_LD_LIBRARY_PATH,SCRATCH_ROOT=$SCRATCH_ROOT,ROOT=$ROOT,PYTHON=$PYTHON,BRIDGE_BUILDER=$BRIDGE_BUILDER,BRIDGE_BUILD_DIR=$BRIDGE_BUILD_DIR,BRIDGE_ARTIFACT=$BRIDGE_ARTIFACT,BRIDGE_HF_HOME=$BRIDGE_HF_HOME,HF_HOME=$BRIDGE_HF_HOME,VLLM_CACHE_ROOT=$VLLM_CACHE_ROOT,TRITON_CACHE_DIR=$TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE=$FLASHINFER_WORKSPACE_BASE,BRIDGE_RUN_ID=$BRIDGE_RUN_ID,JOB_RECORD=$JOB_RECORD,BRIDGE_SMOKE=$BRIDGE_SMOKE,BRIDGE_PAIR=$BRIDGE_PAIR,BRIDGE_RANK=$BRIDGE_RANK,TEACHER=$TEACHER,STUDENT=$STUDENT,TOKENIZER=$TOKENIZER,PROMPTS=$PROMPTS"
 
 PREVIOUS_JOB_ID=
 for ((index = START_INDEX; index < ${#PHASES[@]}; index++)); do

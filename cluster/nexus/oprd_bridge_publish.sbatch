@@ -24,6 +24,7 @@ set +u
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
 module use /opt/common/.modulefiles
 module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
+MODULE_CUDA_HOME=${CUDA_HOME:-}
 set -u
 
 SCRATCH_ROOT=${SCRATCH_ROOT:-/cmlscratch/$USER}
@@ -32,10 +33,18 @@ CLUSTER_DIR=$ROOT/cluster
 NEXUS_DIR=$CLUSTER_DIR/nexus
 PYTHON=${PYTHON:-$ROOT/venv/bin/python}
 BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:?submit_oprd_bridge.sh must export BRIDGE_RUNTIME_PATH}
+BRIDGE_CUDA_HOME=${BRIDGE_CUDA_HOME:?submit_oprd_bridge.sh must export BRIDGE_CUDA_HOME}
+BRIDGE_CUDA_NVCC=${BRIDGE_CUDA_NVCC:?submit_oprd_bridge.sh must export BRIDGE_CUDA_NVCC}
+BRIDGE_RUNTIME_LD_LIBRARY_PATH=${BRIDGE_RUNTIME_LD_LIBRARY_PATH:?submit_oprd_bridge.sh must export BRIDGE_RUNTIME_LD_LIBRARY_PATH}
 VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT:?submit_oprd_bridge.sh must export VLLM_CACHE_ROOT}
 TRITON_CACHE_DIR=${TRITON_CACHE_DIR:?submit_oprd_bridge.sh must export TRITON_CACHE_DIR}
+FLASHINFER_WORKSPACE_BASE=${FLASHINFER_WORKSPACE_BASE:?submit_oprd_bridge.sh must export FLASHINFER_WORKSPACE_BASE}
+[[ "$MODULE_CUDA_HOME" == "$BRIDGE_CUDA_HOME" ]] || fail "cuda/12.8.1 resolved unexpected CUDA_HOME: $MODULE_CUDA_HOME"
 export PATH="$BRIDGE_RUNTIME_PATH"
-export VLLM_CACHE_ROOT TRITON_CACHE_DIR
+export CUDA_HOME="$BRIDGE_CUDA_HOME"
+export FLASHINFER_NVCC="$BRIDGE_CUDA_NVCC"
+export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"
+export VLLM_CACHE_ROOT TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE
 command -v ffmpeg >/dev/null 2>&1 || fail "bundled FFmpeg is unavailable from the venv"
 OPS=$NEXUS_DIR/oprd_bridge_ops.py
 BRIDGE_BUILDER=${BRIDGE_BUILDER:-$CLUSTER_DIR/build_oprd_bridge.py}
@@ -58,16 +67,40 @@ case "$BRIDGE_ARTIFACT/" in "$SCRATCH_ROOT"/*) ;; *) fail "artifact must be on s
 case "$BRIDGE_HF_HOME/" in "$SCRATCH_ROOT"/*) ;; *) fail "HF cache must be on scratch: $BRIDGE_HF_HOME" ;; esac
 case "$VLLM_CACHE_ROOT/" in "$SCRATCH_ROOT"/*) ;; *) fail "vLLM cache must be on scratch: $VLLM_CACHE_ROOT" ;; esac
 case "$TRITON_CACHE_DIR/" in "$SCRATCH_ROOT"/*) ;; *) fail "Triton cache must be on scratch: $TRITON_CACHE_DIR" ;; esac
+case "$FLASHINFER_WORKSPACE_BASE/" in "$SCRATCH_ROOT"/*) ;; *) fail "FlashInfer workspace must be on scratch: $FLASHINFER_WORKSPACE_BASE" ;; esac
 [[ -d "$(dirname "$BRIDGE_ARTIFACT")" && -w "$(dirname "$BRIDGE_ARTIFACT")" ]] ||
   fail "artifact parent is unavailable or not writable: $(dirname "$BRIDGE_ARTIFACT")"
-"$PYTHON" "$OPS" check-environment --marker "$ENV_READY" --requirements-file "$CLUSTER_DIR/requirements.txt" --python "$PYTHON"
-"$PYTHON" "$OPS" check-runtime --scratch "$SCRATCH_ROOT" --path "$BRIDGE_BUILD_DIR" --path "$BRIDGE_HF_HOME" --path "$VLLM_CACHE_ROOT" --path "$TRITON_CACHE_DIR" --artifact "$BRIDGE_ARTIFACT" --run-id "$BRIDGE_RUN_ID" --record "$JOB_RECORD"
+"$PYTHON" "$OPS" check-runtime \
+  --scratch "$SCRATCH_ROOT" \
+  --path "$BRIDGE_BUILD_DIR" \
+  --path "$BRIDGE_HF_HOME" \
+  --path "$VLLM_CACHE_ROOT" \
+  --path "$TRITON_CACHE_DIR" \
+  --path "$FLASHINFER_WORKSPACE_BASE" \
+  --artifact "$BRIDGE_ARTIFACT" \
+  --run-id "$BRIDGE_RUN_ID" \
+  --record "$JOB_RECORD" \
+  --cuda-home "$BRIDGE_CUDA_HOME" \
+  --cuda-nvcc "$BRIDGE_CUDA_NVCC" \
+  --runtime-ld-library-path "$BRIDGE_RUNTIME_LD_LIBRARY_PATH" \
+  --flashinfer-workspace-base "$FLASHINFER_WORKSPACE_BASE"
+"$PYTHON" "$OPS" check-environment \
+  --marker "$ENV_READY" \
+  --requirements-file "$CLUSTER_DIR/requirements.txt" \
+  --python "$PYTHON" \
+  --scratch "$SCRATCH_ROOT" \
+  --runtime-path "$BRIDGE_RUNTIME_PATH" \
+  --cuda-home "$BRIDGE_CUDA_HOME" \
+  --cuda-nvcc "$BRIDGE_CUDA_NVCC" \
+  --runtime-ld-library-path "$BRIDGE_RUNTIME_LD_LIBRARY_PATH" \
+  --flashinfer-workspace-base "$FLASHINFER_WORKSPACE_BASE"
 "$PYTHON" "$OPS" check-toolchain --scratch "$SCRATCH_ROOT"
 check_space
 
 cd "$CLUSTER_DIR"
 export HF_HOME="$BRIDGE_HF_HOME"
-mkdir -p "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+mkdir -p "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" \
+  "$FLASHINFER_WORKSPACE_BASE"
 srun "$PYTHON" "$BRIDGE_BUILDER" publish \
   --work-dir "$BRIDGE_BUILD_DIR"
 srun "$PYTHON" "$BRIDGE_BUILDER" verify \

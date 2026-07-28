@@ -31,6 +31,15 @@ SMOKE_DIRECTORY = "stage2-backward-smoke"
 SMOKE_COMPLETE_FILENAME = "SMOKE_COMPLETE.json"
 PREFLIGHT_IMPORT_TIMEOUT_SECONDS = 180
 TOOLCHAIN_TIMEOUT_SECONDS = 60
+CUDA_RUNTIME_TIMEOUT_SECONDS = 60
+CUDA_RUNTIME_SONAME = "libcudart.so.12"
+FLASHINFER_DISTRIBUTION = "flashinfer-python"
+FLASHINFER_RUNTIME_PATH_FIELDS = (
+    "flashinfer_cache_dir",
+    "flashinfer_workspace_dir",
+    "flashinfer_jit_dir",
+    "flashinfer_gen_src_dir",
+)
 
 DAG_PHASES = (
     "corpus",
@@ -320,11 +329,84 @@ def check_statvfs_capacity(
     }
 
 
+def _require_exact_marker_value(
+    marker: Mapping[str, Any], field: str, expected: str
+) -> None:
+    if marker.get(field) != expected:
+        raise OpsError(
+            f"environment-ready marker {field} does not match current configuration"
+        )
+
+
+def _canonical_flashinfer_workspace(
+    scratch: os.PathLike[str] | str,
+    workspace: os.PathLike[str] | str,
+) -> pathlib.Path:
+    canonical = canonical_path_under_scratch(scratch, workspace)
+    if os.fspath(pathlib.Path(workspace)) != os.fspath(canonical):
+        raise OpsError("FlashInfer workspace base must be a canonical scratch path")
+    if canonical.exists() and not canonical.is_dir():
+        raise OpsError(f"FlashInfer workspace base is not a directory: {canonical}")
+    return canonical
+
+
+def _validate_flashinfer_runtime_evidence(
+    marker: Mapping[str, Any], workspace: pathlib.Path
+) -> dict[str, Any]:
+    evidence = marker.get("flashinfer_runtime")
+    if not isinstance(evidence, Mapping) or evidence.get("ok") is not True:
+        raise OpsError(
+            "environment-ready marker has no successful FlashInfer runtime warm-up"
+        )
+    paths = evidence.get("paths")
+    if not isinstance(paths, Mapping) or set(paths) != set(
+        FLASHINFER_RUNTIME_PATH_FIELDS
+    ):
+        raise OpsError(
+            "environment-ready marker has incomplete FlashInfer runtime paths"
+        )
+    checked_paths: dict[str, str] = {}
+    for field in FLASHINFER_RUNTIME_PATH_FIELDS:
+        raw_path = paths.get(field)
+        if not isinstance(raw_path, str) or not raw_path:
+            raise OpsError(
+                f"environment-ready marker has invalid FlashInfer path: {field}"
+            )
+        lexical = pathlib.Path(raw_path)
+        if not lexical.is_absolute():
+            raise OpsError(
+                f"environment-ready marker FlashInfer path is not absolute: {field}"
+            )
+        try:
+            canonical = lexical.resolve(strict=False)
+            relative = canonical.relative_to(workspace)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise OpsError(
+                f"environment-ready marker FlashInfer path escapes workspace: {field}"
+            ) from exc
+        if lexical != canonical or not relative.parts:
+            raise OpsError(
+                f"environment-ready marker FlashInfer path is not canonical: {field}"
+            )
+        checked_paths[field] = os.fspath(canonical)
+    return {"ok": True, "paths": checked_paths}
+
+
 def validate_environment_marker(
     marker_path: os.PathLike[str] | str,
     requirements_path: os.PathLike[str] | str,
     python_path: os.PathLike[str] | str,
     *,
+    scratch: os.PathLike[str] | str,
+    cuda_home: str,
+    cuda_nvcc: str,
+    cuda_nvcc_version: str,
+    cuda_nvcc_sha256: str,
+    runtime_ld_library_path: str,
+    libcudart_path: str,
+    libcudart_sha256: str,
+    flashinfer_workspace_base: str,
+    flashinfer_package_version: str,
     actual_packages: Mapping[str, str] | None = None,
     ffmpeg_path: str | None = None,
     ffmpeg_version: str | None = None,
@@ -332,8 +414,8 @@ def validate_environment_marker(
     marker_file = pathlib.Path(marker_path)
     requirements_file = pathlib.Path(requirements_path)
     marker = read_json(marker_file)
-    if not isinstance(marker, Mapping) or marker.get("schema_version") != 1:
-        raise OpsError(f"invalid environment-ready marker: {marker_file}")
+    if not isinstance(marker, Mapping) or marker.get("schema_version") != 2:
+        raise OpsError(f"invalid environment-ready marker schema 2: {marker_file}")
     expected_requirements = _sha256_file(requirements_file)
     if marker.get("requirements_sha256") != expected_requirements:
         raise OpsError(
@@ -350,13 +432,53 @@ def validate_environment_marker(
         raise OpsError(
             "environment-ready marker Python does not match configured Python"
         )
+
     packages = marker.get("packages")
-    if not isinstance(packages, Mapping):
-        raise OpsError("environment-ready marker has no package versions")
+    if not isinstance(packages, Mapping) or not all(
+        isinstance(name, str)
+        and name
+        and isinstance(version, str)
+        and version
+        for name, version in packages.items()
+    ):
+        raise OpsError("environment-ready marker has no valid package versions")
+    if packages.get(FLASHINFER_DISTRIBUTION) != flashinfer_package_version:
+        raise OpsError(
+            "environment-ready marker FlashInfer package version is inconsistent"
+        )
     if actual_packages is not None and dict(packages) != dict(actual_packages):
         raise OpsError(
             "current installed package versions do not match environment-ready marker"
         )
+
+    canonical_workspace = _canonical_flashinfer_workspace(
+        scratch, flashinfer_workspace_base
+    )
+    flashinfer_runtime = _validate_flashinfer_runtime_evidence(
+        marker, canonical_workspace
+    )
+    exact_values = {
+        "cuda_home": cuda_home,
+        "cuda_nvcc": cuda_nvcc,
+        "cuda_nvcc_version": cuda_nvcc_version,
+        "cuda_nvcc_sha256": cuda_nvcc_sha256,
+        "runtime_ld_library_path": runtime_ld_library_path,
+        "libcudart_path": libcudart_path,
+        "libcudart_sha256": libcudart_sha256,
+        "flashinfer_workspace_base": os.fspath(canonical_workspace),
+        "flashinfer_package_version": flashinfer_package_version,
+    }
+    for field, expected in exact_values.items():
+        _require_exact_marker_value(marker, field, expected)
+    if SHA256_RE.fullmatch(cuda_nvcc_sha256) is None or _sha256_file(
+        pathlib.Path(cuda_nvcc)
+    ) != cuda_nvcc_sha256:
+        raise OpsError("current nvcc hash does not match environment-ready marker")
+    if SHA256_RE.fullmatch(libcudart_sha256) is None or _sha256_file(
+        pathlib.Path(libcudart_path)
+    ) != libcudart_sha256:
+        raise OpsError("current libcudart hash does not match environment-ready marker")
+
     if ffmpeg_path is not None:
         recorded_ffmpeg = marker.get("ffmpeg_path")
         try:
@@ -378,6 +500,8 @@ def validate_environment_marker(
         "packages": dict(packages),
         "ffmpeg_path": marker.get("ffmpeg_path"),
         "ffmpeg_version": marker.get("ffmpeg_version"),
+        "flashinfer_runtime": flashinfer_runtime,
+        **exact_values,
     }
 
 
@@ -386,15 +510,18 @@ def _run_text(
     args: Sequence[str],
     *,
     timeout: int = 30,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    run_kwargs: dict[str, Any] = {
+        "text": True,
+        "capture_output": True,
+        "timeout": timeout,
+        "check": False,
+    }
+    if env is not None:
+        run_kwargs["env"] = dict(env)
     try:
-        return runner(
-            list(args),
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
+        return runner(list(args), **run_kwargs)
     except (OSError, subprocess.SubprocessError) as exc:
         raise OpsError(f"command failed to run: {args[0]}: {exc}") from exc
 
@@ -477,6 +604,256 @@ def probe_native_toolchain(
     }
 
 
+def _validate_path_list(value: str, label: str) -> list[pathlib.Path]:
+    if not value:
+        raise OpsError(f"{label} must be nonempty")
+    entries = value.split(os.pathsep)
+    if any(not entry for entry in entries):
+        raise OpsError(f"{label} contains an empty path entry")
+    paths = [pathlib.Path(entry) for entry in entries]
+    if any(not path.is_absolute() for path in paths):
+        raise OpsError(f"{label} entries must be absolute")
+    return paths
+
+
+def _cuda_runtime_environment(
+    *,
+    runtime_path: str,
+    cuda_home: pathlib.Path,
+    runtime_ld_library_path: str,
+) -> dict[str, str]:
+    _validate_path_list(runtime_path, "runtime PATH")
+    _validate_path_list(runtime_ld_library_path, "runtime LD_LIBRARY_PATH")
+    return {
+        "PATH": runtime_path,
+        "CUDA_HOME": os.fspath(cuda_home),
+        "LD_LIBRARY_PATH": runtime_ld_library_path,
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "LC_ALL": "C",
+    }
+
+
+def _nvcc_version_line(output: str) -> str:
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    for line in reversed(lines):
+        if "Cuda compilation tools" in line:
+            return line
+    if lines:
+        return lines[-1]
+    raise OpsError("nvcc version probe returned no version text")
+
+
+def probe_cuda_runtime(
+    scratch: os.PathLike[str] | str,
+    python_path: os.PathLike[str] | str,
+    runtime_path: str,
+    cuda_home: os.PathLike[str] | str,
+    cuda_nvcc: os.PathLike[str] | str,
+    runtime_ld_library_path: str,
+    *,
+    readelf_command: str = "readelf",
+    which_fn: Callable[[str], str | None] = shutil.which,
+    runner: Runner = subprocess.run,
+) -> dict[str, str]:
+    """Compile and load a minimal CUDA runtime object without touching a GPU."""
+
+    scratch_path = canonical_path_under_scratch(
+        scratch, scratch, must_exist=True, allow_scratch=True
+    )
+    raw_cuda_home = pathlib.Path(cuda_home)
+    if not raw_cuda_home.is_absolute():
+        raise OpsError("CUDA home must be absolute")
+    try:
+        canonical_cuda_home = raw_cuda_home.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise OpsError(f"cannot resolve CUDA home: {exc}") from exc
+    if raw_cuda_home != canonical_cuda_home or not canonical_cuda_home.is_dir():
+        raise OpsError("CUDA home must be a canonical directory")
+
+    expected_nvcc = canonical_cuda_home / "bin" / "nvcc"
+    raw_nvcc = pathlib.Path(cuda_nvcc)
+    if raw_nvcc != expected_nvcc:
+        raise OpsError("configured nvcc must be exactly $CUDA_HOME/bin/nvcc")
+    if not expected_nvcc.is_file() or not os.access(expected_nvcc, os.X_OK):
+        raise OpsError(f"configured nvcc is missing or not executable: {expected_nvcc}")
+    try:
+        resolved_nvcc = expected_nvcc.resolve(strict=True)
+        resolved_nvcc.relative_to(canonical_cuda_home)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise OpsError(f"configured nvcc escapes CUDA home: {exc}") from exc
+
+    lib64 = canonical_cuda_home / "lib64"
+    if not lib64.is_dir():
+        raise OpsError(f"CUDA lib64 directory is missing: {lib64}")
+    try:
+        resolved_lib64 = lib64.resolve(strict=True)
+        resolved_lib64.relative_to(canonical_cuda_home)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise OpsError(f"CUDA lib64 escapes CUDA home: {exc}") from exc
+    ld_paths = _validate_path_list(
+        runtime_ld_library_path, "runtime LD_LIBRARY_PATH"
+    )
+    try:
+        first_ld_path = ld_paths[0].resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise OpsError(f"cannot resolve first runtime library path: {exc}") from exc
+    if first_ld_path != resolved_lib64:
+        raise OpsError("runtime LD_LIBRARY_PATH must begin with CUDA_HOME/lib64")
+
+    runtime_link = lib64 / CUDA_RUNTIME_SONAME
+    if not runtime_link.is_file():
+        raise OpsError(f"CUDA runtime library is missing: {runtime_link}")
+    try:
+        resolved_runtime = runtime_link.resolve(strict=True)
+        resolved_runtime.relative_to(canonical_cuda_home)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise OpsError(f"CUDA runtime library escapes CUDA home: {exc}") from exc
+    if not resolved_runtime.is_file():
+        raise OpsError(f"resolved CUDA runtime is not a file: {resolved_runtime}")
+
+    configured_python = pathlib.Path(python_path)
+    if (
+        not configured_python.is_absolute()
+        or not configured_python.is_file()
+        or not os.access(configured_python, os.X_OK)
+    ):
+        raise OpsError(
+            f"configured Python is missing or not executable: {configured_python}"
+        )
+    readelf_value = which_fn(readelf_command)
+    if readelf_value is None:
+        raise OpsError(f"required ELF inspector is unavailable: {readelf_command}")
+    try:
+        readelf = pathlib.Path(readelf_value).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise OpsError(f"cannot resolve ELF inspector: {exc}") from exc
+    if not readelf.is_file() or not os.access(readelf, os.X_OK):
+        raise OpsError(f"ELF inspector is not executable: {readelf}")
+
+    child_environment = _cuda_runtime_environment(
+        runtime_path=runtime_path,
+        cuda_home=canonical_cuda_home,
+        runtime_ld_library_path=runtime_ld_library_path,
+    )
+    nvcc_probe = _run_text(
+        runner,
+        [os.fspath(expected_nvcc), "--version"],
+        timeout=CUDA_RUNTIME_TIMEOUT_SECONDS,
+        env=child_environment,
+    )
+    if nvcc_probe.returncode != 0:
+        detail = (nvcc_probe.stderr or nvcc_probe.stdout).strip()
+        raise OpsError(f"nvcc version probe failed: {detail}")
+    nvcc_version = _nvcc_version_line(nvcc_probe.stdout or nvcc_probe.stderr)
+
+    with tempfile.TemporaryDirectory(
+        prefix=".oprd-cuda-runtime.", dir=scratch_path
+    ) as temporary:
+        temporary_path = pathlib.Path(temporary)
+        source = temporary_path / "probe.cu"
+        output = temporary_path / "probe.so"
+        source.write_text(
+            'extern "C" int cudaRuntimeGetVersion(int *);\n'
+            'extern "C" int (*oprd_cuda_runtime_probe(void))(int *) {\n'
+            "    return &cudaRuntimeGetVersion;\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        compiled = _run_text(
+            runner,
+            [
+                os.fspath(expected_nvcc),
+                os.fspath(source),
+                "-shared",
+                "--cudart=none",
+                "-Xcompiler=-fPIC",
+                f"-L{lib64}",
+                "-lcudart",
+                "-o",
+                os.fspath(output),
+            ],
+            timeout=CUDA_RUNTIME_TIMEOUT_SECONDS,
+            env=child_environment,
+        )
+        if compiled.returncode != 0:
+            detail = (compiled.stderr or compiled.stdout).strip()
+            raise OpsError(f"CUDA runtime compile probe failed: {detail}")
+        if not output.is_file() or output.is_symlink() or output.stat().st_size == 0:
+            raise OpsError("CUDA runtime compile probe did not produce a shared object")
+        if output.stat().st_uid != os.geteuid():
+            raise OpsError("CUDA runtime compile probe output is not owned by this user")
+
+        inspected = _run_text(
+            runner,
+            [os.fspath(readelf), "-d", os.fspath(output)],
+            timeout=CUDA_RUNTIME_TIMEOUT_SECONDS,
+            env=child_environment,
+        )
+        if inspected.returncode != 0:
+            detail = (inspected.stderr or inspected.stdout).strip()
+            raise OpsError(f"readelf CUDA runtime inspection failed: {detail}")
+        dynamic = inspected.stdout
+        needed = re.findall(
+            r"\(NEEDED\).*?Shared library:\s*\[([^]]+)\]", dynamic
+        )
+        if CUDA_RUNTIME_SONAME not in needed:
+            raise OpsError(
+                f"CUDA probe object does not require {CUDA_RUNTIME_SONAME}"
+            )
+        if re.search(r"\((?:RPATH|RUNPATH)\)", dynamic):
+            raise OpsError("CUDA probe object contains forbidden RPATH or RUNPATH")
+
+        loader_script = (
+            "import ctypes,json,os,pathlib,sys; "
+            "ctypes.CDLL(sys.argv[1],mode=os.RTLD_GLOBAL); "
+            "ctypes.CDLL(sys.argv[2]); "
+            "lines=pathlib.Path('/proc/self/maps').read_text().splitlines(); "
+            "paths=sorted({str(pathlib.Path(line.split()[-1]).resolve()) "
+            "for line in lines if line.split() and line.split()[-1].startswith('/') "
+            "and pathlib.Path(line.split()[-1]).name.startswith(sys.argv[1])}); "
+            "print(json.dumps({'mapped_libcudart_paths':paths},sort_keys=True))"
+        )
+        loaded = _run_text(
+            runner,
+            [
+                os.fspath(configured_python),
+                "-c",
+                loader_script,
+                CUDA_RUNTIME_SONAME,
+                os.fspath(output),
+            ],
+            timeout=CUDA_RUNTIME_TIMEOUT_SECONDS,
+            env=child_environment,
+        )
+        if loaded.returncode != 0:
+            detail = (loaded.stderr or loaded.stdout).strip()
+            raise OpsError(f"CUDA runtime load probe failed: {detail}")
+        try:
+            load_report = json.loads(loaded.stdout)
+        except json.JSONDecodeError as exc:
+            raise OpsError("CUDA runtime load probe returned invalid JSON") from exc
+        expected_mapped = [os.fspath(resolved_runtime)]
+        if (
+            not isinstance(load_report, Mapping)
+            or load_report.get("mapped_libcudart_paths") != expected_mapped
+        ):
+            raise OpsError(
+                "mapped libcudart path does not match configured CUDA toolkit runtime"
+            )
+
+    return {
+        "cuda_home": os.fspath(canonical_cuda_home),
+        "cuda_nvcc": os.fspath(expected_nvcc),
+        "cuda_nvcc_version": nvcc_version,
+        "cuda_nvcc_sha256": _sha256_file(resolved_nvcc),
+        "cuda_lib64": os.fspath(lib64),
+        "runtime_ld_library_path": runtime_ld_library_path,
+        "libcudart_path": os.fspath(resolved_runtime),
+        "libcudart_sha256": _sha256_file(resolved_runtime),
+    }
+
+
 def probe_package_versions(
     python_path: pathlib.Path,
     package_names: Sequence[str],
@@ -515,9 +892,17 @@ def validate_current_environment(
     requirements_path: os.PathLike[str] | str,
     python_path: os.PathLike[str] | str,
     *,
+    scratch: os.PathLike[str] | str,
+    runtime_path: str,
+    cuda_home: os.PathLike[str] | str,
+    cuda_nvcc: os.PathLike[str] | str,
+    runtime_ld_library_path: str,
+    flashinfer_workspace_base: os.PathLike[str] | str,
     ffmpeg_command: str = "ffmpeg",
+    readelf_command: str = "readelf",
     which_fn: Callable[[str], str | None] = shutil.which,
     runner: Runner = subprocess.run,
+    cuda_runtime_identity: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     marker_value = read_json(marker_path)
     marker_packages = (
@@ -529,6 +914,8 @@ def validate_current_environment(
         isinstance(name, str) and name for name in marker_packages
     ):
         raise OpsError("environment-ready marker has no valid package mapping")
+    if FLASHINFER_DISTRIBUTION not in marker_packages:
+        raise OpsError("environment-ready marker has no FlashInfer package version")
     actual_packages = probe_package_versions(
         pathlib.Path(python_path), sorted(marker_packages), runner=runner
     )
@@ -539,10 +926,52 @@ def validate_current_environment(
     ffmpeg_lines = (ffmpeg_probe.stdout or ffmpeg_probe.stderr).splitlines()
     if ffmpeg_probe.returncode != 0 or not ffmpeg_lines:
         raise OpsError("FFmpeg version probe failed")
+    runtime_identity = dict(
+        cuda_runtime_identity
+        or probe_cuda_runtime(
+            scratch,
+            python_path,
+            runtime_path,
+            cuda_home,
+            cuda_nvcc,
+            runtime_ld_library_path,
+            readelf_command=readelf_command,
+            which_fn=which_fn,
+            runner=runner,
+        )
+    )
+    required_runtime_fields = {
+        "cuda_home",
+        "cuda_nvcc",
+        "cuda_nvcc_version",
+        "cuda_nvcc_sha256",
+        "runtime_ld_library_path",
+        "libcudart_path",
+        "libcudart_sha256",
+    }
+    if not required_runtime_fields.issubset(runtime_identity) or not all(
+        isinstance(runtime_identity[field], str) and runtime_identity[field]
+        for field in required_runtime_fields
+    ):
+        raise OpsError("CUDA runtime identity is incomplete")
+    workspace = _canonical_flashinfer_workspace(
+        scratch, flashinfer_workspace_base
+    )
+    flashinfer_version = actual_packages[FLASHINFER_DISTRIBUTION]
     return validate_environment_marker(
         marker_path,
         requirements_path,
         python_path,
+        scratch=scratch,
+        cuda_home=runtime_identity["cuda_home"],
+        cuda_nvcc=runtime_identity["cuda_nvcc"],
+        cuda_nvcc_version=runtime_identity["cuda_nvcc_version"],
+        cuda_nvcc_sha256=runtime_identity["cuda_nvcc_sha256"],
+        runtime_ld_library_path=runtime_identity["runtime_ld_library_path"],
+        libcudart_path=runtime_identity["libcudart_path"],
+        libcudart_sha256=runtime_identity["libcudart_sha256"],
+        flashinfer_workspace_base=os.fspath(workspace),
+        flashinfer_package_version=flashinfer_version,
         actual_packages=actual_packages,
         ffmpeg_path=ffmpeg_executable,
         ffmpeg_version=ffmpeg_lines[0],
@@ -647,6 +1076,11 @@ def run_preflight(
     python: os.PathLike[str] | str,
     required_imports: Sequence[str],
     required_scripts: Sequence[os.PathLike[str] | str],
+    runtime_path: str,
+    cuda_home: os.PathLike[str] | str,
+    cuda_nvcc: os.PathLike[str] | str,
+    runtime_ld_library_path: str,
+    flashinfer_workspace_base: os.PathLike[str] | str,
     writable_paths: Sequence[os.PathLike[str] | str] = (),
     environment_marker: os.PathLike[str] | str | None = None,
     requirements_file: os.PathLike[str] | str | None = None,
@@ -658,6 +1092,7 @@ def run_preflight(
     ffmpeg_command: str = "ffmpeg",
     compiler_command: str = "gcc",
     linker_command: str = "ld",
+    readelf_command: str = "readelf",
     quota_user: str | None = None,
     allow_quota_unavailable: bool = False,
     statvfs_fn: Callable[[os.PathLike[str] | str], Any] = os.statvfs,
@@ -671,6 +1106,7 @@ def run_preflight(
     errors: list[str] = report["errors"]
     scratch_path: pathlib.Path | None = None
     hf_path: pathlib.Path | None = None
+    cuda_runtime_identity: dict[str, str] | None = None
 
     try:
         scratch_path = canonical_path_under_scratch(
@@ -696,6 +1132,18 @@ def run_preflight(
             }
         except OpsError as exc:
             errors.append(f"HF_HOME: {exc}")
+
+        try:
+            workspace = _canonical_flashinfer_workspace(
+                scratch, flashinfer_workspace_base
+            )
+            writable_probe(workspace)
+            report["checks"]["flashinfer_workspace_base"] = {
+                "path": os.fspath(workspace),
+                "writable": True,
+            }
+        except OpsError as exc:
+            errors.append(f"FlashInfer workspace base: {exc}")
 
         checked_writable: list[str] = []
         for raw_path in writable_paths:
@@ -766,6 +1214,36 @@ def run_preflight(
         except OpsError as exc:
             errors.append(str(exc))
 
+    if scratch_path is not None:
+        try:
+            cuda_runtime_identity = probe_cuda_runtime(
+                scratch_path,
+                python_path,
+                runtime_path,
+                cuda_home,
+                cuda_nvcc,
+                runtime_ld_library_path,
+                readelf_command=readelf_command,
+                which_fn=which_fn,
+                runner=runner,
+            )
+            report["checks"]["cuda_runtime"] = {
+                "ok": True,
+                **cuda_runtime_identity,
+            }
+        except OpsError as exc:
+            report["checks"]["cuda_runtime"] = {
+                "ok": False,
+                "error": str(exc),
+            }
+            errors.append(f"CUDA runtime: {exc}")
+    else:
+        report["checks"]["cuda_runtime"] = {
+            "ok": False,
+            "error": "scratch validation failed",
+        }
+        errors.append("CUDA runtime: scratch validation failed")
+
     if (environment_marker is None) != (requirements_file is None):
         errors.append(
             "environment marker and requirements file must be supplied together"
@@ -780,15 +1258,23 @@ def run_preflight(
             requirements_path = canonical_path_under_scratch(
                 scratch, requirements_file, must_exist=True
             )
-            report["checks"]["environment_marker"] = (
-                validate_current_environment(
-                    marker_path,
-                    requirements_path,
-                    python_path,
-                    ffmpeg_command=ffmpeg_command,
-                    which_fn=which_fn,
-                    runner=runner,
-                )
+            if cuda_runtime_identity is None:
+                raise OpsError("CUDA runtime validation failed")
+            report["checks"]["environment_marker"] = validate_current_environment(
+                marker_path,
+                requirements_path,
+                python_path,
+                scratch=scratch_path,
+                runtime_path=runtime_path,
+                cuda_home=cuda_home,
+                cuda_nvcc=cuda_nvcc,
+                runtime_ld_library_path=runtime_ld_library_path,
+                flashinfer_workspace_base=flashinfer_workspace_base,
+                ffmpeg_command=ffmpeg_command,
+                readelf_command=readelf_command,
+                which_fn=which_fn,
+                runner=runner,
+                cuda_runtime_identity=cuda_runtime_identity,
             )
         except OpsError as exc:
             errors.append(f"environment marker: {exc}")
@@ -978,6 +1464,10 @@ def validate_runtime_claim(
     artifact_dir: os.PathLike[str] | str,
     run_id: str,
     record_path: os.PathLike[str] | str,
+    cuda_home: str | None = None,
+    cuda_nvcc: str | None = None,
+    runtime_ld_library_path: str | None = None,
+    flashinfer_workspace_base: str | None = None,
 ) -> dict[str, Any]:
     artifact = canonical_path_under_scratch(scratch, artifact_dir)
     record = canonical_path_under_scratch(
@@ -1002,7 +1492,20 @@ def validate_runtime_claim(
     ):
         raise ClaimConflictError("runtime record identity does not match claim")
     configuration = recorded.get("configuration", {})
-    root = configuration.get("root") if isinstance(configuration, Mapping) else None
+    if not isinstance(configuration, Mapping):
+        raise OpsError("record has no immutable configuration")
+    supplied_runtime = {
+        "cuda_home": cuda_home,
+        "cuda_nvcc": cuda_nvcc,
+        "runtime_ld_library_path": runtime_ld_library_path,
+        "flashinfer_workspace_base": flashinfer_workspace_base,
+    }
+    for key, supplied in supplied_runtime.items():
+        if supplied is not None and configuration.get(key) != supplied:
+            raise ClaimConflictError(
+                f"runtime configuration {key} does not match immutable record"
+            )
+    root = configuration.get("root")
     expected_source = (
         configuration.get("source_bundle_sha256")
         if isinstance(configuration, Mapping)
@@ -2039,6 +2542,18 @@ def _add_scratch(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--scratch", required=True)
 
 
+def _add_cuda_runtime_arguments(
+    parser: argparse.ArgumentParser, *, include_flashinfer: bool
+) -> None:
+    parser.add_argument("--runtime-path", required=True)
+    parser.add_argument("--cuda-home", required=True)
+    parser.add_argument("--cuda-nvcc", required=True)
+    parser.add_argument("--runtime-ld-library-path", required=True)
+    if include_flashinfer:
+        parser.add_argument("--flashinfer-workspace-base", required=True)
+    parser.add_argument("--readelf-command", default="readelf")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2047,6 +2562,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_scratch(preflight)
     preflight.add_argument("--hf-home", required=True)
     preflight.add_argument("--python", required=True)
+    _add_cuda_runtime_arguments(preflight, include_flashinfer=True)
     preflight.add_argument("--import", dest="required_imports", action="append", default=[])
     preflight.add_argument("--script", dest="required_scripts", action="append", default=[])
     preflight.add_argument("--writable-path", action="append", default=[])
@@ -2072,6 +2588,11 @@ def build_parser() -> argparse.ArgumentParser:
     toolchain.add_argument("--compiler-command", default="gcc")
     toolchain.add_argument("--linker-command", default="ld")
 
+    cuda_runtime = subparsers.add_parser("check-cuda-runtime")
+    _add_scratch(cuda_runtime)
+    cuda_runtime.add_argument("--python", required=True)
+    _add_cuda_runtime_arguments(cuda_runtime, include_flashinfer=False)
+
     claim = subparsers.add_parser("claim")
     _add_scratch(claim)
     claim.add_argument("--artifact", required=True)
@@ -2081,9 +2602,11 @@ def build_parser() -> argparse.ArgumentParser:
     claim.add_argument("--build-dir")
 
     environment = subparsers.add_parser("check-environment")
+    _add_scratch(environment)
     environment.add_argument("--marker", required=True)
     environment.add_argument("--requirements-file", required=True)
     environment.add_argument("--python", required=True)
+    _add_cuda_runtime_arguments(environment, include_flashinfer=True)
     environment.add_argument("--ffmpeg-command", default="ffmpeg")
 
     runtime = subparsers.add_parser("check-runtime")
@@ -2092,6 +2615,10 @@ def build_parser() -> argparse.ArgumentParser:
     runtime.add_argument("--artifact", required=True)
     runtime.add_argument("--run-id", required=True)
     runtime.add_argument("--record", required=True)
+    runtime.add_argument("--cuda-home")
+    runtime.add_argument("--cuda-nvcc")
+    runtime.add_argument("--runtime-ld-library-path")
+    runtime.add_argument("--flashinfer-workspace-base")
 
     initialize = subparsers.add_parser("init-record")
     _add_scratch(initialize)
@@ -2157,6 +2684,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 python=args.python,
                 required_imports=args.required_imports,
                 required_scripts=args.required_scripts,
+                runtime_path=args.runtime_path,
+                cuda_home=args.cuda_home,
+                cuda_nvcc=args.cuda_nvcc,
+                runtime_ld_library_path=args.runtime_ld_library_path,
+                flashinfer_workspace_base=args.flashinfer_workspace_base,
                 writable_paths=args.writable_path,
                 environment_marker=args.environment_marker,
                 requirements_file=args.requirements_file,
@@ -2168,6 +2700,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ffmpeg_command=args.ffmpeg_command,
                 compiler_command=args.compiler_command,
                 linker_command=args.linker_command,
+                readelf_command=args.readelf_command,
                 quota_user=args.quota_user,
                 allow_quota_unavailable=args.allow_quota_unavailable,
             )
@@ -2185,6 +2718,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             return 0
+        if args.command == "check-cuda-runtime":
+            _json_print(
+                probe_cuda_runtime(
+                    args.scratch,
+                    args.python,
+                    args.runtime_path,
+                    args.cuda_home,
+                    args.cuda_nvcc,
+                    args.runtime_ld_library_path,
+                    readelf_command=args.readelf_command,
+                )
+            )
+            return 0
         if args.command == "claim":
             result = claim_artifact(
                 scratch=args.scratch,
@@ -2199,7 +2745,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.marker,
                 args.requirements_file,
                 args.python,
+                scratch=args.scratch,
+                runtime_path=args.runtime_path,
+                cuda_home=args.cuda_home,
+                cuda_nvcc=args.cuda_nvcc,
+                runtime_ld_library_path=args.runtime_ld_library_path,
+                flashinfer_workspace_base=args.flashinfer_workspace_base,
                 ffmpeg_command=args.ffmpeg_command,
+                readelf_command=args.readelf_command,
             )
         elif args.command == "check-runtime":
             result = validate_runtime_claim(
@@ -2208,6 +2761,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 artifact_dir=args.artifact,
                 run_id=args.run_id,
                 record_path=args.record,
+                cuda_home=args.cuda_home,
+                cuda_nvcc=args.cuda_nvcc,
+                runtime_ld_library_path=args.runtime_ld_library_path,
+                flashinfer_workspace_base=args.flashinfer_workspace_base,
             )
         elif args.command == "init-record":
             result = initialize_record(

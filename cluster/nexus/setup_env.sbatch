@@ -18,6 +18,7 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
 module use /opt/common/.modulefiles
 module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
+MODULE_CUDA_HOME=${CUDA_HOME:-}
 
 SCRATCH_ROOT=${SCRATCH_ROOT:-/cmlscratch/$USER}
 ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
@@ -27,6 +28,10 @@ OPS=$NEXUS_DIR/oprd_bridge_ops.py
 BRIDGE_HF_HOME=${BRIDGE_HF_HOME:-$SCRATCH_ROOT/hf-cache}
 VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT:-$SCRATCH_ROOT/vllm-cache}
 TRITON_CACHE_DIR=${TRITON_CACHE_DIR:-$SCRATCH_ROOT/triton-cache}
+FLASHINFER_WORKSPACE_BASE=${FLASHINFER_WORKSPACE_BASE:-$SCRATCH_ROOT/flashinfer-workspace}
+BRIDGE_CUDA_HOME=${BRIDGE_CUDA_HOME:-/opt/common/cuda/cuda-12.8.1}
+BRIDGE_CUDA_NVCC=${BRIDGE_CUDA_NVCC:-$BRIDGE_CUDA_HOME/bin/nvcc}
+BRIDGE_RUNTIME_LD_LIBRARY_PATH=${BRIDGE_RUNTIME_LD_LIBRARY_PATH:-$BRIDGE_CUDA_HOME/lib64}
 UV_BOOTSTRAP=${UV_BOOTSTRAP:-$ROOT/.oprd-uv-bootstrap}
 UV=${UV:-$UV_BOOTSTRAP/bin/uv}
 UV_PYTHON_INSTALL_DIR=${UV_PYTHON_INSTALL_DIR:-$ROOT/.oprd-python}
@@ -34,17 +39,24 @@ UV_CACHE_DIR=${UV_CACHE_DIR:-$SCRATCH_ROOT/uv-cache}
 MANAGED_PYTHON_VERSION=3.12.7
 ATTEMPT_TAG=${SLURM_JOB_ID:-$$}.${SLURM_RESTART_COUNT:-0}
 VENV=${VENV:-$ROOT/venv}
-BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:-$VENV/bin:/opt/common/cuda/cuda-12.8.1/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin}
+BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:-$VENV/bin:$BRIDGE_CUDA_HOME/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin}
 ENV_READY=$VENV/.oprd-env-ready.json
 
+[[ "$MODULE_CUDA_HOME" == "$BRIDGE_CUDA_HOME" ]] ||
+  fail "cuda/12.8.1 resolved unexpected CUDA_HOME: $MODULE_CUDA_HOME"
 case "$BRIDGE_HF_HOME/" in "$SCRATCH_ROOT"/*) ;; *) fail "HF cache must be on scratch: $BRIDGE_HF_HOME" ;; esac
 case "$VLLM_CACHE_ROOT/" in "$SCRATCH_ROOT"/*) ;; *) fail "vLLM cache must be on scratch: $VLLM_CACHE_ROOT" ;; esac
 case "$TRITON_CACHE_DIR/" in "$SCRATCH_ROOT"/*) ;; *) fail "Triton cache must be on scratch: $TRITON_CACHE_DIR" ;; esac
+case "$FLASHINFER_WORKSPACE_BASE/" in "$SCRATCH_ROOT"/*) ;; *) fail "FlashInfer workspace must be on scratch: $FLASHINFER_WORKSPACE_BASE" ;; esac
 
 cd "$CLUSTER_DIR"
 mkdir -p logs runs "$UV_PYTHON_INSTALL_DIR" "$UV_CACHE_DIR"
 export HF_HOME="$BRIDGE_HF_HOME"
-export VLLM_CACHE_ROOT TRITON_CACHE_DIR UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
+export CUDA_HOME="$BRIDGE_CUDA_HOME"
+export FLASHINFER_NVCC="$BRIDGE_CUDA_NVCC"
+export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"
+export VLLM_CACHE_ROOT TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE
+export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 
 # Furong login and compute nodes expose different node-local Python modules.
 # Bootstrap uv once on a compute node, then use its relocatable managed CPython
@@ -116,8 +128,10 @@ PY
   --scratch "$SCRATCH_ROOT" \
   --path "$BRIDGE_HF_HOME" \
   --path "$VLLM_CACHE_ROOT" \
-  --path "$TRITON_CACHE_DIR" >/dev/null
-mkdir -p "$BRIDGE_HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+  --path "$TRITON_CACHE_DIR" \
+  --path "$FLASHINFER_WORKSPACE_BASE" >/dev/null
+mkdir -p "$BRIDGE_HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" \
+  "$FLASHINFER_WORKSPACE_BASE"
 export PATH="$BRIDGE_RUNTIME_PATH"
 "$VENV/bin/python" "$OPS" check-toolchain --scratch "$SCRATCH_ROOT"
 
@@ -143,6 +157,63 @@ fi
 "$VENV/bin/python" -m pip install --index-url https://pypi.org/simple \
   "imageio-ffmpeg==0.6.0"
 "$VENV/bin/python" -m pip check
+CUDA_RUNTIME_JSON=$("$VENV/bin/python" "$OPS" check-cuda-runtime \
+  --scratch "$SCRATCH_ROOT" \
+  --python "$VENV/bin/python" \
+  --runtime-path "$BRIDGE_RUNTIME_PATH" \
+  --cuda-home "$BRIDGE_CUDA_HOME" \
+  --cuda-nvcc "$BRIDGE_CUDA_NVCC" \
+  --runtime-ld-library-path "$BRIDGE_RUNTIME_LD_LIBRARY_PATH")
+printf '%s\n' "$CUDA_RUNTIME_JSON"
+FLASHINFER_RUNTIME_REPORT=$SCRATCH_ROOT/.oprd-flashinfer-runtime.$ATTEMPT_TAG.json
+[[ ! -e $FLASHINFER_RUNTIME_REPORT ]] ||
+  fail "FlashInfer runtime report already exists: $FLASHINFER_RUNTIME_REPORT"
+"$VENV/bin/python" - \
+  "$SCRATCH_ROOT" "$FLASHINFER_WORKSPACE_BASE" \
+  "$FLASHINFER_RUNTIME_REPORT" <<'PY'
+import json
+import os
+import pathlib
+import sys
+import tempfile
+
+scratch = pathlib.Path(sys.argv[1]).resolve(strict=True)
+workspace = pathlib.Path(sys.argv[2]).resolve(strict=True)
+destination = pathlib.Path(sys.argv[3]).resolve(strict=False)
+workspace.relative_to(scratch)
+destination.relative_to(scratch)
+from flashinfer.sampling import get_sampling_module
+
+get_sampling_module()
+from flashinfer.jit import env as jit_env
+
+paths = {}
+for name in (
+    "FLASHINFER_CACHE_DIR",
+    "FLASHINFER_WORKSPACE_DIR",
+    "FLASHINFER_JIT_DIR",
+    "FLASHINFER_GEN_SRC_DIR",
+):
+    path = pathlib.Path(getattr(jit_env, name)).resolve(strict=False)
+    path.relative_to(workspace)
+    paths[name.lower()] = str(path)
+payload = {"ok": True, "paths": paths}
+fd, temporary_name = tempfile.mkstemp(
+    prefix=f".{destination.name}.", dir=destination.parent
+)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary_name, destination)
+finally:
+    pathlib.Path(temporary_name).unlink(missing_ok=True)
+PY
+FLASHINFER_RUNTIME_JSON=$(<"$FLASHINFER_RUNTIME_REPORT")
+rm "$FLASHINFER_RUNTIME_REPORT"
+printf '%s\n' "$FLASHINFER_RUNTIME_JSON"
 BUNDLED_FFMPEG=$(
   "$VENV/bin/python" -c \
     'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'
@@ -157,7 +228,9 @@ FFMPEG_VERSION=${FFMPEG_OUTPUT%%$'\n'*}
 
 "$VENV/bin/python" - \
   "$CLUSTER_DIR/requirements.txt" "$ENV_READY" "$FFMPEG_PATH" \
-  "$FFMPEG_VERSION" "$MANAGED_PYTHON" "$UV_VERSION" <<'PY'
+  "$FFMPEG_VERSION" "$MANAGED_PYTHON" "$UV_VERSION" \
+  "$CUDA_RUNTIME_JSON" "$FLASHINFER_RUNTIME_JSON" \
+  "$FLASHINFER_WORKSPACE_BASE" <<'PY'
 import hashlib
 import importlib.metadata
 import json
@@ -179,14 +252,39 @@ ffmpeg_path = pathlib.Path(sys.argv[3]).resolve(strict=True)
 ffmpeg_version = sys.argv[4]
 managed_python = pathlib.Path(sys.argv[5]).resolve(strict=True)
 uv_version = sys.argv[6]
+cuda_runtime = json.loads(sys.argv[7])
+flashinfer_runtime = json.loads(sys.argv[8])
+flashinfer_workspace = pathlib.Path(sys.argv[9]).resolve(strict=True)
 if sys.version_info[:3] != (3, 12, 7):
     raise SystemExit(f"expected Python 3.12.7, got {sys.version}")
 if pathlib.Path(sys._base_executable).resolve(strict=True) != managed_python:
     raise SystemExit("venv is not based on the configured managed Python")
 if not torch.cuda.is_available():
     raise SystemExit("Torch cannot see CUDA in the setup allocation")
+packages = {
+    name: importlib.metadata.version(name)
+    for name in (
+        "torch",
+        "numpy",
+        "safetensors",
+        "transformers",
+        "datasets",
+        "vllm",
+        "flashinfer-python",
+        "setuptools",
+        "imageio-ffmpeg",
+    )
+}
+if cuda_runtime.get("cuda_home") != os.environ.get("CUDA_HOME"):
+    raise SystemExit("CUDA runtime probe disagrees with exported CUDA_HOME")
+if cuda_runtime.get("cuda_nvcc") != os.environ.get("FLASHINFER_NVCC"):
+    raise SystemExit("CUDA runtime probe disagrees with exported nvcc")
+if cuda_runtime.get("runtime_ld_library_path") != os.environ.get("LD_LIBRARY_PATH"):
+    raise SystemExit("CUDA runtime probe disagrees with exported LD_LIBRARY_PATH")
+if not flashinfer_runtime.get("ok"):
+    raise SystemExit("FlashInfer sampling-module warm-up did not report success")
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "python": sys.version,
     "python_executable": sys.executable,
     "managed_python_executable": os.fspath(managed_python),
@@ -197,19 +295,11 @@ payload = {
     "ffmpeg_path": os.fspath(ffmpeg_path),
     "ffmpeg_version": ffmpeg_version,
     "requirements_sha256": hashlib.sha256(requirements.read_bytes()).hexdigest(),
-    "packages": {
-        name: importlib.metadata.version(name)
-        for name in (
-            "torch",
-            "numpy",
-            "safetensors",
-            "transformers",
-            "datasets",
-            "vllm",
-            "setuptools",
-            "imageio-ffmpeg",
-        )
-    },
+    "packages": packages,
+    "flashinfer_workspace_base": os.fspath(flashinfer_workspace),
+    "flashinfer_package_version": packages["flashinfer-python"],
+    "flashinfer_runtime": flashinfer_runtime,
+    **cuda_runtime,
 }
 destination.parent.mkdir(parents=True, exist_ok=True)
 fd, temporary_name = tempfile.mkstemp(
@@ -233,5 +323,6 @@ print(json.dumps(payload, sort_keys=True))
 PY
 
 printf '%s\n' "$FFMPEG_VERSION"
-printf 'SETUP_OK marker=%s hf_home=%s vllm_cache=%s triton_cache=%s\n' \
-  "$ENV_READY" "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+printf 'SETUP_OK marker=%s hf_home=%s vllm_cache=%s triton_cache=%s flashinfer_workspace=%s cuda_home=%s\n' \
+  "$ENV_READY" "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" \
+  "$FLASHINFER_WORKSPACE_BASE" "$BRIDGE_CUDA_HOME"

@@ -69,31 +69,51 @@ Submit `nexus/setup_env.sbatch` as a separate prerequisite. Furong login and com
 different node-local Python 3.12 modules, so setup bootstraps `uv==0.9.8` once and installs a
 scratch-managed CPython 3.12.7 shared by setup, preflight, status, resume, and every DAG phase. It
 loads CUDA 12.8.1, installs a bundled FFmpeg executable from `imageio-ffmpeg==0.6.0`, installs
-vLLM before the remaining requirement floors, runs `pip check`, validates CUDA and all required
-imports, and atomically writes `venv/.oprd-env-ready.json`. It also requires `gcc` and `ld` and
-compiles a temporary shared object, which catches the native-linker failure that import-only checks
-miss. A pre-existing module-backed venv is preserved as a sibling backup before migration. Do not
-submit the bridge DAG until setup reaches `COMPLETED`, prints `SETUP_OK`, and the marker's
-`requirements_sha256` matches `cluster/requirements.txt`.
+vLLM before the remaining requirement floors, runs `pip check`, and atomically writes the schema-2
+`venv/.oprd-env-ready.json` marker. The marker authenticates Python, packages including
+`flashinfer-python`, FFmpeg, the exact CUDA root and `nvcc`, the exact runtime library search path,
+and hashes of `nvcc` and the resolved `libcudart.so.12`. A pre-existing module-backed venv is
+preserved as a sibling backup before migration. Do not submit the bridge DAG until setup reaches
+`COMPLETED`, prints `SETUP_OK`, and the marker's `requirements_sha256` matches
+`cluster/requirements.txt`.
 
-The submitter uses an explicit Slurm export allowlist rather than `--export=ALL`. That allowlist now
-includes one recorded runtime `PATH` containing the shared venv, CUDA, and standard system-tool
-directories, so compute jobs do not depend on login-shell inheritance. Setup, preflight, and every
-DAG phase run the same bounded compiler/linker probe before model work.
+Two independent native checks run before model work. The existing GCC/ld probe compiles a
+CUDA-independent shared object and catches missing compiler or linker executables. The CUDA probe
+uses the exact recorded `nvcc`, links a no-RPATH shared object against `libcudart.so.12`, inspects
+its ELF dependencies, and loads both the SONAME and generated object in a clean configured-Python
+subprocess. Setup additionally loads FlashInfer's real sampling module under the configured scratch
+workspace. Corpus and Stage-2 repeat that cached-module load before model weights.
 
-Three independent caches must remain under scratch and are exported identically to every phase:
+These checks cover two failures observed during bridge smoke validation. Run
+`20260728T065705Z_145055` failed because the explicit Slurm export omitted the deterministic
+runtime `PATH`, leaving GCC unable to find `ld`. After that fix, run
+`20260728T165135Z_2088398` loaded the model and completed `torch.compile`, then failed because
+FlashInfer used `/nfshomes/.../.cache/flashinfer` and EngineCore could not resolve
+`libcudart.so.12`. The failed records, builds, claims, and logs are evidence, not resumable inputs
+after authenticated runtime-source changes. Reconcile and preserve them, release only the exact
+inactive claim after explicit approval, and use a fresh run ID.
+
+The submitter uses an explicit Slurm export allowlist rather than `--export=ALL`. Every new record
+freezes and every phase receives the same `PATH`, `CUDA_HOME`, `FLASHINFER_NVCC`,
+`LD_LIBRARY_PATH`, and cache locations. Module loading remains site-compatible, but each script
+validates the module's CUDA root and then overwrites runtime values with the authenticated record.
+Resume restores recorded values and ignores conflicting caller environment values.
+
+Four independent caches must remain under scratch and are exported before Python starts:
 
 - `BRIDGE_HF_HOME`, exported as `HF_HOME`, for models and datasets;
 - `VLLM_CACHE_ROOT` for vLLM compilation and runtime caches;
-- `TRITON_CACHE_DIR` for Triton kernel artifacts.
+- `TRITON_CACHE_DIR` for Triton kernel artifacts;
+- `FLASHINFER_WORKSPACE_BASE` for `.cache/flashinfer/<version>/<arch>` JIT state.
 
 Models and datasets download at job runtime unless the cache is pre-populated; the required
-repositories are public and ungated. Preflight checks canonical paths, writable cache roots,
-environment identity, installed package versions, FFmpeg identity, the native toolchain, free
-blocks, free inodes, and quota headroom before acquiring the artifact claim or calling `sbatch`.
-If the site exposes no parseable quota command, preflight fails closed.
-`ALLOW_QUOTA_UNAVAILABLE=1` is an explicit override for use only after a manual block and inode
-quota check.
+repositories are public and ungated. Preflight checks canonical paths, all writable cache roots,
+schema-2 environment identity, installed package versions, FFmpeg identity, both native probes,
+free blocks, free inodes, and quota headroom before acquiring the artifact claim or calling
+`sbatch`. It does not warm FlashInfer on the login node because login and compute nodes have
+different glibc versions while the FlashInfer cache key does not encode that ABI difference. If the
+site exposes no parseable quota command, preflight fails closed. `ALLOW_QUOTA_UNAVAILABLE=1` is an
+explicit override for use only after a manual block and inode quota check.
 
 **Disk:** each task writes ~7-10GB under `runs/<task>/` (two bf16 checkpoints + a transient
 fp32 `tmp_policy/` dump per generation round, deleted after each round). Put the clone (or at

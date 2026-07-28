@@ -13,6 +13,109 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "nexus"))
 import oprd_bridge_ops as ops
 
 
+def make_cuda_runtime_tree(root):
+    cuda_home = root / "cuda-12.8.1"
+    bin_dir = cuda_home / "bin"
+    lib64 = cuda_home / "lib64"
+    bin_dir.mkdir(parents=True)
+    lib64.mkdir()
+    nvcc = bin_dir / "nvcc"
+    nvcc.write_bytes(b"fake nvcc")
+    nvcc.chmod(0o755)
+    libcudart = lib64 / ops.CUDA_RUNTIME_SONAME
+    libcudart.write_bytes(b"fake libcudart")
+    python = root / "python3.12"
+    python.write_bytes(b"fake python")
+    python.chmod(0o755)
+    readelf = root / "readelf"
+    readelf.write_bytes(b"fake readelf")
+    readelf.chmod(0o755)
+    return tuple(
+        path.resolve() for path in (cuda_home, nvcc, libcudart, python, readelf)
+    )
+
+
+def cuda_runtime_identity(cuda_home, nvcc, libcudart, runtime_ld_library_path):
+    return {
+        "cuda_home": os.fspath(cuda_home.resolve()),
+        "cuda_nvcc": os.fspath(nvcc),
+        "cuda_nvcc_version": "Cuda compilation tools, release 12.8, V12.8.93",
+        "cuda_nvcc_sha256": hashlib.sha256(nvcc.read_bytes()).hexdigest(),
+        "cuda_lib64": os.fspath(cuda_home / "lib64"),
+        "runtime_ld_library_path": runtime_ld_library_path,
+        "libcudart_path": os.fspath(libcudart.resolve()),
+        "libcudart_sha256": hashlib.sha256(libcudart.read_bytes()).hexdigest(),
+    }
+
+
+def write_environment_marker(
+    marker,
+    requirements,
+    python,
+    ffmpeg,
+    runtime_identity,
+    workspace,
+    packages=None,
+):
+    package_versions = packages or {
+        "flashinfer-python": "0.4.1",
+        "torch": "test",
+    }
+    canonical_workspace = workspace.resolve()
+    flashinfer_runtime = {
+        "ok": True,
+        "paths": {
+            "flashinfer_cache_dir": os.fspath(
+                canonical_workspace / ".cache" / "flashinfer"
+            ),
+            "flashinfer_workspace_dir": os.fspath(
+                canonical_workspace / ".cache" / "flashinfer" / "0.4.1" / "90a"
+            ),
+            "flashinfer_jit_dir": os.fspath(
+                canonical_workspace
+                / ".cache"
+                / "flashinfer"
+                / "0.4.1"
+                / "90a"
+                / "cached_ops"
+            ),
+            "flashinfer_gen_src_dir": os.fspath(
+                canonical_workspace
+                / ".cache"
+                / "flashinfer"
+                / "0.4.1"
+                / "90a"
+                / "generated"
+            ),
+        },
+    }
+    ops.atomic_write_json(
+        marker,
+        {
+            "schema_version": 2,
+            "python_executable": os.fspath(python.resolve()),
+            "requirements_sha256": hashlib.sha256(
+                requirements.read_bytes()
+            ).hexdigest(),
+            "packages": package_versions,
+            "ffmpeg_path": os.fspath(ffmpeg.resolve()),
+            "ffmpeg_version": "ffmpeg version test",
+            "cuda_home": runtime_identity["cuda_home"],
+            "cuda_nvcc": runtime_identity["cuda_nvcc"],
+            "cuda_nvcc_version": runtime_identity["cuda_nvcc_version"],
+            "cuda_nvcc_sha256": runtime_identity["cuda_nvcc_sha256"],
+            "runtime_ld_library_path": runtime_identity[
+                "runtime_ld_library_path"
+            ],
+            "libcudart_path": runtime_identity["libcudart_path"],
+            "libcudart_sha256": runtime_identity["libcudart_sha256"],
+            "flashinfer_workspace_base": os.fspath(canonical_workspace),
+            "flashinfer_package_version": package_versions["flashinfer-python"],
+            "flashinfer_runtime": flashinfer_runtime,
+        },
+    )
+
+
 class AtomicJsonAndPathTests(unittest.TestCase):
     def test_atomic_json_round_trip_replaces_complete_document(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -72,6 +175,498 @@ class AtomicJsonAndPathTests(unittest.TestCase):
             scratch = pathlib.Path(temporary)
             with self.assertRaisesRegex(ops.UnsafePathError, "absolute"):
                 ops.canonical_path_under_scratch(scratch, pathlib.Path("relative"))
+
+
+class CudaRuntimeProbeTests(unittest.TestCase):
+    def make_runner(
+        self,
+        *,
+        nvcc,
+        python,
+        readelf,
+        libcudart,
+        dynamic=None,
+        observed=None,
+    ):
+        dynamic_output = dynamic or (
+            " 0x0000000000000001 (NEEDED)             "
+            "Shared library: [libcudart.so.12]\n"
+        )
+
+        def runner(arguments, **kwargs):
+            if observed is not None:
+                observed.append((list(arguments), dict(kwargs)))
+            if arguments == [os.fspath(nvcc), "--version"]:
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    "nvcc: NVIDIA (R) Cuda compiler driver\n"
+                    "Cuda compilation tools, release 12.8, V12.8.93\n",
+                    "",
+                )
+            if arguments[0] == os.fspath(nvcc):
+                output = pathlib.Path(arguments[arguments.index("-o") + 1])
+                output.write_bytes(b"shared object")
+                return subprocess.CompletedProcess(arguments, 0, "", "")
+            if arguments[0] == os.fspath(readelf.resolve()):
+                return subprocess.CompletedProcess(
+                    arguments, 0, dynamic_output, ""
+                )
+            if arguments[0] == os.fspath(python):
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    json.dumps(
+                        {
+                            "mapped_libcudart_paths": [
+                                os.fspath(libcudart.resolve())
+                            ]
+                        }
+                    )
+                    + "\n",
+                    "",
+                )
+            raise AssertionError(arguments)
+
+        return runner
+
+    def test_compile_inspect_and_load_uses_sanitized_environment_and_cleans(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            cuda_home, nvcc, libcudart, python, readelf = (
+                make_cuda_runtime_tree(scratch)
+            )
+            observed = []
+            runtime_path = os.fspath(scratch)
+            runtime_ld = os.fspath(cuda_home / "lib64")
+            result = ops.probe_cuda_runtime(
+                scratch,
+                python,
+                runtime_path,
+                cuda_home,
+                nvcc,
+                runtime_ld,
+                which_fn=lambda command: os.fspath(readelf)
+                if command == "readelf"
+                else None,
+                runner=self.make_runner(
+                    nvcc=nvcc,
+                    python=python,
+                    readelf=readelf,
+                    libcudart=libcudart,
+                    observed=observed,
+                ),
+            )
+            self.assertEqual(result["libcudart_path"], os.fspath(libcudart))
+            self.assertEqual(
+                result["cuda_nvcc_sha256"],
+                hashlib.sha256(nvcc.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(list(scratch.glob(".oprd-cuda-runtime.*")), [])
+            for _, kwargs in observed:
+                if "env" not in kwargs:
+                    continue
+                self.assertEqual(
+                    kwargs["env"],
+                    {
+                        "PATH": runtime_path,
+                        "CUDA_HOME": os.fspath(cuda_home),
+                        "LD_LIBRARY_PATH": runtime_ld,
+                        "PYTHONNOUSERSITE": "1",
+                        "PYTHONDONTWRITEBYTECODE": "1",
+                        "LC_ALL": "C",
+                    },
+                )
+                self.assertNotIn("LD_PRELOAD", kwargs["env"])
+                self.assertEqual(
+                    kwargs["timeout"], ops.CUDA_RUNTIME_TIMEOUT_SECONDS
+                )
+            compile_args = observed[1][0]
+            self.assertIn("-shared", compile_args)
+            self.assertIn("--cudart=none", compile_args)
+            self.assertIn("-Xcompiler=-fPIC", compile_args)
+            self.assertIn(f"-L{cuda_home / 'lib64'}", compile_args)
+            self.assertIn("-lcudart", compile_args)
+            self.assertFalse(any("rpath" in value.lower() for value in compile_args))
+
+    def test_cuda_runtime_cli_requires_explicit_runtime_inputs(self):
+        parsed = ops.build_parser().parse_args(
+            [
+                "check-cuda-runtime",
+                "--scratch",
+                "/scratch",
+                "--python",
+                "/venv/bin/python",
+                "--runtime-path",
+                "/venv/bin:/usr/bin",
+                "--cuda-home",
+                "/opt/cuda-12.8.1",
+                "--cuda-nvcc",
+                "/opt/cuda-12.8.1/bin/nvcc",
+                "--runtime-ld-library-path",
+                "/opt/cuda-12.8.1/lib64",
+            ]
+        )
+        self.assertEqual(parsed.command, "check-cuda-runtime")
+        self.assertEqual(parsed.runtime_ld_library_path, "/opt/cuda-12.8.1/lib64")
+
+    def test_timeout_and_compile_failure_always_clean_up(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            cuda_home, nvcc, libcudart, python, readelf = (
+                make_cuda_runtime_tree(scratch)
+            )
+
+            def runner(arguments, **kwargs):
+                if arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        "Cuda compilation tools, release 12.8, V12.8.93\n",
+                        "",
+                    )
+                raise subprocess.TimeoutExpired(arguments, kwargs["timeout"])
+
+            with self.assertRaisesRegex(ops.OpsError, "command failed to run"):
+                ops.probe_cuda_runtime(
+                    scratch,
+                    python,
+                    os.fspath(scratch),
+                    cuda_home,
+                    nvcc,
+                    os.fspath(cuda_home / "lib64"),
+                    which_fn=lambda command: os.fspath(readelf),
+                    runner=runner,
+                )
+            self.assertEqual(list(scratch.glob(".oprd-cuda-runtime.*")), [])
+
+            def failed_runner(arguments, **kwargs):
+                if arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        "Cuda compilation tools, release 12.8, V12.8.93\n",
+                        "",
+                    )
+                return subprocess.CompletedProcess(
+                    arguments, 1, "", "compile failed"
+                )
+
+            with self.assertRaisesRegex(ops.OpsError, "compile failed"):
+                ops.probe_cuda_runtime(
+                    scratch,
+                    python,
+                    os.fspath(scratch),
+                    cuda_home,
+                    nvcc,
+                    os.fspath(cuda_home / "lib64"),
+                    which_fn=lambda command: os.fspath(readelf),
+                    runner=failed_runner,
+                )
+            self.assertEqual(list(scratch.glob(".oprd-cuda-runtime.*")), [])
+
+    def test_rejects_wrong_toolkit_identities(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            cuda_home, nvcc, libcudart, python, readelf = (
+                make_cuda_runtime_tree(scratch)
+            )
+            wrong_nvcc = scratch / "nvcc"
+            wrong_nvcc.write_bytes(b"wrong")
+            wrong_nvcc.chmod(0o755)
+            with self.assertRaisesRegex(ops.OpsError, "exactly"):
+                ops.probe_cuda_runtime(
+                    scratch,
+                    python,
+                    os.fspath(scratch),
+                    cuda_home,
+                    wrong_nvcc,
+                    os.fspath(cuda_home / "lib64"),
+                    which_fn=lambda command: os.fspath(readelf),
+                )
+            libcudart.unlink()
+            with self.assertRaisesRegex(ops.OpsError, "runtime library is missing"):
+                ops.probe_cuda_runtime(
+                    scratch,
+                    python,
+                    os.fspath(scratch),
+                    cuda_home,
+                    nvcc,
+                    os.fspath(cuda_home / "lib64"),
+                    which_fn=lambda command: os.fspath(readelf),
+                )
+
+    def test_rejects_wrong_mapped_runtime_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            cuda_home, nvcc, libcudart, python, readelf = (
+                make_cuda_runtime_tree(scratch)
+            )
+            wrong_runtime = scratch / "wrong" / ops.CUDA_RUNTIME_SONAME
+            wrong_runtime.parent.mkdir()
+            wrong_runtime.write_bytes(b"wrong runtime")
+            with self.assertRaisesRegex(ops.OpsError, "mapped libcudart path"):
+                ops.probe_cuda_runtime(
+                    scratch,
+                    python,
+                    os.fspath(scratch),
+                    cuda_home,
+                    nvcc,
+                    os.fspath(cuda_home / "lib64"),
+                    which_fn=lambda command: os.fspath(readelf),
+                    runner=self.make_runner(
+                        nvcc=nvcc,
+                        python=python,
+                        readelf=readelf,
+                        libcudart=wrong_runtime,
+                    ),
+                )
+            self.assertEqual(list(scratch.glob(".oprd-cuda-runtime.*")), [])
+
+    def test_readelf_requires_needed_and_forbids_runtime_search_paths(self):
+        for dynamic, message in (
+            ("Dynamic section is empty\n", "does not require"),
+            (
+                "(NEEDED) Shared library: [libcudart.so.12]\n"
+                "(RUNPATH) Library runpath: [/tmp]\n",
+                "forbidden RPATH",
+            ),
+        ):
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as temporary:
+                scratch = pathlib.Path(temporary)
+                cuda_home, nvcc, libcudart, python, readelf = (
+                    make_cuda_runtime_tree(scratch)
+                )
+                with self.assertRaisesRegex(ops.OpsError, message):
+                    ops.probe_cuda_runtime(
+                        scratch,
+                        python,
+                        os.fspath(scratch),
+                        cuda_home,
+                        nvcc,
+                        os.fspath(cuda_home / "lib64"),
+                        which_fn=lambda command: os.fspath(readelf),
+                        runner=self.make_runner(
+                            nvcc=nvcc,
+                            python=python,
+                            readelf=readelf,
+                            libcudart=libcudart,
+                            dynamic=dynamic,
+                        ),
+                    )
+                self.assertEqual(
+                    list(scratch.glob(".oprd-cuda-runtime.*")), []
+                )
+
+
+class EnvironmentMarkerTests(unittest.TestCase):
+    def make_environment(self, root):
+        scratch = root / "scratch"
+        scratch.mkdir()
+        cuda_home, nvcc, libcudart, python, readelf = (
+            make_cuda_runtime_tree(root)
+        )
+        ffmpeg = root / "ffmpeg"
+        ffmpeg.write_bytes(b"ffmpeg")
+        ffmpeg.chmod(0o755)
+        requirements = scratch / "requirements.txt"
+        requirements.write_text("torch>=2\n", encoding="utf-8")
+        workspace = scratch / "flashinfer"
+        workspace.mkdir()
+        workspace = workspace.resolve()
+        runtime_ld = os.fspath(cuda_home / "lib64")
+        identity = cuda_runtime_identity(
+            cuda_home, nvcc, libcudart, runtime_ld
+        )
+        marker = scratch / "env-ready.json"
+        write_environment_marker(
+            marker,
+            requirements,
+            python,
+            ffmpeg,
+            identity,
+            workspace,
+        )
+        return (
+            scratch,
+            cuda_home,
+            nvcc,
+            libcudart,
+            python,
+            readelf,
+            ffmpeg,
+            requirements,
+            workspace,
+            identity,
+            marker,
+        )
+
+    def validate_marker(self, values, **overrides):
+        (
+            scratch,
+            _,
+            _,
+            _,
+            python,
+            _,
+            ffmpeg,
+            requirements,
+            workspace,
+            identity,
+            marker,
+        ) = values
+        arguments = {
+            "scratch": scratch,
+            "cuda_home": identity["cuda_home"],
+            "cuda_nvcc": identity["cuda_nvcc"],
+            "cuda_nvcc_version": identity["cuda_nvcc_version"],
+            "cuda_nvcc_sha256": identity["cuda_nvcc_sha256"],
+            "runtime_ld_library_path": identity["runtime_ld_library_path"],
+            "libcudart_path": identity["libcudart_path"],
+            "libcudart_sha256": identity["libcudart_sha256"],
+            "flashinfer_workspace_base": os.fspath(workspace),
+            "flashinfer_package_version": "0.4.1",
+            "actual_packages": {
+                "flashinfer-python": "0.4.1",
+                "torch": "test",
+            },
+            "ffmpeg_path": os.fspath(ffmpeg),
+            "ffmpeg_version": "ffmpeg version test",
+        }
+        arguments.update(overrides)
+        return ops.validate_environment_marker(
+            marker, requirements, python, **arguments
+        )
+
+    def test_schema_2_marker_validates_and_rejects_mismatches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            values = self.make_environment(pathlib.Path(temporary))
+            result = self.validate_marker(values)
+            self.assertEqual(result["cuda_nvcc_version"], values[-2]["cuda_nvcc_version"])
+            marker = values[-1]
+            original = ops.read_json(marker)
+            for field in (
+                "cuda_home",
+                "cuda_nvcc",
+                "cuda_nvcc_version",
+                "cuda_nvcc_sha256",
+                "runtime_ld_library_path",
+                "libcudart_path",
+                "libcudart_sha256",
+                "flashinfer_workspace_base",
+                "flashinfer_package_version",
+            ):
+                with self.subTest(field=field):
+                    payload = dict(original)
+                    payload[field] = "wrong"
+                    ops.atomic_write_json(marker, payload)
+                    with self.assertRaises(ops.OpsError):
+                        self.validate_marker(values)
+            payload = dict(original)
+            payload["schema_version"] = 1
+            ops.atomic_write_json(marker, payload)
+            with self.assertRaisesRegex(ops.OpsError, "schema 2"):
+                self.validate_marker(values)
+
+    def test_marker_requires_successful_contained_flashinfer_warmup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            values = self.make_environment(root)
+            marker = values[-1]
+            original = ops.read_json(marker)
+
+            missing = json.loads(json.dumps(original))
+            missing.pop("flashinfer_runtime")
+            ops.atomic_write_json(marker, missing)
+            with self.assertRaisesRegex(ops.OpsError, "successful FlashInfer"):
+                self.validate_marker(values)
+
+            failed = json.loads(json.dumps(original))
+            failed["flashinfer_runtime"]["ok"] = False
+            ops.atomic_write_json(marker, failed)
+            with self.assertRaisesRegex(ops.OpsError, "successful FlashInfer"):
+                self.validate_marker(values)
+
+            incomplete = json.loads(json.dumps(original))
+            incomplete["flashinfer_runtime"]["paths"].pop(
+                "flashinfer_gen_src_dir"
+            )
+            ops.atomic_write_json(marker, incomplete)
+            with self.assertRaisesRegex(ops.OpsError, "incomplete FlashInfer"):
+                self.validate_marker(values)
+
+            escaping = json.loads(json.dumps(original))
+            escaping["flashinfer_runtime"]["paths"][
+                "flashinfer_cache_dir"
+            ] = os.fspath((root / "outside").resolve())
+            ops.atomic_write_json(marker, escaping)
+            with self.assertRaisesRegex(ops.OpsError, "escapes workspace"):
+                self.validate_marker(values)
+
+    def test_current_environment_probes_identity_without_gpu(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            values = self.make_environment(pathlib.Path(temporary))
+            (
+                scratch,
+                cuda_home,
+                nvcc,
+                _,
+                python,
+                _,
+                ffmpeg,
+                requirements,
+                workspace,
+                identity,
+                marker,
+            ) = values
+            commands = []
+
+            def runner(arguments, **kwargs):
+                commands.append(arguments)
+                if arguments[0] == os.fspath(python):
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        '{"flashinfer-python":"0.4.1","torch":"test"}\n',
+                        "",
+                    )
+                if arguments[0] == os.fspath(ffmpeg):
+                    return subprocess.CompletedProcess(
+                        arguments, 0, "ffmpeg version test\n", ""
+                    )
+                raise AssertionError(arguments)
+
+            result = ops.validate_current_environment(
+                marker,
+                requirements,
+                python,
+                scratch=scratch,
+                runtime_path=os.fspath(scratch),
+                cuda_home=cuda_home,
+                cuda_nvcc=nvcc,
+                runtime_ld_library_path=identity[
+                    "runtime_ld_library_path"
+                ],
+                flashinfer_workspace_base=workspace,
+                which_fn=lambda command: os.fspath(ffmpeg)
+                if command == "ffmpeg"
+                else None,
+                runner=runner,
+                cuda_runtime_identity=identity,
+            )
+            self.assertEqual(result["flashinfer_package_version"], "0.4.1")
+            self.assertFalse(any("cuda" in " ".join(command).lower() for command in commands))
+
+    def test_flashinfer_workspace_must_be_canonical_under_scratch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            values = self.make_environment(root)
+            outside = root / "outside"
+            outside.mkdir()
+            with self.assertRaises(ops.UnsafePathError):
+                self.validate_marker(
+                    values, flashinfer_workspace_base=os.fspath(outside)
+                )
 
 
 class PreflightTests(unittest.TestCase):
@@ -225,69 +820,42 @@ class PreflightTests(unittest.TestCase):
                 )
             self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
 
-    def test_preflight_uses_configured_python_and_reports_quota_unavailable(self):
+    def test_preflight_uses_configured_runtime_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
             scratch = pathlib.Path(temporary) / "scratch"
             scratch.mkdir()
+            cuda_home, nvcc, libcudart, python, readelf = (
+                make_cuda_runtime_tree(scratch)
+            )
             hf_home = scratch / "hf-cache"
             writable = scratch / "records"
+            workspace = scratch / "flashinfer"
+            workspace.mkdir()
+            workspace = workspace.resolve()
             script = scratch / "phase.sbatch"
             script.write_text("#!/bin/sh\n", encoding="utf-8")
-            python = scratch / "python3.12"
-            python.write_text(
-                "#!/bin/sh\n"
-                "if [ \"$1\" = \"--version\" ]; then\n"
-                "  echo 'Python 3.12.9'\n"
-                "  exit 0\n"
-                "fi\n"
-                "case \"${2:-}\" in\n"
-                "  *importlib.metadata*) echo '{\"torch\":\"test\"}' ;;\n"
-                "esac\n"
-                "exit 0\n",
-                encoding="utf-8",
-            )
-            python.chmod(0o755)
             sbatch = scratch / "sbatch"
             sacct = scratch / "sacct"
             ffmpeg = scratch / "ffmpeg"
             gcc = scratch / "gcc"
             ld = scratch / "ld"
-            for executable in (sbatch, sacct):
-                executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            for executable in (sbatch, sacct, ffmpeg, gcc, ld):
+                executable.write_bytes(b"fake executable")
                 executable.chmod(0o755)
-            ffmpeg.write_text(
-                "#!/bin/sh\necho 'ffmpeg version test'\n", encoding="utf-8"
-            )
-            ffmpeg.chmod(0o755)
-            gcc.write_text(
-                "#!/bin/sh\n"
-                "if [ \"${1:-}\" = --version ]; then echo 'gcc test'; exit 0; fi\n"
-                "while [ \"$#\" -gt 0 ]; do\n"
-                "  if [ \"$1\" = -o ]; then shift; printf x > \"$1\"; exit 0; fi\n"
-                "  shift\n"
-                "done\n"
-                "exit 1\n",
-                encoding="utf-8",
-            )
-            gcc.chmod(0o755)
-            ld.write_text("#!/bin/sh\necho 'GNU ld test'\n", encoding="utf-8")
-            ld.chmod(0o755)
-
             requirements = scratch / "requirements.txt"
             requirements.write_text("torch>=2\n", encoding="utf-8")
+            runtime_ld = os.fspath(cuda_home / "lib64")
+            identity = cuda_runtime_identity(
+                cuda_home, nvcc, libcudart, runtime_ld
+            )
             marker = scratch / "env-ready.json"
-            ops.atomic_write_json(
+            write_environment_marker(
                 marker,
-                {
-                    "schema_version": 1,
-                    "python_executable": os.fspath(python.resolve()),
-                    "requirements_sha256": hashlib.sha256(
-                        requirements.read_bytes()
-                    ).hexdigest(),
-                    "packages": {"torch": "test"},
-                    "ffmpeg_path": os.fspath(ffmpeg.resolve()),
-                    "ffmpeg_version": "ffmpeg version test",
-                },
+                requirements,
+                python,
+                ffmpeg,
+                identity,
+                workspace,
             )
             commands = {
                 "sbatch": os.fspath(sbatch),
@@ -295,66 +863,131 @@ class PreflightTests(unittest.TestCase):
                 "ffmpeg": os.fspath(ffmpeg),
                 "gcc": os.fspath(gcc),
                 "ld": os.fspath(ld),
+                "readelf": os.fspath(readelf),
             }
             import_timeouts = []
 
             def recording_runner(arguments, **kwargs):
+                executable = arguments[0]
+                if executable == os.fspath(python) and arguments[1:] == ["--version"]:
+                    return subprocess.CompletedProcess(
+                        arguments, 0, "Python 3.12.9\n", ""
+                    )
                 if (
-                    len(arguments) >= 3
+                    executable == os.fspath(python)
+                    and len(arguments) >= 3
                     and arguments[1] == "-c"
                     and "import_module" in arguments[2]
                 ):
                     import_timeouts.append(kwargs.get("timeout"))
-                return subprocess.run(arguments, **kwargs)
+                    return subprocess.CompletedProcess(arguments, 0, "", "")
+                if (
+                    executable == os.fspath(python)
+                    and "importlib.metadata" in arguments[2]
+                ):
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        '{"flashinfer-python":"0.4.1","torch":"test"}\n',
+                        "",
+                    )
+                if executable == os.fspath(python):
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        json.dumps(
+                            {
+                                "mapped_libcudart_paths": [
+                                    os.fspath(libcudart.resolve())
+                                ]
+                            }
+                        )
+                        + "\n",
+                        "",
+                    )
+                if executable == os.fspath(nvcc) and arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        "Cuda compilation tools, release 12.8, V12.8.93\n",
+                        "",
+                    )
+                if executable == os.fspath(gcc.resolve()) and arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(
+                        arguments, 0, "gcc test\n", ""
+                    )
+                if executable == os.fspath(ld.resolve()):
+                    return subprocess.CompletedProcess(
+                        arguments, 0, "GNU ld test\n", ""
+                    )
+                if executable in {os.fspath(nvcc), os.fspath(gcc.resolve())}:
+                    output = pathlib.Path(arguments[arguments.index("-o") + 1])
+                    output.write_bytes(b"shared object")
+                    return subprocess.CompletedProcess(arguments, 0, "", "")
+                if executable == os.fspath(readelf.resolve()):
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        "(NEEDED) Shared library: [libcudart.so.12]\n",
+                        "",
+                    )
+                if executable == os.fspath(ffmpeg):
+                    return subprocess.CompletedProcess(
+                        arguments, 0, "ffmpeg version test\n", ""
+                    )
+                raise AssertionError(arguments)
 
-            report = ops.run_preflight(
-                scratch=scratch,
-                hf_home=hf_home,
-                python=python,
-                required_imports=["json", "some.fake.module"],
-                required_scripts=[script],
-                writable_paths=[writable],
-                environment_marker=marker,
-                requirements_file=requirements,
-                min_free_blocks=1,
-                min_free_inodes=1,
-                quota_user="test-user",
-                allow_quota_unavailable=True,
-                which_fn=lambda command: commands.get(command),
-                runner=recording_runner,
-            )
+            preflight_arguments = {
+                "scratch": scratch,
+                "hf_home": hf_home,
+                "python": python,
+                "required_imports": ["json", "some.fake.module"],
+                "required_scripts": [script],
+                "runtime_path": os.fspath(scratch),
+                "cuda_home": cuda_home,
+                "cuda_nvcc": nvcc,
+                "runtime_ld_library_path": runtime_ld,
+                "flashinfer_workspace_base": workspace,
+                "writable_paths": [writable],
+                "environment_marker": marker,
+                "requirements_file": requirements,
+                "min_free_blocks": 1,
+                "min_free_inodes": 1,
+                "quota_user": "test-user",
+                "allow_quota_unavailable": True,
+                "which_fn": lambda command: commands.get(command),
+                "runner": recording_runner,
+            }
+            report = ops.run_preflight(**preflight_arguments)
             self.assertTrue(report["ok"], report)
             self.assertEqual(
                 import_timeouts,
                 [ops.PREFLIGHT_IMPORT_TIMEOUT_SECONDS] * 2,
             )
-            self.assertGreaterEqual(ops.PREFLIGHT_IMPORT_TIMEOUT_SECONDS, 120)
             self.assertEqual(report["checks"]["python"]["version"], "3.12.9")
+            self.assertEqual(
+                report["checks"]["cuda_runtime"]["libcudart_path"],
+                os.fspath(libcudart),
+            )
             self.assertEqual(
                 report["checks"]["environment_marker"]["packages"]["torch"],
                 "test",
             )
-            self.assertEqual(
-                report["checks"]["toolchain"]["compiler_path"],
-                os.fspath(gcc.resolve()),
-            )
             self.assertEqual(report["quota"]["status"], "unavailable")
 
-            requirements.write_text("torch>=3\n", encoding="utf-8")
-            changed = ops.run_preflight(
-                scratch=scratch,
-                hf_home=hf_home,
-                python=python,
-                required_imports=[],
-                required_scripts=[script],
-                environment_marker=marker,
-                requirements_file=requirements,
-                min_free_blocks=1,
-                min_free_inodes=1,
-                quota_user="test-user",
-                allow_quota_unavailable=True,
-                which_fn=lambda command: commands.get(command),
+            saved_runtime = libcudart.read_bytes()
+            libcudart.unlink()
+            failed_cuda = ops.run_preflight(**preflight_arguments)
+            self.assertFalse(failed_cuda["ok"])
+            self.assertFalse(failed_cuda["checks"]["cuda_runtime"]["ok"])
+            self.assertTrue(
+                any("CUDA runtime" in error for error in failed_cuda["errors"]),
+                failed_cuda,
             )
+            libcudart.write_bytes(saved_runtime)
+
+            requirements.write_text("torch>=3\n", encoding="utf-8")
+            changed = ops.run_preflight(**preflight_arguments)
             self.assertFalse(changed["ok"])
             self.assertTrue(
                 any("requirements digest" in error for error in changed["errors"]),
@@ -375,6 +1008,11 @@ class PreflightTests(unittest.TestCase):
                 python=python,
                 required_imports=[],
                 required_scripts=[],
+                runtime_path=os.fspath(scratch),
+                cuda_home=scratch / "cuda",
+                cuda_nvcc=scratch / "cuda" / "bin" / "nvcc",
+                runtime_ld_library_path=os.fspath(scratch / "cuda" / "lib64"),
+                flashinfer_workspace_base=scratch / "flashinfer",
                 which_fn=lambda command: executable
                 if command in {"sbatch", "sacct"}
                 else None,
@@ -487,6 +1125,87 @@ class ClaimTests(unittest.TestCase):
                     record_path=record,
                     allow_existing_artifact=True,
                 )
+
+
+class RuntimeClaimTests(unittest.TestCase):
+    def test_runtime_configuration_must_match_immutable_record_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary) / "scratch"
+            scratch.mkdir()
+            repository = scratch / "repository"
+            for relative in ops.SOURCE_BUNDLE_PATHS:
+                path = repository / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(relative, encoding="utf-8")
+            environment_marker = repository / "venv" / ".oprd-env-ready.json"
+            environment_marker.parent.mkdir()
+            environment_marker.write_text("{}\n", encoding="utf-8")
+            artifact = scratch / "artifact"
+            record = scratch / "records" / "run.json"
+            configuration = {
+                "root": os.fspath(repository),
+                "source_bundle_sha256": ops.compute_source_bundle_sha256(
+                    repository
+                ),
+                "environment_marker_sha256": hashlib.sha256(
+                    environment_marker.read_bytes()
+                ).hexdigest(),
+                "cuda_home": "/opt/cuda-12.8.1",
+                "cuda_nvcc": "/opt/cuda-12.8.1/bin/nvcc",
+                "runtime_ld_library_path": "/opt/cuda-12.8.1/lib64",
+                "flashinfer_workspace_base": os.fspath(
+                    scratch / "flashinfer"
+                ),
+            }
+            ops.initialize_record(
+                scratch=scratch,
+                record_path=record,
+                run_id="run-1",
+                build_dir=scratch / "build",
+                artifact_dir=artifact,
+                phase_order=("one",),
+                configuration=configuration,
+            )
+            ops.claim_artifact(
+                scratch=scratch,
+                artifact_dir=artifact,
+                run_id="run-1",
+                record_path=record,
+            )
+            result = ops.validate_runtime_claim(
+                scratch=scratch,
+                paths=[scratch / "cache"],
+                artifact_dir=artifact,
+                run_id="run-1",
+                record_path=record,
+                cuda_home=configuration["cuda_home"],
+                cuda_nvcc=configuration["cuda_nvcc"],
+                runtime_ld_library_path=configuration[
+                    "runtime_ld_library_path"
+                ],
+                flashinfer_workspace_base=configuration[
+                    "flashinfer_workspace_base"
+                ],
+            )
+            self.assertTrue(result["ok"])
+            for field in (
+                "cuda_home",
+                "cuda_nvcc",
+                "runtime_ld_library_path",
+                "flashinfer_workspace_base",
+            ):
+                with self.subTest(field=field), self.assertRaisesRegex(
+                    ops.ClaimConflictError,
+                    f"runtime configuration {field}",
+                ):
+                    ops.validate_runtime_claim(
+                        scratch=scratch,
+                        paths=[],
+                        artifact_dir=artifact,
+                        run_id="run-1",
+                        record_path=record,
+                        **{field: configuration[field] + "/"},
+                    )
 
 
 class RecordTests(unittest.TestCase):
