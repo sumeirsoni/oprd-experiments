@@ -30,6 +30,7 @@ CLAIM_FILENAME = "claim.json"
 SMOKE_DIRECTORY = "stage2-backward-smoke"
 SMOKE_COMPLETE_FILENAME = "SMOKE_COMPLETE.json"
 PREFLIGHT_IMPORT_TIMEOUT_SECONDS = 180
+TOOLCHAIN_TIMEOUT_SECONDS = 60
 
 DAG_PHASES = (
     "corpus",
@@ -254,6 +255,22 @@ def canonical_path_under_scratch(
     return canonical_path
 
 
+def validate_paths_under_scratch(
+    scratch: os.PathLike[str] | str,
+    paths: Sequence[os.PathLike[str] | str],
+) -> dict[str, Any]:
+    canonical_scratch = canonical_path_under_scratch(
+        scratch, scratch, must_exist=True, allow_scratch=True
+    )
+    canonical_paths = [
+        canonical_path_under_scratch(canonical_scratch, path) for path in paths
+    ]
+    return {
+        "scratch": os.fspath(canonical_scratch),
+        "paths": [os.fspath(path) for path in canonical_paths],
+    }
+
+
 def _probe_writable_path(path: pathlib.Path) -> None:
     probe_directory = path if path.is_dir() else path.parent
     while not probe_directory.exists() and probe_directory != probe_directory.parent:
@@ -380,6 +397,84 @@ def _run_text(
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise OpsError(f"command failed to run: {args[0]}: {exc}") from exc
+
+
+def probe_native_toolchain(
+    scratch: os.PathLike[str] | str,
+    *,
+    compiler_command: str = "gcc",
+    linker_command: str = "ld",
+    which_fn: Callable[[str], str | None] = shutil.which,
+    runner: Runner = subprocess.run,
+) -> dict[str, str]:
+    scratch_path = canonical_path_under_scratch(
+        scratch, scratch, must_exist=True, allow_scratch=True
+    )
+    compiler_value = which_fn(compiler_command)
+    if compiler_value is None:
+        raise OpsError(f"required compiler is unavailable: {compiler_command}")
+    linker_value = which_fn(linker_command)
+    if linker_value is None:
+        raise OpsError(f"required linker is unavailable: {linker_command}")
+    try:
+        compiler = pathlib.Path(compiler_value).resolve(strict=True)
+        linker = pathlib.Path(linker_value).resolve(strict=True)
+    except OSError as exc:
+        raise OpsError(f"cannot resolve native toolchain executable: {exc}") from exc
+    compiler_probe = _run_text(
+        runner,
+        [os.fspath(compiler), "--version"],
+        timeout=TOOLCHAIN_TIMEOUT_SECONDS,
+    )
+    compiler_lines = (compiler_probe.stdout or compiler_probe.stderr).splitlines()
+    if compiler_probe.returncode != 0 or not compiler_lines:
+        detail = (compiler_probe.stderr or compiler_probe.stdout).strip()
+        raise OpsError(f"compiler version probe failed: {detail}")
+    linker_probe = _run_text(
+        runner,
+        [os.fspath(linker), "--version"],
+        timeout=TOOLCHAIN_TIMEOUT_SECONDS,
+    )
+    linker_lines = (linker_probe.stdout or linker_probe.stderr).splitlines()
+    if linker_probe.returncode != 0 or not linker_lines:
+        detail = (linker_probe.stderr or linker_probe.stdout).strip()
+        raise OpsError(f"linker version probe failed: {detail}")
+    with tempfile.TemporaryDirectory(
+        prefix=".oprd-toolchain.", dir=scratch_path
+    ) as temporary:
+        temporary_path = pathlib.Path(temporary)
+        source = temporary_path / "probe.c"
+        output = temporary_path / "probe.so"
+        source.write_text(
+            "int oprd_toolchain_probe(void) { return 0; }\n", encoding="utf-8"
+        )
+        try:
+            compiled = _run_text(
+                runner,
+                [
+                    os.fspath(compiler),
+                    os.fspath(source),
+                    "-O2",
+                    "-shared",
+                    "-fPIC",
+                    "-o",
+                    os.fspath(output),
+                ],
+                timeout=TOOLCHAIN_TIMEOUT_SECONDS,
+            )
+        except OpsError as exc:
+            raise OpsError(f"compiler/linker probe failed: {exc}") from exc
+        if compiled.returncode != 0:
+            detail = (compiled.stderr or compiled.stdout).strip()
+            raise OpsError(f"compiler/linker probe failed: {detail}")
+        if not output.is_file() or output.is_symlink() or output.stat().st_size == 0:
+            raise OpsError("compiler/linker probe did not produce a shared object")
+    return {
+        "compiler_path": os.fspath(compiler),
+        "compiler_version": compiler_lines[0],
+        "linker_path": os.fspath(linker),
+        "linker_version": linker_lines[0],
+    }
 
 
 def probe_package_versions(
@@ -561,6 +656,8 @@ def run_preflight(
     sbatch_command: str = "sbatch",
     sacct_command: str = "sacct",
     ffmpeg_command: str = "ffmpeg",
+    compiler_command: str = "gcc",
+    linker_command: str = "ld",
     quota_user: str | None = None,
     allow_quota_unavailable: bool = False,
     statvfs_fn: Callable[[os.PathLike[str] | str], Any] = os.statvfs,
@@ -717,6 +814,18 @@ def run_preflight(
         else:
             commands[command] = executable
     report["checks"]["commands"] = commands
+
+    if scratch_path is not None:
+        try:
+            report["checks"]["toolchain"] = probe_native_toolchain(
+                scratch_path,
+                compiler_command=compiler_command,
+                linker_command=linker_command,
+                which_fn=which_fn,
+                runner=runner,
+            )
+        except OpsError as exc:
+            errors.append(f"native toolchain: {exc}")
 
     if scratch_path is None:
         report["quota"] = {
@@ -1949,8 +2058,19 @@ def build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--sbatch-command", default="sbatch")
     preflight.add_argument("--sacct-command", default="sacct")
     preflight.add_argument("--ffmpeg-command", default="ffmpeg")
+    preflight.add_argument("--compiler-command", default="gcc")
+    preflight.add_argument("--linker-command", default="ld")
     preflight.add_argument("--quota-user")
     preflight.add_argument("--allow-quota-unavailable", action="store_true")
+
+    paths = subparsers.add_parser("check-paths")
+    _add_scratch(paths)
+    paths.add_argument("--path", action="append", required=True)
+
+    toolchain = subparsers.add_parser("check-toolchain")
+    _add_scratch(toolchain)
+    toolchain.add_argument("--compiler-command", default="gcc")
+    toolchain.add_argument("--linker-command", default="ld")
 
     claim = subparsers.add_parser("claim")
     _add_scratch(claim)
@@ -2046,11 +2166,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sbatch_command=args.sbatch_command,
                 sacct_command=args.sacct_command,
                 ffmpeg_command=args.ffmpeg_command,
+                compiler_command=args.compiler_command,
+                linker_command=args.linker_command,
                 quota_user=args.quota_user,
                 allow_quota_unavailable=args.allow_quota_unavailable,
             )
             _json_print(result)
             return 0 if result["ok"] else 1
+        if args.command == "check-paths":
+            _json_print(validate_paths_under_scratch(args.scratch, args.path))
+            return 0
+        if args.command == "check-toolchain":
+            _json_print(
+                probe_native_toolchain(
+                    args.scratch,
+                    compiler_command=args.compiler_command,
+                    linker_command=args.linker_command,
+                )
+            )
+            return 0
         if args.command == "claim":
             result = claim_artifact(
                 scratch=args.scratch,

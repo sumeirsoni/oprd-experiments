@@ -37,6 +37,24 @@ class AtomicJsonAndPathTests(unittest.TestCase):
             with self.assertRaises(ops.UnsafePathError):
                 ops.canonical_path_under_scratch(scratch, link / "artifact")
 
+    def test_validate_paths_under_scratch_rejects_escapes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            scratch = root / "scratch"
+            outside = root / "outside"
+            scratch.mkdir()
+            outside.mkdir()
+            result = ops.validate_paths_under_scratch(
+                scratch, [scratch / "cache", scratch / "nested" / "cache"]
+            )
+            self.assertEqual(result["scratch"], os.fspath(scratch.resolve()))
+            with self.assertRaises(ops.UnsafePathError):
+                ops.validate_paths_under_scratch(scratch, [scratch / ".." / "outside"])
+            link = scratch / "link"
+            link.symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(ops.UnsafePathError):
+                ops.validate_paths_under_scratch(scratch, [link / "cache"])
+
     def test_source_bundle_digest_changes_with_any_runtime_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
@@ -93,6 +111,120 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(parsed["remaining_bytes"], 100 * 1024)
         self.assertEqual(parsed["remaining_inodes"], 10)
 
+    def test_native_toolchain_probe_links_shared_object_and_cleans_up(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            gcc = scratch / "gcc"
+            ld = scratch / "ld"
+            gcc.write_text("probe", encoding="utf-8")
+            ld.write_text("probe", encoding="utf-8")
+            gcc.chmod(0o755)
+            ld.chmod(0o755)
+            observed_timeouts = []
+
+            def runner(arguments, **kwargs):
+                observed_timeouts.append(kwargs["timeout"])
+                if arguments[-1] == "--version":
+                    name = pathlib.Path(arguments[0]).name
+                    return subprocess.CompletedProcess(
+                        arguments, 0, f"{name} test\n", ""
+                    )
+                output = pathlib.Path(arguments[arguments.index("-o") + 1])
+                output.write_bytes(b"shared-object")
+                return subprocess.CompletedProcess(arguments, 0, "", "")
+
+            result = ops.probe_native_toolchain(
+                scratch,
+                which_fn=lambda command: {
+                    "gcc": os.fspath(gcc),
+                    "ld": os.fspath(ld),
+                }.get(command),
+                runner=runner,
+            )
+            self.assertEqual(result["compiler_version"], "gcc test")
+            self.assertEqual(result["linker_version"], "ld test")
+            self.assertEqual(
+                observed_timeouts,
+                [ops.TOOLCHAIN_TIMEOUT_SECONDS] * 3,
+            )
+            self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
+
+    def test_native_toolchain_probe_rejects_missing_commands(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            with self.assertRaisesRegex(ops.OpsError, "compiler is unavailable"):
+                ops.probe_native_toolchain(scratch, which_fn=lambda command: None)
+
+            gcc = scratch / "gcc"
+            gcc.write_text("probe", encoding="utf-8")
+            gcc.chmod(0o755)
+            with self.assertRaisesRegex(ops.OpsError, "linker is unavailable"):
+                ops.probe_native_toolchain(
+                    scratch,
+                    which_fn=lambda command: os.fspath(gcc)
+                    if command == "gcc"
+                    else None,
+                )
+
+    def test_native_toolchain_probe_rejects_failed_or_missing_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            gcc = scratch / "gcc"
+            ld = scratch / "ld"
+            for executable in (gcc, ld):
+                executable.write_text("probe", encoding="utf-8")
+                executable.chmod(0o755)
+            commands = {"gcc": os.fspath(gcc), "ld": os.fspath(ld)}
+
+            def failed_runner(arguments, **kwargs):
+                if arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(arguments, 0, "test\n", "")
+                return subprocess.CompletedProcess(arguments, 1, "", "link failed")
+
+            with self.assertRaisesRegex(ops.OpsError, "link failed"):
+                ops.probe_native_toolchain(
+                    scratch,
+                    which_fn=lambda command: commands.get(command),
+                    runner=failed_runner,
+                )
+            self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
+
+            def missing_output_runner(arguments, **kwargs):
+                return subprocess.CompletedProcess(arguments, 0, "test\n", "")
+
+            with self.assertRaisesRegex(ops.OpsError, "did not produce"):
+                ops.probe_native_toolchain(
+                    scratch,
+                    which_fn=lambda command: commands.get(command),
+                    runner=missing_output_runner,
+                )
+            self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
+
+    def test_native_toolchain_probe_reports_compile_timeout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = pathlib.Path(temporary)
+            gcc = scratch / "gcc"
+            ld = scratch / "ld"
+            for executable in (gcc, ld):
+                executable.write_text("probe", encoding="utf-8")
+                executable.chmod(0o755)
+            commands = {"gcc": os.fspath(gcc), "ld": os.fspath(ld)}
+
+            def runner(arguments, **kwargs):
+                if arguments[-1] == "--version":
+                    return subprocess.CompletedProcess(arguments, 0, "test\n", "")
+                raise subprocess.TimeoutExpired(arguments, kwargs["timeout"])
+
+            with self.assertRaisesRegex(
+                ops.OpsError, "compiler/linker probe failed"
+            ):
+                ops.probe_native_toolchain(
+                    scratch,
+                    which_fn=lambda command: commands.get(command),
+                    runner=runner,
+                )
+            self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
+
     def test_preflight_uses_configured_python_and_reports_quota_unavailable(self):
         with tempfile.TemporaryDirectory() as temporary:
             scratch = pathlib.Path(temporary) / "scratch"
@@ -118,6 +250,8 @@ class PreflightTests(unittest.TestCase):
             sbatch = scratch / "sbatch"
             sacct = scratch / "sacct"
             ffmpeg = scratch / "ffmpeg"
+            gcc = scratch / "gcc"
+            ld = scratch / "ld"
             for executable in (sbatch, sacct):
                 executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
                 executable.chmod(0o755)
@@ -125,6 +259,19 @@ class PreflightTests(unittest.TestCase):
                 "#!/bin/sh\necho 'ffmpeg version test'\n", encoding="utf-8"
             )
             ffmpeg.chmod(0o755)
+            gcc.write_text(
+                "#!/bin/sh\n"
+                "if [ \"${1:-}\" = --version ]; then echo 'gcc test'; exit 0; fi\n"
+                "while [ \"$#\" -gt 0 ]; do\n"
+                "  if [ \"$1\" = -o ]; then shift; printf x > \"$1\"; exit 0; fi\n"
+                "  shift\n"
+                "done\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            gcc.chmod(0o755)
+            ld.write_text("#!/bin/sh\necho 'GNU ld test'\n", encoding="utf-8")
+            ld.chmod(0o755)
 
             requirements = scratch / "requirements.txt"
             requirements.write_text("torch>=2\n", encoding="utf-8")
@@ -146,6 +293,8 @@ class PreflightTests(unittest.TestCase):
                 "sbatch": os.fspath(sbatch),
                 "sacct": os.fspath(sacct),
                 "ffmpeg": os.fspath(ffmpeg),
+                "gcc": os.fspath(gcc),
+                "ld": os.fspath(ld),
             }
             import_timeouts = []
 
@@ -184,6 +333,10 @@ class PreflightTests(unittest.TestCase):
             self.assertEqual(
                 report["checks"]["environment_marker"]["packages"]["torch"],
                 "test",
+            )
+            self.assertEqual(
+                report["checks"]["toolchain"]["compiler_path"],
+                os.fspath(gcc.resolve()),
             )
             self.assertEqual(report["quota"]["status"], "unavailable")
 

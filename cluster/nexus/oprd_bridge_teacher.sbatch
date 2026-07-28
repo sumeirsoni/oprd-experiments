@@ -32,7 +32,11 @@ ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
 CLUSTER_DIR=$ROOT/cluster
 NEXUS_DIR=$CLUSTER_DIR/nexus
 PYTHON=${PYTHON:-$ROOT/venv/bin/python}
-export PATH="$ROOT/venv/bin:$PATH"
+BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:?submit_oprd_bridge.sh must export BRIDGE_RUNTIME_PATH}
+VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT:?submit_oprd_bridge.sh must export VLLM_CACHE_ROOT}
+TRITON_CACHE_DIR=${TRITON_CACHE_DIR:?submit_oprd_bridge.sh must export TRITON_CACHE_DIR}
+export PATH="$BRIDGE_RUNTIME_PATH"
+export VLLM_CACHE_ROOT TRITON_CACHE_DIR
 command -v ffmpeg >/dev/null 2>&1 || fail "bundled FFmpeg is unavailable from the venv"
 OPS=$NEXUS_DIR/oprd_bridge_ops.py
 BRIDGE_BUILDER=${BRIDGE_BUILDER:-$CLUSTER_DIR/build_oprd_bridge.py}
@@ -53,14 +57,17 @@ ENV_READY=$ROOT/venv/.oprd-env-ready.json
 case "$BRIDGE_BUILD_DIR/" in "$SCRATCH_ROOT"/*) ;; *) fail "build directory must be on scratch: $BRIDGE_BUILD_DIR" ;; esac
 case "$BRIDGE_ARTIFACT/" in "$SCRATCH_ROOT"/*) ;; *) fail "artifact must be on scratch: $BRIDGE_ARTIFACT" ;; esac
 case "$BRIDGE_HF_HOME/" in "$SCRATCH_ROOT"/*) ;; *) fail "HF cache must be on scratch: $BRIDGE_HF_HOME" ;; esac
+case "$VLLM_CACHE_ROOT/" in "$SCRATCH_ROOT"/*) ;; *) fail "vLLM cache must be on scratch: $VLLM_CACHE_ROOT" ;; esac
+case "$TRITON_CACHE_DIR/" in "$SCRATCH_ROOT"/*) ;; *) fail "Triton cache must be on scratch: $TRITON_CACHE_DIR" ;; esac
 [[ ! -e "$BRIDGE_ARTIFACT" ]] || fail "refusing to overwrite canonical artifact: $BRIDGE_ARTIFACT"
 "$PYTHON" "$OPS" check-environment --marker "$ENV_READY" --requirements-file "$CLUSTER_DIR/requirements.txt" --python "$PYTHON"
-"$PYTHON" "$OPS" check-runtime --scratch "$SCRATCH_ROOT" --path "$BRIDGE_BUILD_DIR" --path "$BRIDGE_HF_HOME" --artifact "$BRIDGE_ARTIFACT" --run-id "$BRIDGE_RUN_ID" --record "$JOB_RECORD"
+"$PYTHON" "$OPS" check-runtime --scratch "$SCRATCH_ROOT" --path "$BRIDGE_BUILD_DIR" --path "$BRIDGE_HF_HOME" --path "$VLLM_CACHE_ROOT" --path "$TRITON_CACHE_DIR" --artifact "$BRIDGE_ARTIFACT" --run-id "$BRIDGE_RUN_ID" --record "$JOB_RECORD"
+"$PYTHON" "$OPS" check-toolchain --scratch "$SCRATCH_ROOT"
 check_space
 
 cd "$CLUSTER_DIR"
 export HF_HOME="$BRIDGE_HF_HOME"
-mkdir -p "$HF_HOME"
+mkdir -p "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
 
 srun "$PYTHON" "$BRIDGE_BUILDER" fit-teacher-pca \
   --workspace "$BRIDGE_BUILD_DIR"

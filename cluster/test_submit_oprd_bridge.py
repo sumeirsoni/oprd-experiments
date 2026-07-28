@@ -73,6 +73,19 @@ class SubmitBridgeTests(unittest.TestCase):
         (bin_dir / "ffmpeg").write_text(
             "#!/bin/bash\necho 'ffmpeg version test'\n", encoding="utf-8"
         )
+        (bin_dir / "gcc").write_text(
+            "#!/bin/bash\n"
+            "if [[ ${1:-} == --version ]]; then echo 'gcc test'; exit 0; fi\n"
+            "while [[ $# -gt 0 ]]; do\n"
+            "  if [[ $1 == -o ]]; then shift; printf x > \"$1\"; exit 0; fi\n"
+            "  shift\n"
+            "done\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        (bin_dir / "ld").write_text(
+            "#!/bin/bash\necho 'GNU ld test'\n", encoding="utf-8"
+        )
         (bin_dir / "sacct").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
         (bin_dir / "quota").write_text(
             "#!/bin/bash\necho 'manual quota report'\n", encoding="utf-8"
@@ -90,7 +103,7 @@ class SubmitBridgeTests(unittest.TestCase):
             "printf '%s\\n' \"$((1000 + n))\"\n",
             encoding="utf-8",
         )
-        for name in ("ffmpeg", "quota", "sacct", "sbatch"):
+        for name in ("ffmpeg", "gcc", "ld", "quota", "sacct", "sbatch"):
             (bin_dir / name).chmod(0o755)
         return scratch, cluster, fake_python, modules, bin_dir, counter, log
 
@@ -119,6 +132,15 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn('"managed_python_executable"', setup)
         self.assertIn('"imageio-ffmpeg==0.6.0"', setup)
         self.assertIn('imageio_ffmpeg.get_ffmpeg_exe()', setup)
+        self.assertIn('BRIDGE_RUNTIME_PATH=', setup)
+        self.assertIn('VLLM_CACHE_ROOT=', setup)
+        self.assertIn('TRITON_CACHE_DIR=', setup)
+        self.assertIn('check-toolchain --scratch "$SCRATCH_ROOT"', setup)
+        self.assertIn('"$VENV/bin/python" "$OPS" check-paths', setup)
+        self.assertLess(
+            setup.index('"$VENV/bin/python" "$OPS" check-paths'),
+            setup.index('mkdir -p "$BRIDGE_HF_HOME"'),
+        )
         self.assertNotIn('module load ffmpeg/', setup)
 
         runtime_scripts = (
@@ -134,7 +156,13 @@ class SubmitBridgeTests(unittest.TestCase):
                 script = (SOURCE_NEXUS / name).read_text()
                 self.assertNotIn("module load Python3/", script)
                 self.assertNotIn("module load ffmpeg/", script)
-                self.assertIn('export PATH="$ROOT/venv/bin:$PATH"', script)
+                self.assertIn('export PATH="$BRIDGE_RUNTIME_PATH"', script)
+                self.assertIn("VLLM_CACHE_ROOT", script)
+                self.assertIn("TRITON_CACHE_DIR", script)
+                if name != "submit_oprd_bridge.sh":
+                    self.assertIn(
+                        'check-toolchain --scratch "$SCRATCH_ROOT"', script
+                    )
                 self.assertIn("set +u", script)
 
     def test_stage2_smoke_uses_validated_no_replace_publication(self):
@@ -169,6 +197,9 @@ class SubmitBridgeTests(unittest.TestCase):
                 "ROOT": str(scratch / "oprd-experiments"),
                 "PYTHON": str(fake_python),
                 "MODULES_INIT": str(modules),
+                "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
+                "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
                 "BRIDGE_RUN_ID": "unit-test-run",
                 "SUBMIT_MIN_FREE_GIB": "0",
                 "SUBMIT_MIN_FREE_INODES": "0",
@@ -188,6 +219,24 @@ class SubmitBridgeTests(unittest.TestCase):
             lines = log.read_text(encoding="utf-8").splitlines()
             self.assertEqual(len(lines), 11)
             self.assertTrue(all("--export=ALL" not in line for line in lines))
+            self.assertTrue(
+                all(
+                    f"PATH={environment['BRIDGE_RUNTIME_PATH']}" in line
+                    for line in lines
+                )
+            )
+            self.assertTrue(
+                all(
+                    f"VLLM_CACHE_ROOT={environment['VLLM_CACHE_ROOT']}" in line
+                    for line in lines
+                )
+            )
+            self.assertTrue(
+                all(
+                    f"TRITON_CACHE_DIR={environment['TRITON_CACHE_DIR']}" in line
+                    for line in lines
+                )
+            )
             self.assertTrue(all("--comment=oprd:unit-test-run:" in line for line in lines))
             self.assertNotIn("--dependency", lines[0])
             for index, line in enumerate(lines[1:], 1):
@@ -218,6 +267,18 @@ class SubmitBridgeTests(unittest.TestCase):
                 )
             )
             self.assertEqual(record["configuration"]["hf_home"], str(scratch / "hf-cache"))
+            self.assertEqual(
+                record["configuration"]["runtime_path"],
+                environment["BRIDGE_RUNTIME_PATH"],
+            )
+            self.assertEqual(
+                record["configuration"]["vllm_cache_root"],
+                environment["VLLM_CACHE_ROOT"],
+            )
+            self.assertEqual(
+                record["configuration"]["triton_cache_dir"],
+                environment["TRITON_CACHE_DIR"],
+            )
             self.assertEqual(
                 record["phases"]["teacher"]["attempts"][0][
                     "dependency_job_id"
@@ -273,6 +334,54 @@ class SubmitBridgeTests(unittest.TestCase):
                 "2000",
             )
 
+    def test_submission_rejects_cache_path_with_export_delimiter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (
+                scratch,
+                cluster,
+                fake_python,
+                modules,
+                bin_dir,
+                counter,
+                log,
+            ) = self.make_cluster_tree(root)
+            environment = {
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "USER": "test-user",
+                "SCRATCH_ROOT": str(scratch),
+                "ROOT": str(scratch / "oprd-experiments"),
+                "PYTHON": str(fake_python),
+                "MODULES_INIT": str(modules),
+                "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "VLLM_CACHE_ROOT": str(scratch / "bad,cache"),
+                "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                "BRIDGE_RUN_ID": "delimiter-run",
+                "SUBMIT_MIN_FREE_GIB": "0",
+                "SUBMIT_MIN_FREE_INODES": "0",
+                "ALLOW_QUOTA_UNAVAILABLE": "1",
+                "SBATCH_COUNTER": str(counter),
+                "SBATCH_LOG": str(log),
+            }
+            completed = subprocess.run(
+                ["bash", str(SUBMITTER)],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn(
+                "VLLM_CACHE_ROOT cannot contain commas or newlines",
+                completed.stderr,
+            )
+            self.assertEqual(counter.read_text(encoding="ascii"), "0\n")
+            self.assertFalse(
+                (cluster / "job_ids" / "oprd_bridge_delimiter-run.json").exists()
+            )
+
     def test_resume_submits_only_failed_suffix(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
@@ -293,6 +402,9 @@ class SubmitBridgeTests(unittest.TestCase):
                 "ROOT": str(scratch / "oprd-experiments"),
                 "PYTHON": str(fake_python),
                 "MODULES_INIT": str(modules),
+                "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
+                "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
                 "BRIDGE_RUN_ID": "resume-run",
                 "SUBMIT_MIN_FREE_GIB": "0",
                 "SUBMIT_MIN_FREE_INODES": "0",

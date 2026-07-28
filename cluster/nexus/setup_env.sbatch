@@ -22,7 +22,11 @@ module load cuda/12.8.1 || fail "cannot load cuda/12.8.1"
 SCRATCH_ROOT=${SCRATCH_ROOT:-/cmlscratch/$USER}
 ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
 CLUSTER_DIR=$ROOT/cluster
+NEXUS_DIR=$CLUSTER_DIR/nexus
+OPS=$NEXUS_DIR/oprd_bridge_ops.py
 BRIDGE_HF_HOME=${BRIDGE_HF_HOME:-$SCRATCH_ROOT/hf-cache}
+VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT:-$SCRATCH_ROOT/vllm-cache}
+TRITON_CACHE_DIR=${TRITON_CACHE_DIR:-$SCRATCH_ROOT/triton-cache}
 UV_BOOTSTRAP=${UV_BOOTSTRAP:-$ROOT/.oprd-uv-bootstrap}
 UV=${UV:-$UV_BOOTSTRAP/bin/uv}
 UV_PYTHON_INSTALL_DIR=${UV_PYTHON_INSTALL_DIR:-$ROOT/.oprd-python}
@@ -30,12 +34,17 @@ UV_CACHE_DIR=${UV_CACHE_DIR:-$SCRATCH_ROOT/uv-cache}
 MANAGED_PYTHON_VERSION=3.12.7
 ATTEMPT_TAG=${SLURM_JOB_ID:-$$}.${SLURM_RESTART_COUNT:-0}
 VENV=${VENV:-$ROOT/venv}
+BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:-$VENV/bin:/opt/common/cuda/cuda-12.8.1/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin}
 ENV_READY=$VENV/.oprd-env-ready.json
 
+case "$BRIDGE_HF_HOME/" in "$SCRATCH_ROOT"/*) ;; *) fail "HF cache must be on scratch: $BRIDGE_HF_HOME" ;; esac
+case "$VLLM_CACHE_ROOT/" in "$SCRATCH_ROOT"/*) ;; *) fail "vLLM cache must be on scratch: $VLLM_CACHE_ROOT" ;; esac
+case "$TRITON_CACHE_DIR/" in "$SCRATCH_ROOT"/*) ;; *) fail "Triton cache must be on scratch: $TRITON_CACHE_DIR" ;; esac
+
 cd "$CLUSTER_DIR"
-mkdir -p logs runs "$BRIDGE_HF_HOME" "$UV_PYTHON_INSTALL_DIR" "$UV_CACHE_DIR"
+mkdir -p logs runs "$UV_PYTHON_INSTALL_DIR" "$UV_CACHE_DIR"
 export HF_HOME="$BRIDGE_HF_HOME"
-export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
+export VLLM_CACHE_ROOT TRITON_CACHE_DIR UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 
 # Furong login and compute nodes expose different node-local Python modules.
 # Bootstrap uv once on a compute node, then use its relocatable managed CPython
@@ -103,6 +112,14 @@ actual = pathlib.Path(sys._base_executable).resolve(strict=True)
 assert sys.version_info[:3] == (3, 12, 7), sys.version
 assert actual == expected, (actual, expected)
 PY
+"$VENV/bin/python" "$OPS" check-paths \
+  --scratch "$SCRATCH_ROOT" \
+  --path "$BRIDGE_HF_HOME" \
+  --path "$VLLM_CACHE_ROOT" \
+  --path "$TRITON_CACHE_DIR" >/dev/null
+mkdir -p "$BRIDGE_HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"
+export PATH="$BRIDGE_RUNTIME_PATH"
+"$VENV/bin/python" "$OPS" check-toolchain --scratch "$SCRATCH_ROOT"
 
 # A ready marker authenticates the exact installed package set. Invalidate it
 # before any in-place mutation so preflight cannot accept a partial or failed rerun.
@@ -132,7 +149,6 @@ BUNDLED_FFMPEG=$(
 ) || fail "cannot locate bundled FFmpeg"
 [[ -x $BUNDLED_FFMPEG ]] || fail "bundled FFmpeg is not executable: $BUNDLED_FFMPEG"
 ln -sfn "$BUNDLED_FFMPEG" "$VENV/bin/ffmpeg"
-export PATH="$VENV/bin:$PATH"
 
 FFMPEG_PATH=$(command -v ffmpeg)
 FFMPEG_OUTPUT=$(ffmpeg -version) || fail "ffmpeg -version failed"
@@ -217,4 +233,5 @@ print(json.dumps(payload, sort_keys=True))
 PY
 
 printf '%s\n' "$FFMPEG_VERSION"
-printf 'SETUP_OK marker=%s hf_home=%s\n' "$ENV_READY" "$HF_HOME"
+printf 'SETUP_OK marker=%s hf_home=%s vllm_cache=%s triton_cache=%s\n' \
+  "$ENV_READY" "$HF_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR"

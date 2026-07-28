@@ -1,9 +1,10 @@
 # OPRD Tier 1–2 cluster scripts
 
 **STATUS:** the long-rollout CUDA/vLLM/Slurm path passed the 1.5B positive-control gate.
-The recovered offline all-layer Stage-1 builder now publishes one immutable external artifact,
-but no recovered bridge job has been submitted. Run the smoke ladder below before any paper-scale
-build or Tier-2 seed.
+The recovered offline all-layer Stage-1 builder now publishes one immutable external artifact.
+The first recovered bridge smoke failed before corpus generation because its explicit Slurm export
+omitted the system toolchain path; no artifact was published. The corrected runtime contract requires
+a fresh smoke before any paper-scale build or Tier-2 seed.
 
 Verified:
 - Loss arms end-to-end on Apple MPS (Qwen2.5-0.5B): generation → teacher prefill →
@@ -69,18 +70,30 @@ different node-local Python 3.12 modules, so setup bootstraps `uv==0.9.8` once a
 scratch-managed CPython 3.12.7 shared by setup, preflight, status, resume, and every DAG phase. It
 loads CUDA 12.8.1, installs a bundled FFmpeg executable from `imageio-ffmpeg==0.6.0`, installs
 vLLM before the remaining requirement floors, runs `pip check`, validates CUDA and all required
-imports, and atomically writes
-`venv/.oprd-env-ready.json`. A pre-existing module-backed venv is preserved as a sibling backup
-before migration. Do not submit the bridge DAG until the setup job reaches `COMPLETED`, prints
-`SETUP_OK`, and the marker's `requirements_sha256` matches `cluster/requirements.txt`.
+imports, and atomically writes `venv/.oprd-env-ready.json`. It also requires `gcc` and `ld` and
+compiles a temporary shared object, which catches the native-linker failure that import-only checks
+miss. A pre-existing module-backed venv is preserved as a sibling backup before migration. Do not
+submit the bridge DAG until setup reaches `COMPLETED`, prints `SETUP_OK`, and the marker's
+`requirements_sha256` matches `cluster/requirements.txt`.
 
-The submitter requires `BRIDGE_HF_HOME` under scratch and exports it as the exact `HF_HOME` for
-every bridge job. Models and datasets download at job runtime unless the cache is pre-populated;
-the required repositories are public and ungated. Preflight checks canonical paths, environment
-identity, installed package versions, FFmpeg identity, free blocks, free inodes, and quota
-headroom before acquiring the artifact claim or calling `sbatch`. If the site exposes no parseable
-quota command, preflight fails closed. `ALLOW_QUOTA_UNAVAILABLE=1` is an explicit override for use
-only after a manual block and inode quota check.
+The submitter uses an explicit Slurm export allowlist rather than `--export=ALL`. That allowlist now
+includes one recorded runtime `PATH` containing the shared venv, CUDA, and standard system-tool
+directories, so compute jobs do not depend on login-shell inheritance. Setup, preflight, and every
+DAG phase run the same bounded compiler/linker probe before model work.
+
+Three independent caches must remain under scratch and are exported identically to every phase:
+
+- `BRIDGE_HF_HOME`, exported as `HF_HOME`, for models and datasets;
+- `VLLM_CACHE_ROOT` for vLLM compilation and runtime caches;
+- `TRITON_CACHE_DIR` for Triton kernel artifacts.
+
+Models and datasets download at job runtime unless the cache is pre-populated; the required
+repositories are public and ungated. Preflight checks canonical paths, writable cache roots,
+environment identity, installed package versions, FFmpeg identity, the native toolchain, free
+blocks, free inodes, and quota headroom before acquiring the artifact claim or calling `sbatch`.
+If the site exposes no parseable quota command, preflight fails closed.
+`ALLOW_QUOTA_UNAVAILABLE=1` is an explicit override for use only after a manual block and inode
+quota check.
 
 **Disk:** each task writes ~7-10GB under `runs/<task>/` (two bf16 checkpoints + a transient
 fp32 `tmp_policy/` dump per generation round, deleted after each round). Put the clone (or at
@@ -188,6 +201,11 @@ when the record has no active, unresolved, or pending jobs. The submitter writes
 intent before each `sbatch` call and tags the Slurm job with `oprd:<run-id>:<phase>`. If the shell is
 killed after Slurm accepts a job but before its ID is recorded, locate that exact tagged job and run
 `submit_oprd_bridge.sh --adopt-job RECORD PHASE JOB_ID` before status or resume.
+
+Resume requires the original authenticated source-bundle digest. If a failure requires changing a
+runtime script or operations helper, preserve the failed build and record, explicitly release its
+inactive claim, and submit a fresh smoke with a new run ID. Never bypass the source-digest check to
+reuse an incompatible record.
 
 Do not submit `tier2_bridge_bakeoff.sbatch` for `oprd_bridge` until the external-artifact smoke
 passes and the artifact path, manifest digest, revisions, quota, and cost have been reviewed.
