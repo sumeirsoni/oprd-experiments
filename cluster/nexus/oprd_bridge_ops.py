@@ -754,9 +754,9 @@ def probe_cuda_runtime(
         source = temporary_path / "probe.cu"
         output = temporary_path / "probe.so"
         source.write_text(
-            'extern "C" int cudaRuntimeGetVersion(int *);\n'
-            'extern "C" int (*oprd_cuda_runtime_probe(void))(int *) {\n'
-            "    return &cudaRuntimeGetVersion;\n"
+            "#include <cuda_runtime_api.h>\n"
+            'extern "C" cudaError_t oprd_cuda_runtime_probe(int *version) {\n'
+            "    return cudaRuntimeGetVersion(version);\n"
             "}\n",
             encoding="utf-8",
         )

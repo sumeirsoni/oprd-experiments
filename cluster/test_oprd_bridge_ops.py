@@ -205,6 +205,11 @@ class CudaRuntimeProbeTests(unittest.TestCase):
                     "",
                 )
             if arguments[0] == os.fspath(nvcc):
+                source = pathlib.Path(arguments[1]).read_text(encoding="utf-8")
+                if "#include <cuda_runtime_api.h>" not in source:
+                    raise AssertionError(source)
+                if "cudaError_t oprd_cuda_runtime_probe" not in source:
+                    raise AssertionError(source)
                 output = pathlib.Path(arguments[arguments.index("-o") + 1])
                 output.write_bytes(b"shared object")
                 return subprocess.CompletedProcess(arguments, 0, "", "")
