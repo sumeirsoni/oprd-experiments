@@ -1,9 +1,9 @@
 {
   "archived_files": [
     {
-      "bytes": 1544,
+      "bytes": 1666,
       "path": "README.md",
-      "sha256": "67280c983dbcf94c2eb642213dc0b76074227616e91a8d497940328ea4d9a5f2"
+      "sha256": "caca8de62015f9e4d291005f7a5cd170e5bfbc8b0966f6efbdf6d20b2b130741"
     },
     {
       "bytes": 8798,
@@ -2051,9 +2051,9 @@
       "sha256": "410eef27621da99b41c4ae2c53925785a5cc2b074f7dae65904aa9105df2cf7a"
     },
     {
-      "bytes": 684,
+      "bytes": 913,
       "path": "verification.json",
-      "sha256": "45347314ceee2be0528962569976348a8f305d883db601a9f4d035fc873c811b"
+      "sha256": "2e40782e5d00f24b887f3b8c70911e3c8490dcb075b56c739de2085605b8b04d"
     }
   ],
   "checkpoints": [

@@ -22,5 +22,13 @@
     "all_rows_match_published_rounding": true,
     "tier2_answered_and_truncation_rates_use_aime24": true
   },
-  "deletion_performed": false
+  "deletion": {
+    "performed": true,
+    "performed_at_utc": "2026-07-29",
+    "files_deleted": 30,
+    "bytes_deleted": 105768125334,
+    "remaining_checkpoint_files": 0,
+    "post_cleanup_free_bytes": 157328343040,
+    "post_cleanup_used_percent": 27
+  }
 }

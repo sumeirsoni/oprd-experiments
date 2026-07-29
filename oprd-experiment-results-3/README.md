@@ -16,4 +16,4 @@ The large `.pt` and `.safetensors` files are deliberately not copied into Git. T
 
 Run `python3 build_manifest.py --check` from this directory to recompute all archived hashes and verify that the raw results reproduce the published tables within their documented rounding.
 
-Deleting the scratch checkpoints after this archive is reviewed gives up exact weight-level reevaluation. It does not remove the raw reported metrics, configurations, logs, historical scripts, or recorded checkpoint identities. Deletion still requires separate explicit approval.
+After separate explicit approval, the 30 hash-verified checkpoint and learned-map files were deleted from scratch on 2026-07-29. This reclaimed 105,768,125,334 bytes and left all run directories, raw reported metrics, configurations, logs, historical scripts, and recorded checkpoint identities intact. Exact weight-level reevaluation of those historical runs is no longer possible from Nexus scratch.
