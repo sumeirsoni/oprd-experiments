@@ -1,0 +1,12 @@
+=== untrained baseline -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline (max-tokens=24000) ===
+[01:59:37] harness: loss=soft_knn_kl device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights:  22%|██▏       | 86/398 [00:00<00:00, 843.00it/s]Loading weights:  43%|████▎     | 171/398 [00:00<00:00, 725.42it/s]Loading weights:  62%|██████▏   | 245/398 [00:00<00:00, 678.97it/s]Loading weights:  79%|███████▉  | 314/398 [00:00<00:00, 649.10it/s]Loading weights:  96%|█████████▌| 383/398 [00:00<00:00, 648.90it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 688.57it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:   0%|          | 1/310 [00:03<16:02,  3.12s/it]Loading weights:  67%|██████▋   | 209/310 [00:03<00:01, 91.30it/s]Loading weights: 100%|██████████| 310/310 [00:04<00:00, 69.33it/s]
+[02:00:12] supervised layers student=[7, 14] teacher=[9, 18]
+[02:01:49] refresh @step 0: generating 8 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.42s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.42s/it]
+[02:02:07] vllm worker: 8 prompts
+srun: Job step aborted: Waiting up to 302 seconds for job step to finish.
+[2026-07-16T02:02:50.571] error: *** JOB 7101422 ON cml36 CANCELLED AT 2026-07-16T02:02:50 DUE to SIGNAL Terminated ***
+[2026-07-16T02:02:50.572] error: *** STEP 7101422.0 ON cml36 CANCELLED AT 2026-07-16T02:02:50 DUE to SIGNAL Terminated ***

@@ -1,0 +1,17 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s0 arm=oprd_bridge seed=0 max-tokens=24000 ===
+[02:19:27] harness: loss=oprd_bridge device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12643.40it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:   0%|          | 1/310 [00:00<00:54,  5.65it/s]Loading weights:  36%|███▌      | 112/310 [00:00<00:00, 495.34it/s]Loading weights:  57%|█████▋    | 177/310 [00:00<00:00, 511.37it/s]Loading weights:  76%|███████▋  | 237/310 [00:00<00:00, 523.75it/s]Loading weights:  95%|█████████▌| 295/310 [00:00<00:00, 537.99it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 491.64it/s]
+[02:19:33] supervised layers student=[7, 14] teacher=[9, 18]
+[02:19:39] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s0/ckpt_final.pt
+[02:19:40] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:40<00:00, 40.96s/it]Writing model shards: 100%|██████████| 1/1 [00:40<00:00, 40.96s/it]
+[02:20:27] vllm worker: 480 prompts
+[03:19:56] eval aime24: acc=0.0000 answered=0.021 truncated=0.717
+[03:19:57] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.87s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.87s/it]
+[03:20:15] vllm worker: 480 prompts
+[04:15:59] eval aime25: acc=0.0000 answered=0.006 truncated=0.679
+[04:15:59] DONE -> runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s0/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s0

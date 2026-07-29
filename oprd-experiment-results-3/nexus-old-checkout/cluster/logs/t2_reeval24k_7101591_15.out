@@ -1,0 +1,23 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_ln_dist_s2 arm=ln_dist seed=2 max-tokens=24000 ===
+[04:37:35] harness: loss=ln_dist device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12956.23it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  46%|████▋     | 144/310 [00:00<00:00, 1418.66it/s]Loading weights:  92%|█████████▏| 286/310 [00:00<00:00, 1345.44it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1361.14it/s]
+[04:39:50] supervised layers student=[7, 14] teacher=[9, 18]
+[04:39:54] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_ln_dist_s2/ckpt_final.pt
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 1s [Retry 1/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 2s [Retry 2/5].
+Using the latest cached version of the dataset since Maxwell-Jia/AIME_2024 couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'default' at /cmlscratch/ssoni11/hf-cache/datasets/Maxwell-Jia___aime_2024/default/0.0.0/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792 (last modified on Tue Jul 14 01:03:37 2026).
+[04:41:50] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.55s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.55s/it]
+[04:42:10] vllm worker: 480 prompts
+[05:20:03] eval aime24: acc=0.0021 answered=0.475 truncated=0.408
+[05:20:04] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.07s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.07s/it]
+[05:20:23] vllm worker: 480 prompts
+[05:59:59] eval aime25: acc=0.0000 answered=0.446 truncated=0.429
+[05:59:59] DONE -> runs/t2_qwen3_4b_to_1p7b_ln_dist_s2/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_ln_dist_s2

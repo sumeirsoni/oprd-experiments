@@ -1,0 +1,40 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s2 arm=oprd_bridge seed=2 max-tokens=24000 ===
+[03:58:00] harness: loss=oprd_bridge device=cuda
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12672.29it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  42%|████▏     | 130/310 [00:00<00:00, 1299.25it/s]Loading weights:  84%|████████▍ | 260/310 [00:00<00:00, 1261.63it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1283.94it/s]
+[04:02:26] supervised layers student=[7, 14] teacher=[9, 18]
+[04:02:29] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s2/ckpt_final.pt
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 1s [Retry 1/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 2s [Retry 2/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 4s [Retry 3/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 8s [Retry 4/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 8s [Retry 5/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Using the latest cached version of the dataset since Maxwell-Jia/AIME_2024 couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'default' at /cmlscratch/ssoni11/hf-cache/datasets/Maxwell-Jia___aime_2024/default/0.0.0/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792 (last modified on Tue Jul 14 01:03:37 2026).
+[04:06:24] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.79s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.79s/it]
+[04:06:44] vllm worker: 480 prompts
+[04:33:19] eval aime24: acc=0.0000 answered=0.140 truncated=0.250
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 1s [Retry 1/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 2s [Retry 2/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 4s [Retry 3/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 8s [Retry 4/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 8s [Retry 5/5].
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[04:36:33] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.27s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.27s/it]
+[04:36:50] vllm worker: 480 prompts
+[05:06:14] eval aime25: acc=0.0000 answered=0.106 truncated=0.296
+[05:06:14] DONE -> runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s2/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_oprd_bridge_s2

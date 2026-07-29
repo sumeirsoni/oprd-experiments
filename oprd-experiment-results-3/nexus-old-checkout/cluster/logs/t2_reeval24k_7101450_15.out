@@ -1,0 +1,10 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_ln_dist_s2 arm=ln_dist seed=2 max-tokens=24000 ===
+[02:11:07] harness: loss=ln_dist device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12864.58it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  19%|█▉        | 59/310 [00:00<00:00, 563.99it/s]Loading weights:  43%|████▎     | 132/310 [00:00<00:00, 650.52it/s]Loading weights:  64%|██████▍   | 199/310 [00:00<00:00, 657.84it/s]Loading weights:  85%|████████▌ | 265/310 [00:00<00:00, 655.00it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 654.34it/s]
+[02:11:14] supervised layers student=[7, 14] teacher=[9, 18]
+[02:11:26] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_ln_dist_s2/ckpt_final.pt
+[02:11:28] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:28<00:00, 29.00s/it]Writing model shards: 100%|██████████| 1/1 [00:28<00:00, 29.00s/it]
+[02:12:01] vllm worker: 480 prompts

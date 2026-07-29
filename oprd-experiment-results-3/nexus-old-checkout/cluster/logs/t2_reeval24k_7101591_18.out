@@ -1,0 +1,25 @@
+=== untrained baseline -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline (max-tokens=24000) ===
+[04:51:19] harness: loss=soft_knn_kl device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 13204.76it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  36%|███▋      | 113/310 [00:00<00:00, 1115.45it/s]Loading weights:  78%|███████▊  | 242/310 [00:00<00:00, 1196.81it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1222.84it/s]
+[04:51:24] supervised layers student=[7, 14] teacher=[9, 18]
+[04:52:56] refresh @step 0: generating 8 rollouts
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.95s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.95s/it]
+[04:53:18] vllm worker: 8 prompts
+[04:54:55] DONE -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline/results.json
+[04:55:35] harness: loss=soft_knn_kl device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12765.71it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  41%|████      | 126/310 [00:00<00:00, 1204.23it/s]Loading weights:  84%|████████▍ | 261/310 [00:00<00:00, 1271.53it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1316.44it/s]
+[04:55:41] supervised layers student=[7, 14] teacher=[9, 18]
+[04:55:48] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_untrained_baseline/ckpt_final.pt
+[04:55:49] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.76s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.76s/it]
+[04:56:10] vllm worker: 480 prompts
+[05:12:01] eval aime24: acc=0.0312 answered=0.756 truncated=0.190
+[05:12:02] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.92s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.92s/it]
+[05:12:19] vllm worker: 480 prompts
+[05:23:51] eval aime25: acc=0.0250 answered=0.810 truncated=0.127
+[05:23:51] DONE -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline/results.json

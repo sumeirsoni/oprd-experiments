@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-07-29",
+  "source_root": "/cmlscratch/ssoni11/oprd-experiments",
+  "non_checkpoint_snapshot": {
+    "remote_files": 404,
+    "local_files": 404,
+    "missing_files": 0,
+    "extra_files": 0,
+    "content_mismatches": 0,
+    "status": "exact_match"
+  },
+  "checkpoint_inventory": {
+    "files": 30,
+    "bytes": 105768125334,
+    "contents_archived": false,
+    "sha256_and_size_recorded": true
+  },
+  "published_results": {
+    "tier2_primary_24k_rows": 7,
+    "positive_control_rows": 7,
+    "all_rows_match_published_rounding": true,
+    "tier2_answered_and_truncation_rates_use_aime24": true
+  },
+  "deletion_performed": false
+}

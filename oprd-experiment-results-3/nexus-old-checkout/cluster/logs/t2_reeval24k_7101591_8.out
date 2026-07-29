@@ -1,0 +1,17 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1 arm=minilmv2_selfrel seed=1 max-tokens=24000 ===
+[03:07:05] harness: loss=minilmv2_selfrel device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12853.68it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  47%|████▋     | 146/310 [00:00<00:00, 1459.57it/s]Loading weights:  94%|█████████▍| 292/310 [00:00<00:00, 1360.51it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1399.29it/s]
+[03:07:11] supervised layers student=[7, 14] teacher=[9, 18]
+[03:07:15] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/ckpt_final.pt
+[03:07:17] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.73s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.73s/it]
+[03:07:37] vllm worker: 480 prompts
+[03:33:41] eval aime24: acc=0.0271 answered=0.623 truncated=0.315
+[03:33:41] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.41s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.41s/it]
+[03:34:01] vllm worker: 480 prompts
+[03:57:24] eval aime25: acc=0.0042 answered=0.648 truncated=0.290
+[03:57:24] DONE -> runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1

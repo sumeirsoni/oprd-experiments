@@ -1,0 +1,17 @@
+=== eval-only runs/pc_justRL_to_r1_1p5b_opd_topk_s1 arm=opd_topk seed=1 max-tokens=24000 ===
+[14:32:50] harness: loss=opd_topk device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 13629.62it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  41%|████      | 138/339 [00:00<00:00, 1330.45it/s]Loading weights:  88%|████████▊ | 298/339 [00:00<00:00, 1451.13it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 1495.67it/s]
+[14:32:56] supervised layers student=[7, 14] teacher=[7, 14]
+[14:33:03] eval-only: loaded runs/pc_justRL_to_r1_1p5b_opd_topk_s1/ckpt_final.pt
+[14:33:05] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.51s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.51s/it]
+[14:33:24] vllm worker: 480 prompts
+[14:40:10] eval aime24: acc=0.5083 answered=0.938 truncated=0.062
+[14:40:10] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.99s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.99s/it]
+[14:40:30] vllm worker: 480 prompts
+[14:47:39] eval aime25: acc=0.3396 answered=0.915 truncated=0.085
+[14:47:39] DONE -> runs/pc_justRL_to_r1_1p5b_opd_topk_s1/results.json
+PC_EVAL_OK runs/pc_justRL_to_r1_1p5b_opd_topk_s1

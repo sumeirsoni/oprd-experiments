@@ -1,0 +1,30 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1 arm=soft_knn_kl seed=1 max-tokens=24000 ===
+[03:19:02] harness: loss=soft_knn_kl device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12928.04it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  44%|████▍     | 136/310 [00:00<00:00, 1352.95it/s]Loading weights:  88%|████████▊ | 272/310 [00:00<00:00, 1353.62it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1361.16it/s]
+[03:19:08] supervised layers student=[7, 14] teacher=[9, 18]
+[03:19:12] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1/ckpt_final.pt
+[03:19:14] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.96s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.96s/it]
+[03:19:34] vllm worker: 480 prompts
+[03:56:37] eval aime24: acc=0.0042 answered=0.237 truncated=0.477
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 1s [Retry 1/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 2s [Retry 2/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 4s [Retry 3/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 8s [Retry 4/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Retrying in 8s [Retry 5/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/MathArena/aime_2025/resolve/c94da77eb22bbd6439e62a323bec18493a421302/aime_2025.py
+Using the latest cached version of the dataset since MathArena/aime_2025 couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'default' at /cmlscratch/ssoni11/hf-cache/datasets/MathArena___aime_2025/default/0.0.0/c94da77eb22bbd6439e62a323bec18493a421302 (last modified on Wed Jul 15 02:23:30 2026).
+[04:00:30] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.34s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.34s/it]
+[04:00:48] vllm worker: 480 prompts
+[04:37:25] eval aime25: acc=0.0000 answered=0.225 truncated=0.446
+[04:37:25] DONE -> runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1

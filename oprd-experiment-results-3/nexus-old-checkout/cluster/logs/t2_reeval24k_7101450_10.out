@@ -1,0 +1,73 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1 arm=soft_knn_kl seed=1 max-tokens=24000 ===
+[02:07:16] harness: loss=soft_knn_kl device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12975.97it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:   0%|          | 1/310 [00:00<00:41,  7.45it/s]Loading weights:  33%|███▎      | 102/310 [00:00<00:00, 502.61it/s]Loading weights:  51%|█████     | 158/310 [00:00<00:00, 519.15it/s]Loading weights:  69%|██████▊   | 213/310 [00:00<00:00, 517.89it/s]Loading weights:  97%|█████████▋| 302/310 [00:00<00:00, 637.40it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 555.30it/s]
+[02:07:23] supervised layers student=[7, 14] teacher=[9, 18]
+[02:07:42] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_soft_knn_kl_s1/ckpt_final.pt
+[02:07:44] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:37<00:00, 37.78s/it]Writing model shards: 100%|██████████| 1/1 [00:37<00:00, 37.78s/it]
+[02:08:28] vllm worker: 480 prompts
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 606, in <module>
+    main()
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 597, in main
+    res["eval"] = eval_aime(gen, tok, eval_names, a.eval_avg_at, a.seed, out, a.max_tokens)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 394, in eval_aime
+    rolls = gen(prompts, seeds)
+            ^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 213, in gen
+    raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+RuntimeError: vllm worker failed:
+d=3636667)            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/sampling.py", line 68, in get_sampling_module
+(EngineCore pid=3636667)     module = gen_sampling_module().build_and_load()
+(EngineCore pid=3636667)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 316, in build_and_load
+(EngineCore pid=3636667)     self.build(verbose, need_lock=False)
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 301, in build
+(EngineCore pid=3636667)     self.write_ninja()
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/core.py", line 274, in write_ninja
+(EngineCore pid=3636667)     content = generate_ninja_build_for_op(
+(EngineCore pid=3636667)               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/cpp_ext.py", line 247, in generate_ninja_build_for_op
+(EngineCore pid=3636667)     cuda_home = get_cuda_path()
+(EngineCore pid=3636667)                 ^^^^^^^^^^^^^^^
+(EngineCore pid=3636667)   File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/flashinfer/jit/cpp_ext.py", line 61, in get_cuda_path
+(EngineCore pid=3636667)     raise RuntimeError(
+(EngineCore pid=3636667) RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 604, in <module>
+    _worker_main(sys.argv[2])
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 166, in _worker_main
+    llm = LLM(model=spec["model_dir"], dtype="bfloat16",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/entrypoints/llm.py", line 349, in __init__
+    self.llm_engine = LLMEngine.from_engine_args(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/llm_engine.py", line 179, in from_engine_args
+    return cls(
+           ^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/llm_engine.py", line 105, in __init__
+    self.engine_core = EngineCoreClient.make_client(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 103, in make_client
+    return SyncMPClient(vllm_config, executor_class, log_stats)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/tracing/otel.py", line 178, in sync_wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 786, in __init__
+    super().__init__(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 573, in __init__
+    with launch_core_engines(
+  File "/opt/local/stow/Python3-3.12.3/lib/python3.12/contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/utils.py", line 1213, in launch_core_engines
+    wait_for_engine_startup(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/utils.py", line 1272, in wait_for_engine_startup
+    raise RuntimeError(
+RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+
+srun: error: cml36: task 0: Exited with exit code 1

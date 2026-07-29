@@ -1,0 +1,383 @@
+=== train runs/pc_justRL_to_r1_1p5b_opd_topk_s0 arm=opd_topk seed=0 rollout=16000 last_k=2000 require-finished ===
+[00:30:01] harness: loss=opd_topk device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  10%|▉         | 33/339 [00:00<00:01, 282.47it/s]Loading weights:  18%|█▊        | 62/339 [00:00<00:01, 145.81it/s]Loading weights:  24%|██▎       | 80/339 [00:00<00:01, 139.11it/s]Loading weights:  28%|██▊       | 96/339 [00:00<00:01, 140.92it/s]Loading weights:  33%|███▎      | 112/339 [00:00<00:01, 124.61it/s]Loading weights:  39%|███▉      | 132/339 [00:00<00:01, 135.20it/s]Loading weights:  45%|████▍     | 151/339 [00:01<00:01, 134.35it/s]Loading weights:  49%|████▊     | 165/339 [00:01<00:01, 123.54it/s]Loading weights:  53%|█████▎    | 178/339 [00:01<00:01, 122.44it/s]Loading weights:  57%|█████▋    | 192/339 [00:01<00:01, 121.34it/s]Loading weights:  61%|██████▏   | 208/339 [00:01<00:01, 126.22it/s]Loading weights:  67%|██████▋   | 227/339 [00:01<00:00, 132.72it/s]Loading weights:  73%|███████▎  | 249/339 [00:01<00:00, 151.64it/s]Loading weights:  78%|███████▊  | 265/339 [00:01<00:00, 131.00it/s]Loading weights:  82%|████████▏ | 279/339 [00:02<00:00, 121.88it/s]Loading weights:  89%|████████▉ | 301/339 [00:02<00:00, 141.47it/s]Loading weights:  93%|█████████▎| 316/339 [00:02<00:00, 133.52it/s]Loading weights:  97%|█████████▋| 330/339 [00:02<00:00, 118.54it/s]Loading weights: 100%|██████████| 339/339 [00:02<00:00, 134.34it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:01<08:06,  1.44s/it]Loading weights:  26%|██▌       | 88/339 [00:01<00:03, 77.32it/s]Loading weights:  38%|███▊      | 129/339 [00:01<00:02, 94.11it/s]Loading weights:  47%|████▋     | 158/339 [00:02<00:01, 108.80it/s]Loading weights:  54%|█████▍    | 183/339 [00:02<00:01, 115.59it/s]Loading weights:  60%|██████    | 204/339 [00:02<00:01, 111.45it/s]Loading weights:  65%|██████▌   | 221/339 [00:02<00:01, 108.20it/s]Loading weights:  72%|███████▏  | 244/339 [00:02<00:00, 121.72it/s]Loading weights:  77%|███████▋  | 260/339 [00:02<00:00, 123.56it/s]Loading weights:  83%|████████▎ | 280/339 [00:03<00:00, 121.36it/s]Loading weights:  90%|████████▉ | 304/339 [00:03<00:00, 138.16it/s]Loading weights:  94%|█████████▍| 320/339 [00:03<00:00, 134.47it/s]Loading weights: 100%|██████████| 339/339 [00:03<00:00, 102.62it/s]
+[00:30:29] supervised layers student=[7, 14] teacher=[7, 14]
+[00:32:17] refresh @step 0: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.99s/it]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.99s/it]
+[00:32:40] vllm worker: 64 prompts
+[00:35:50] refresh @step 0: 46/64 rollouts finished naturally
+[00:35:52]   teacher prefill 25/46
+[00:36:42] step 1/2000 loss=2.09101 lr=2.00e-06
+[00:41:06] step 10/2000 loss=0.59649 lr=1.00e-05
+[00:46:23] step 20/2000 loss=0.61619 lr=1.00e-05
+[00:51:42] step 30/2000 loss=0.57707 lr=9.99e-06
+[00:57:01] step 40/2000 loss=0.60770 lr=9.99e-06
+[01:02:20] step 50/2000 loss=0.61875 lr=9.98e-06
+[01:07:33] step 60/2000 loss=0.64161 lr=9.98e-06
+[01:12:45] step 70/2000 loss=0.62169 lr=9.97e-06
+[01:18:05] step 80/2000 loss=0.55801 lr=9.96e-06
+[01:23:19] step 90/2000 loss=0.58406 lr=9.95e-06
+[01:28:34] step 100/2000 loss=0.48875 lr=9.94e-06
+[01:28:42] refresh @step 100: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.48s/it]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.48s/it]
+[01:29:10] vllm worker: 64 prompts
+[01:31:16] refresh @step 100: 54/64 rollouts finished naturally
+[01:31:17]   teacher prefill 25/54
+[01:31:19]   teacher prefill 50/54
+[01:34:42] step 110/2000 loss=0.50395 lr=9.93e-06
+[01:37:56] step 120/2000 loss=0.63627 lr=9.91e-06
+[01:41:21] step 130/2000 loss=0.52377 lr=9.90e-06
+[01:44:44] step 140/2000 loss=0.48750 lr=9.88e-06
+[01:47:58] step 150/2000 loss=0.61812 lr=9.86e-06
+[01:51:23] step 160/2000 loss=0.51742 lr=9.84e-06
+[01:54:46] step 170/2000 loss=0.48534 lr=9.82e-06
+[01:58:00] step 180/2000 loss=0.61634 lr=9.80e-06
+[02:01:25] step 190/2000 loss=0.51798 lr=9.78e-06
+[02:04:48] step 200/2000 loss=0.48500 lr=9.76e-06
+[02:04:55] refresh @step 200: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.05s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.05s/it]
+[02:05:15] vllm worker: 64 prompts
+[02:07:20] refresh @step 200: 51/64 rollouts finished naturally
+[02:07:21]   teacher prefill 25/51
+[02:07:23]   teacher prefill 50/51
+[02:10:56] step 210/2000 loss=0.70815 lr=9.73e-06
+[02:14:38] step 220/2000 loss=0.59339 lr=9.70e-06
+[02:18:15] step 230/2000 loss=0.60120 lr=9.68e-06
+[02:22:00] step 240/2000 loss=0.53175 lr=9.65e-06
+[02:25:31] step 250/2000 loss=0.62242 lr=9.62e-06
+[02:29:09] step 260/2000 loss=0.62612 lr=9.59e-06
+[02:32:48] step 270/2000 loss=0.59648 lr=9.56e-06
+[02:36:33] step 280/2000 loss=0.52838 lr=9.52e-06
+[02:40:09] step 290/2000 loss=0.51197 lr=9.49e-06
+[02:43:44] step 300/2000 loss=0.59537 lr=9.46e-06
+[02:43:51] refresh @step 300: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.01s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.01s/it]
+[02:44:11] vllm worker: 64 prompts
+[02:45:43] refresh @step 300: 62/64 rollouts finished naturally
+[02:45:44]   teacher prefill 25/62
+[02:45:46]   teacher prefill 50/62
+[02:49:11] step 310/2000 loss=0.54265 lr=9.42e-06
+[02:52:32] step 320/2000 loss=0.52646 lr=9.38e-06
+[02:55:54] step 330/2000 loss=0.50395 lr=9.34e-06
+[02:59:16] step 340/2000 loss=0.55836 lr=9.30e-06
+[03:02:35] step 350/2000 loss=0.63155 lr=9.26e-06
+[03:06:00] step 360/2000 loss=0.62313 lr=9.22e-06
+[03:09:19] step 370/2000 loss=0.61528 lr=9.18e-06
+[03:12:45] step 380/2000 loss=0.65991 lr=9.14e-06
+[03:16:08] step 390/2000 loss=0.55001 lr=9.09e-06
+[03:19:31] step 400/2000 loss=0.61257 lr=9.05e-06
+[03:19:38] refresh @step 400: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.21s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.21s/it]
+[03:19:58] vllm worker: 64 prompts
+[03:21:36] refresh @step 400: 61/64 rollouts finished naturally
+[03:21:37]   teacher prefill 25/61
+[03:21:39]   teacher prefill 50/61
+[03:24:43] step 410/2000 loss=0.54831 lr=9.00e-06
+[03:27:49] step 420/2000 loss=0.60761 lr=8.95e-06
+[03:30:49] step 430/2000 loss=0.57158 lr=8.90e-06
+[03:33:59] step 440/2000 loss=0.57298 lr=8.85e-06
+[03:36:57] step 450/2000 loss=0.62909 lr=8.80e-06
+[03:40:08] step 460/2000 loss=0.52712 lr=8.75e-06
+[03:43:08] step 470/2000 loss=0.64000 lr=8.70e-06
+[03:46:15] step 480/2000 loss=0.53561 lr=8.64e-06
+[03:49:18] step 490/2000 loss=0.64731 lr=8.59e-06
+[03:52:23] step 500/2000 loss=0.55484 lr=8.54e-06
+[03:52:31] refresh @step 500: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.72s/it]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.72s/it]
+[03:52:57] vllm worker: 64 prompts
+[03:54:36] refresh @step 500: 56/64 rollouts finished naturally
+[03:54:37]   teacher prefill 25/56
+[03:54:39]   teacher prefill 50/56
+[03:58:26] step 510/2000 loss=0.48072 lr=8.48e-06
+[04:02:12] step 520/2000 loss=0.66223 lr=8.42e-06
+[04:06:03] step 530/2000 loss=0.56870 lr=8.37e-06
+[04:09:53] step 540/2000 loss=0.50610 lr=8.31e-06
+[04:13:46] step 550/2000 loss=0.57968 lr=8.25e-06
+[04:17:34] step 560/2000 loss=0.47202 lr=8.19e-06
+[04:21:17] step 570/2000 loss=0.61248 lr=8.13e-06
+[04:25:13] step 580/2000 loss=0.53790 lr=8.06e-06
+[04:28:59] step 590/2000 loss=0.48173 lr=8.00e-06
+[04:32:51] step 600/2000 loss=0.55756 lr=7.94e-06
+[04:32:59] refresh @step 600: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.92s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.92s/it]
+[04:33:21] vllm worker: 64 prompts
+[04:35:02] refresh @step 600: 57/64 rollouts finished naturally
+[04:35:03]   teacher prefill 25/57
+[04:35:05]   teacher prefill 50/57
+[04:38:27] step 610/2000 loss=0.60398 lr=7.88e-06
+[04:41:51] step 620/2000 loss=0.46644 lr=7.81e-06
+[04:45:11] step 630/2000 loss=0.55915 lr=7.75e-06
+[04:48:33] step 640/2000 loss=0.49462 lr=7.68e-06
+[04:51:53] step 650/2000 loss=0.54973 lr=7.61e-06
+[04:55:12] step 660/2000 loss=0.52413 lr=7.55e-06
+[04:58:37] step 670/2000 loss=0.51845 lr=7.48e-06
+[05:01:56] step 680/2000 loss=0.59945 lr=7.41e-06
+[05:05:19] step 690/2000 loss=0.49065 lr=7.34e-06
+[05:08:42] step 700/2000 loss=0.48761 lr=7.27e-06
+[05:08:52] refresh @step 700: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.74s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.74s/it]
+[05:09:15] vllm worker: 64 prompts
+[05:10:57] refresh @step 700: 57/64 rollouts finished naturally
+[05:10:58]   teacher prefill 25/57
+[05:10:59]   teacher prefill 50/57
+[05:14:16] step 710/2000 loss=0.49447 lr=7.20e-06
+[05:17:41] step 720/2000 loss=0.58089 lr=7.13e-06
+[05:21:00] step 730/2000 loss=0.53720 lr=7.06e-06
+[05:24:27] step 740/2000 loss=0.57842 lr=6.99e-06
+[05:27:44] step 750/2000 loss=0.48525 lr=6.91e-06
+[05:31:06] step 760/2000 loss=0.54626 lr=6.84e-06
+[05:34:32] step 770/2000 loss=0.41426 lr=6.77e-06
+[05:37:49] step 780/2000 loss=0.51473 lr=6.69e-06
+[05:41:16] step 790/2000 loss=0.59543 lr=6.62e-06
+[05:44:32] step 800/2000 loss=0.51703 lr=6.55e-06
+[05:44:48] refresh @step 800: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.54s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.54s/it]
+[05:45:13] vllm worker: 64 prompts
+[05:47:07] refresh @step 800: 59/64 rollouts finished naturally
+[05:47:09]   teacher prefill 25/59
+[05:47:10]   teacher prefill 50/59
+[05:50:26] step 810/2000 loss=0.56718 lr=6.47e-06
+[05:53:50] step 820/2000 loss=0.59060 lr=6.39e-06
+[05:57:06] step 830/2000 loss=0.57972 lr=6.32e-06
+[06:00:30] step 840/2000 loss=0.54950 lr=6.24e-06
+[06:03:44] step 850/2000 loss=0.65180 lr=6.17e-06
+[06:07:05] step 860/2000 loss=0.50725 lr=6.09e-06
+[06:10:23] step 870/2000 loss=0.60694 lr=6.01e-06
+[06:13:40] step 880/2000 loss=0.57720 lr=5.94e-06
+[06:16:59] step 890/2000 loss=0.59875 lr=5.86e-06
+[06:20:19] step 900/2000 loss=0.60759 lr=5.78e-06
+[06:20:26] refresh @step 900: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.68s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.68s/it]
+[06:20:49] vllm worker: 64 prompts
+[06:22:28] refresh @step 900: 58/64 rollouts finished naturally
+[06:22:29]   teacher prefill 25/58
+[06:22:31]   teacher prefill 50/58
+[06:25:34] step 910/2000 loss=0.58020 lr=5.70e-06
+[06:28:38] step 920/2000 loss=0.52057 lr=5.63e-06
+[06:31:39] step 930/2000 loss=0.52269 lr=5.55e-06
+[06:34:42] step 940/2000 loss=0.58823 lr=5.47e-06
+[06:37:44] step 950/2000 loss=0.61956 lr=5.39e-06
+[06:40:45] step 960/2000 loss=0.57770 lr=5.31e-06
+[06:43:47] step 970/2000 loss=0.62625 lr=5.24e-06
+[06:46:47] step 980/2000 loss=0.56701 lr=5.16e-06
+[06:49:52] step 990/2000 loss=0.58598 lr=5.08e-06
+[06:52:52] step 1000/2000 loss=0.57024 lr=5.00e-06
+[06:53:00] refresh @step 1000: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.25s/it]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.25s/it]
+[06:53:25] vllm worker: 64 prompts
+[06:55:06] refresh @step 1000: 58/64 rollouts finished naturally
+[06:55:07]   teacher prefill 25/58
+[06:55:09]   teacher prefill 50/58
+[06:58:38] step 1010/2000 loss=0.55325 lr=4.92e-06
+[07:02:06] step 1020/2000 loss=0.48623 lr=4.84e-06
+[07:05:32] step 1030/2000 loss=0.53911 lr=4.76e-06
+[07:08:58] step 1040/2000 loss=0.62065 lr=4.69e-06
+[07:12:28] step 1050/2000 loss=0.50722 lr=4.61e-06
+[07:16:01] step 1060/2000 loss=0.53032 lr=4.53e-06
+[07:19:23] step 1070/2000 loss=0.49926 lr=4.45e-06
+[07:22:56] step 1080/2000 loss=0.54242 lr=4.37e-06
+[07:26:17] step 1090/2000 loss=0.61413 lr=4.30e-06
+[07:29:45] step 1100/2000 loss=0.59649 lr=4.22e-06
+[07:29:52] refresh @step 1100: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.97s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.97s/it]
+[07:30:13] vllm worker: 64 prompts
+[07:31:52] refresh @step 1100: 60/64 rollouts finished naturally
+[07:31:54]   teacher prefill 25/60
+[07:31:55]   teacher prefill 50/60
+[07:35:30] step 1110/2000 loss=0.62638 lr=4.14e-06
+[07:39:09] step 1120/2000 loss=1.01700 lr=4.06e-06
+[07:42:43] step 1130/2000 loss=0.62368 lr=3.99e-06
+[07:46:22] step 1140/2000 loss=0.76883 lr=3.91e-06
+[07:49:57] step 1150/2000 loss=0.62289 lr=3.83e-06
+[07:53:35] step 1160/2000 loss=0.75967 lr=3.76e-06
+[07:57:10] step 1170/2000 loss=0.62248 lr=3.68e-06
+[08:00:48] step 1180/2000 loss=0.74022 lr=3.61e-06
+[08:04:23] step 1190/2000 loss=0.62224 lr=3.53e-06
+[08:08:02] step 1200/2000 loss=0.73632 lr=3.45e-06
+[08:08:12] refresh @step 1200: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.40s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.40s/it]
+[08:08:32] vllm worker: 64 prompts
+[08:10:09] refresh @step 1200: 61/64 rollouts finished naturally
+[08:10:10]   teacher prefill 25/61
+[08:10:11]   teacher prefill 50/61
+[08:13:22] step 1210/2000 loss=0.59944 lr=3.38e-06
+[08:16:25] step 1220/2000 loss=0.55792 lr=3.31e-06
+[08:19:39] step 1230/2000 loss=0.56348 lr=3.23e-06
+[08:22:44] step 1240/2000 loss=0.51583 lr=3.16e-06
+[08:25:53] step 1250/2000 loss=0.53895 lr=3.09e-06
+[08:28:59] step 1260/2000 loss=0.51414 lr=3.01e-06
+[08:32:11] step 1270/2000 loss=0.52745 lr=2.94e-06
+[08:35:10] step 1280/2000 loss=0.55201 lr=2.87e-06
+[08:38:24] step 1290/2000 loss=0.59014 lr=2.80e-06
+[08:41:27] step 1300/2000 loss=0.57153 lr=2.73e-06
+[08:41:37] refresh @step 1300: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.99s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.99s/it]
+[08:41:58] vllm worker: 64 prompts
+[08:43:40] refresh @step 1300: 59/64 rollouts finished naturally
+[08:43:41]   teacher prefill 25/59
+[08:43:43]   teacher prefill 50/59
+[08:47:22] step 1310/2000 loss=0.47587 lr=2.66e-06
+[08:50:59] step 1320/2000 loss=0.52170 lr=2.59e-06
+[08:54:32] step 1330/2000 loss=0.46793 lr=2.52e-06
+[08:58:10] step 1340/2000 loss=0.50602 lr=2.45e-06
+[09:01:45] step 1350/2000 loss=0.51404 lr=2.39e-06
+[09:05:24] step 1360/2000 loss=0.47136 lr=2.32e-06
+[09:08:56] step 1370/2000 loss=0.53913 lr=2.25e-06
+[09:12:39] step 1380/2000 loss=0.51610 lr=2.19e-06
+[09:16:11] step 1390/2000 loss=0.49187 lr=2.12e-06
+[09:19:51] step 1400/2000 loss=0.52441 lr=2.06e-06
+[09:20:07] refresh @step 1400: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.33s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.33s/it]
+[09:20:29] vllm worker: 64 prompts
+[09:22:42] refresh @step 1400: 58/64 rollouts finished naturally
+[09:22:44]   teacher prefill 25/58
+[09:22:45]   teacher prefill 50/58
+[09:26:04] step 1410/2000 loss=0.63087 lr=2.00e-06
+[09:29:24] step 1420/2000 loss=0.58308 lr=1.94e-06
+[09:32:47] step 1430/2000 loss=0.47657 lr=1.87e-06
+[09:36:07] step 1440/2000 loss=0.45091 lr=1.81e-06
+[09:39:25] step 1450/2000 loss=0.44815 lr=1.75e-06
+[09:42:44] step 1460/2000 loss=0.60516 lr=1.69e-06
+[09:46:02] step 1470/2000 loss=0.52689 lr=1.63e-06
+[09:49:20] step 1480/2000 loss=0.65635 lr=1.58e-06
+[09:52:40] step 1490/2000 loss=0.54061 lr=1.52e-06
+[09:56:01] step 1500/2000 loss=0.62389 lr=1.46e-06
+[09:56:09] refresh @step 1500: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.07s/it]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.07s/it]
+[09:56:34] vllm worker: 64 prompts
+[09:58:45] refresh @step 1500: 60/64 rollouts finished naturally
+[09:58:46]   teacher prefill 25/60
+[09:58:48]   teacher prefill 50/60
+[10:02:18] step 1510/2000 loss=0.52560 lr=1.41e-06
+[10:05:44] step 1520/2000 loss=0.53734 lr=1.36e-06
+[10:09:14] step 1530/2000 loss=0.52453 lr=1.30e-06
+[10:12:40] step 1540/2000 loss=0.53679 lr=1.25e-06
+[10:16:10] step 1550/2000 loss=0.52416 lr=1.20e-06
+[10:19:36] step 1560/2000 loss=0.53644 lr=1.15e-06
+[10:23:06] step 1570/2000 loss=0.52397 lr=1.10e-06
+[10:26:33] step 1580/2000 loss=0.53626 lr=1.05e-06
+[10:30:02] step 1590/2000 loss=0.52385 lr=1.00e-06
+[10:33:29] step 1600/2000 loss=0.53615 lr=9.55e-07
+[10:33:42] refresh @step 1600: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.99s/it]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.99s/it]
+[10:34:08] vllm worker: 64 prompts
+[10:36:27] refresh @step 1600: 55/64 rollouts finished naturally
+[10:36:28]   teacher prefill 25/55
+[10:36:30]   teacher prefill 50/55
+[10:39:47] step 1610/2000 loss=0.60765 lr=9.09e-07
+[10:43:09] step 1620/2000 loss=0.60297 lr=8.65e-07
+[10:46:36] step 1630/2000 loss=0.55921 lr=8.21e-07
+[10:49:55] step 1640/2000 loss=0.57994 lr=7.78e-07
+[10:53:20] step 1650/2000 loss=0.59824 lr=7.37e-07
+[10:56:41] step 1660/2000 loss=0.60044 lr=6.96e-07
+[11:00:06] step 1670/2000 loss=0.52278 lr=6.57e-07
+[11:03:31] step 1680/2000 loss=0.51785 lr=6.18e-07
+[11:06:49] step 1690/2000 loss=0.57466 lr=5.81e-07
+[11:10:12] step 1700/2000 loss=0.52829 lr=5.45e-07
+[11:10:24] refresh @step 1700: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.79s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.79s/it]
+[11:10:45] vllm worker: 64 prompts
+[11:12:52] refresh @step 1700: 61/64 rollouts finished naturally
+[11:12:54]   teacher prefill 25/61
+[11:12:55]   teacher prefill 50/61
+[11:16:23] step 1710/2000 loss=0.58457 lr=5.10e-07
+[11:19:42] step 1720/2000 loss=0.56769 lr=4.76e-07
+[11:23:12] step 1730/2000 loss=0.48178 lr=4.43e-07
+[11:26:28] step 1740/2000 loss=0.60275 lr=4.11e-07
+[11:29:59] step 1750/2000 loss=0.49015 lr=3.81e-07
+[11:33:13] step 1760/2000 loss=0.61994 lr=3.51e-07
+[11:36:44] step 1770/2000 loss=0.42668 lr=3.23e-07
+[11:40:02] step 1780/2000 loss=0.54708 lr=2.96e-07
+[11:43:28] step 1790/2000 loss=0.43723 lr=2.70e-07
+[11:46:50] step 1800/2000 loss=0.56423 lr=2.45e-07
+[11:46:58] refresh @step 1800: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.58s/it]Writing model shards: 100%|██████████| 1/1 [00:13<00:00, 13.58s/it]
+[11:47:18] vllm worker: 64 prompts
+[11:49:11] refresh @step 1800: 58/64 rollouts finished naturally
+[11:49:12]   teacher prefill 25/58
+[11:49:14]   teacher prefill 50/58
+[11:52:41] step 1810/2000 loss=0.60333 lr=2.21e-07
+[11:55:58] step 1820/2000 loss=0.51955 lr=1.99e-07
+[11:59:28] step 1830/2000 loss=0.50379 lr=1.77e-07
+[12:02:49] step 1840/2000 loss=0.50702 lr=1.57e-07
+[12:06:11] step 1850/2000 loss=0.53185 lr=1.38e-07
+[12:09:39] step 1860/2000 loss=0.44441 lr=1.20e-07
+[12:12:56] step 1870/2000 loss=0.59871 lr=1.04e-07
+[12:16:24] step 1880/2000 loss=0.45173 lr=8.86e-08
+[12:19:40] step 1890/2000 loss=0.54850 lr=7.45e-08
+[12:23:08] step 1900/2000 loss=0.54683 lr=6.16e-08
+[12:23:17] refresh @step 1900: generating 64 rollouts (<= 16000 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.27s/it]Writing model shards: 100%|██████████| 1/1 [00:19<00:00, 19.27s/it]
+[12:23:43] vllm worker: 64 prompts
+[12:25:47] refresh @step 1900: 58/64 rollouts finished naturally
+[12:25:48]   teacher prefill 25/58
+[12:25:50]   teacher prefill 50/58
+[12:29:10] step 1910/2000 loss=0.54039 lr=4.99e-08
+[12:32:23] step 1920/2000 loss=0.61228 lr=3.94e-08
+[12:35:42] step 1930/2000 loss=0.56662 lr=3.02e-08
+[12:38:59] step 1940/2000 loss=0.51142 lr=2.22e-08
+[12:42:12] step 1950/2000 loss=0.55752 lr=1.54e-08
+[12:45:33] step 1960/2000 loss=0.46134 lr=9.87e-09
+[12:48:48] step 1970/2000 loss=0.54317 lr=5.55e-09
+[12:52:08] step 1980/2000 loss=0.50292 lr=2.47e-09
+[12:55:21] step 1990/2000 loss=0.58321 lr=6.17e-10
+[12:58:41] step 2000/2000 loss=0.52960 lr=0.00e+00
+[12:59:13] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.25s/it]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.25s/it]
+[12:59:38] vllm worker: 480 prompts
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 662, in <module>
+    main()
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 653, in main
+    res["eval"] = eval_aime(gen, tok, eval_names, a.eval_avg_at, a.seed, out, a.max_tokens)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 428, in eval_aime
+    rolls = gen(prompts, seeds, max_tokens)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 232, in gen
+    raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+RuntimeError: vllm worker failed:
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/transformers/utils/hub.py", line 437, in cached_files
+    hf_hub_download(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 84, in _inner_fn
+    validate_repo_id(arg_value)
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 132, in validate_repo_id
+    raise HFValidationError(
+huggingface_hub.errors.HFValidationError: Repo id must be in the form 'repo_name' or 'namespace/repo_name': 'runs/pc_justRL_to_r1_1p5b_opd_topk_s0/tmp_policy'. Use `repo_type` argument if needed.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 660, in <module>
+    _worker_main(sys.argv[2])
+  File "/cmlscratch/ssoni11/oprd-experiments/cluster/train_harness.py", line 185, in _worker_main
+    llm = LLM(model=spec["model_dir"], dtype="bfloat16",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/entrypoints/llm.py", line 349, in __init__
+    self.llm_engine = LLMEngine.from_engine_args(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/v1/engine/llm_engine.py", line 171, in from_engine_args
+    vllm_config = engine_args.create_engine_config(usage_context)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/engine/arg_utils.py", line 1841, in create_engine_config
+    maybe_override_with_speculators(
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/vllm/transformers_utils/config.py", line 625, in maybe_override_with_speculators
+    config_dict, _ = PretrainedConfig.get_config_dict(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/transformers/configuration_utils.py", line 711, in get_config_dict
+    config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/transformers/configuration_utils.py", line 766, in _get_config_dict
+    resolved_config_file = cached_file(
+                           ^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/transformers/utils/hub.py", line 293, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cmlscratch/ssoni11/oprd-experiments/venv/lib/python3.12/site-packages/transformers/utils/hub.py", line 488, in cached_files
+    raise OSError(f"{e}") from e
+OSError: Repo id must be in the form 'repo_name' or 'namespace/repo_name': 'runs/pc_justRL_to_r1_1p5b_opd_topk_s0/tmp_policy'. Use `repo_type` argument if needed.
+
+srun: error: cml36: task 0: Exited with exit code 1

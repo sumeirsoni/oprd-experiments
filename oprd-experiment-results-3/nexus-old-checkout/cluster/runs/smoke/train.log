@@ -1,0 +1,11 @@
+[00:55:55] harness: loss=pkt_tau device=cuda
+[00:56:00] supervised layers student=[7, 14] teacher=[7, 14]
+[00:57:49] refresh @step 0: generating 8 rollouts
+[00:58:09] vllm worker: 8 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/smoke/tmp_policy
+[01:01:17] step 1/8 loss=0.00708 lr=1.92e-06
+[01:01:22] refresh @step 5: generating 8 rollouts
+[01:01:43] vllm worker: 8 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/smoke/tmp_policy
+[01:03:37] eval aime24: generating 60 samples (30x2)
+[01:03:59] vllm worker: 60 prompts -> /cmlscratch/ssoni11/oprd-experiments/cluster/runs/smoke/tmp_policy
+[01:05:25] eval aime24: acc=0.0000
+[01:05:25] DONE -> runs/smoke/results.json

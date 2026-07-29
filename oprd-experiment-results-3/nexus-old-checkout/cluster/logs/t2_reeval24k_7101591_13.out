@@ -1,0 +1,30 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s2 arm=linear_map_mse seed=2 max-tokens=24000 ===
+[04:00:56] harness: loss=linear_map_mse device=cuda
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 13544.94it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  38%|███▊      | 119/310 [00:00<00:00, 1180.17it/s]Loading weights:  81%|████████  | 250/310 [00:00<00:00, 1246.63it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1266.62it/s]
+[04:05:23] supervised layers student=[7, 14] teacher=[9, 18]
+[04:05:28] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s2/ckpt_final.pt
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 1s [Retry 1/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 2s [Retry 2/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 4s [Retry 3/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 8s [Retry 4/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Retrying in 8s [Retry 5/5].
+HTTP Error 504 thrown while requesting HEAD https://huggingface.co/datasets/Maxwell-Jia/AIME_2024/resolve/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792/AIME_2024.py
+Using the latest cached version of the dataset since Maxwell-Jia/AIME_2024 couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'default' at /cmlscratch/ssoni11/hf-cache/datasets/Maxwell-Jia___aime_2024/default/0.0.0/8d88b2876a82a080e2f172cc9b25d0d9d2cb4792 (last modified on Tue Jul 14 01:03:37 2026).
+[04:09:23] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.66s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.66s/it]
+[04:09:43] vllm worker: 480 prompts
+[05:16:32] eval aime24: acc=0.0000 answered=0.031 truncated=0.915
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[05:16:32] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.84s/it]Writing model shards: 100%|██████████| 1/1 [00:15<00:00, 15.84s/it]
+[05:16:52] vllm worker: 480 prompts
+[06:24:43] eval aime25: acc=0.0000 answered=0.019 truncated=0.938
+[06:24:43] DONE -> runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s2/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_linear_map_mse_s2

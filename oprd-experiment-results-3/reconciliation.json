@@ -1,0 +1,211 @@
+{
+  "all_rows_match_published_rounding": true,
+  "positive_control_24k": {
+    "pc_justRL_to_r1_1p5b_minilmv2_selfrel_s0": {
+      "aime24_answered_rate": 0.90625,
+      "aime24_percent": 35.208333333333336,
+      "aime24_truncation_rate": 0.09375,
+      "aime25_percent": 27.916666666666668,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 35.21,
+        "aime25_percent": 27.92,
+        "answered_rate": 0.906,
+        "truncation_rate": 0.094
+      }
+    },
+    "pc_justRL_to_r1_1p5b_minilmv2_selfrel_s1": {
+      "aime24_answered_rate": 0.9020833333333333,
+      "aime24_percent": 34.375,
+      "aime24_truncation_rate": 0.09791666666666667,
+      "aime25_percent": 25.624999999999996,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 34.38,
+        "aime25_percent": 25.62,
+        "answered_rate": 0.902,
+        "truncation_rate": 0.098
+      }
+    },
+    "pc_justRL_to_r1_1p5b_minilmv2_selfrel_s2": {
+      "aime24_answered_rate": 0.8979166666666667,
+      "aime24_percent": 36.666666666666664,
+      "aime24_truncation_rate": 0.10208333333333333,
+      "aime25_percent": 25.833333333333336,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 36.67,
+        "aime25_percent": 25.83,
+        "answered_rate": 0.898,
+        "truncation_rate": 0.102
+      }
+    },
+    "pc_justRL_to_r1_1p5b_opd_topk_s0": {
+      "aime24_answered_rate": 0.96875,
+      "aime24_percent": 47.91666666666667,
+      "aime24_truncation_rate": 0.03125,
+      "aime25_percent": 33.125,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 47.92,
+        "aime25_percent": 33.12,
+        "answered_rate": 0.969,
+        "truncation_rate": 0.031
+      }
+    },
+    "pc_justRL_to_r1_1p5b_opd_topk_s1": {
+      "aime24_answered_rate": 0.9375,
+      "aime24_percent": 50.83333333333333,
+      "aime24_truncation_rate": 0.0625,
+      "aime25_percent": 33.958333333333336,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 50.83,
+        "aime25_percent": 33.96,
+        "answered_rate": 0.938,
+        "truncation_rate": 0.062
+      }
+    },
+    "pc_justRL_to_r1_1p5b_opd_topk_s2": {
+      "aime24_answered_rate": 0.9354166666666667,
+      "aime24_percent": 47.91666666666667,
+      "aime24_truncation_rate": 0.06458333333333334,
+      "aime25_percent": 33.958333333333336,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 47.92,
+        "aime25_percent": 33.96,
+        "answered_rate": 0.935,
+        "truncation_rate": 0.065
+      }
+    },
+    "pc_justRL_to_r1_1p5b_untrained_baseline": {
+      "aime24_answered_rate": 0.7166666666666667,
+      "aime24_percent": 28.333333333333332,
+      "aime24_truncation_rate": 0.28125,
+      "aime25_percent": 22.916666666666664,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 28.33,
+        "aime25_percent": 22.92,
+        "answered_rate": 0.717,
+        "truncation_rate": 0.281
+      }
+    }
+  },
+  "schema_version": 1,
+  "tier2_primary_24k": {
+    "cka_gram": {
+      "aime24_answered_rate_mean": 0.5319444444444444,
+      "aime24_percent_mean": 0.6944444444444444,
+      "aime24_percent_sd": 0.31823442326082213,
+      "aime24_truncation_rate_mean": 0.24097222222222223,
+      "aime25_percent_mean": 0.0,
+      "aime25_percent_sd": 0.0,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 0.69,
+        "aime25_percent": 0.0,
+        "answered_rate": 0.53,
+        "truncation_rate": 0.24
+      },
+      "runs": 3
+    },
+    "linear_map_mse": {
+      "aime24_answered_rate_mean": 0.10555555555555556,
+      "aime24_percent_mean": 0.0,
+      "aime24_percent_sd": 0.0,
+      "aime24_truncation_rate_mean": 0.8263888888888888,
+      "aime25_percent_mean": 0.0,
+      "aime25_percent_sd": 0.0,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 0.0,
+        "aime25_percent": 0.0,
+        "answered_rate": 0.11,
+        "truncation_rate": 0.83
+      },
+      "runs": 3
+    },
+    "ln_dist": {
+      "aime24_answered_rate_mean": 0.28125,
+      "aime24_percent_mean": 0.06944444444444445,
+      "aime24_percent_sd": 0.12028130608117205,
+      "aime24_truncation_rate_mean": 0.5097222222222222,
+      "aime25_percent_mean": 0.0,
+      "aime25_percent_sd": 0.0,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 0.07,
+        "aime25_percent": 0.0,
+        "answered_rate": 0.28,
+        "truncation_rate": 0.51
+      },
+      "runs": 3
+    },
+    "minilmv2_selfrel": {
+      "aime24_answered_rate_mean": 0.6305555555555555,
+      "aime24_percent_mean": 2.7083333333333335,
+      "aime24_percent_sd": 0.6250000000000002,
+      "aime24_truncation_rate_mean": 0.2972222222222222,
+      "aime25_percent_mean": 0.4166666666666667,
+      "aime25_percent_sd": 0.0,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 2.71,
+        "aime25_percent": 0.42,
+        "answered_rate": 0.63,
+        "truncation_rate": 0.3
+      },
+      "runs": 3
+    },
+    "oprd_bridge": {
+      "aime24_answered_rate_mean": 0.1840277777777778,
+      "aime24_percent_mean": 0.0,
+      "aime24_percent_sd": 0.0,
+      "aime24_truncation_rate_mean": 0.4111111111111111,
+      "aime25_percent_mean": 0.0,
+      "aime25_percent_sd": 0.0,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 0.0,
+        "aime25_percent": 0.0,
+        "answered_rate": 0.18,
+        "truncation_rate": 0.41
+      },
+      "runs": 3
+    },
+    "soft_knn_kl": {
+      "aime24_answered_rate_mean": 0.38958333333333334,
+      "aime24_percent_mean": 0.20833333333333334,
+      "aime24_percent_sd": 0.20833333333333334,
+      "aime24_truncation_rate_mean": 0.4125,
+      "aime25_percent_mean": 0.06944444444444445,
+      "aime25_percent_sd": 0.12028130608117205,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 0.21,
+        "aime25_percent": 0.07,
+        "answered_rate": 0.39,
+        "truncation_rate": 0.41
+      },
+      "runs": 3
+    },
+    "untrained_baseline": {
+      "aime24_answered_rate_mean": 0.75625,
+      "aime24_percent_mean": 3.125,
+      "aime24_percent_sd": null,
+      "aime24_truncation_rate_mean": 0.18958333333333333,
+      "aime25_percent_mean": 2.5,
+      "aime25_percent_sd": null,
+      "matches_published_rounding": true,
+      "published_rounded": {
+        "aime24_percent": 3.12,
+        "aime25_percent": 2.5,
+        "answered_rate": 0.76,
+        "truncation_rate": 0.19
+      },
+      "runs": 1
+    }
+  }
+}

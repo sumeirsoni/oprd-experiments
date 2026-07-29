@@ -1,0 +1,16 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_minilmv2_selfrel_s1 arm=minilmv2_selfrel seed=1 max-tokens=24000 ===
+usage: train_harness.py [-h] --loss
+                        {oprd_bridge,linear_map_mse,minilmv2_selfrel,ln_dist,soft_knn_kl,cka_gram,pkt_tau}
+                        [--bridge-rank BRIDGE_RANK] [--tau TAU] [--topk TOPK]
+                        --teacher TEACHER --student STUDENT --prompts PROMPTS
+                        [--n-prompts N_PROMPTS]
+                        [--supervised-layer-fracs SUPERVISED_LAYER_FRACS]
+                        [--steps STEPS] [--batch-tokens BATCH_TOKENS]
+                        [--lr LR] [--seed SEED] [--max-tokens MAX_TOKENS]
+                        [--rollout-refresh ROLLOUT_REFRESH]
+                        [--backend {auto,vllm,hf}]
+                        [--gpu-mem-util GPU_MEM_UTIL] [--track-stable-rank]
+                        [--eval EVAL] [--eval-avg-at EVAL_AVG_AT]
+                        [--eval-only] [--diagnostics DIAGNOSTICS] --out OUT
+train_harness.py: error: the following arguments are required: --prompts
+srun: error: cml36: task 0: Exited with exit code 2

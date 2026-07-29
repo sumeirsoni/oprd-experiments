@@ -1,0 +1,10 @@
+smoke=7091075
+tier1=7091076
+tier2=7091077
+note=cuda/12.8.1 loaded; afterok smoke
+submitted=2026-07-14T00:54:28-04:00
+tier2=7093610 bridge_fix=1f55ead 2026-07-14T15:53:46-04:00
+t2_reeval24k=7101400 max_tokens=24000 array=0-18%8 2026-07-16T01:57:02-04:00
+t2_reeval24k=7101422 max_tokens=24000 array=0-18%8 fixed_no_module 2026-07-16T01:57:38-04:00
+t2_reeval24k=7101450 max_tokens=24000 array=0-18%8 fixed_prompts 2026-07-16T02:02:52-04:00
+t2_reeval24k=7101591 max_tokens=24000 array=0-18%8 after_tmp_policy_wipe 2026-07-16T02:18:47-04:00

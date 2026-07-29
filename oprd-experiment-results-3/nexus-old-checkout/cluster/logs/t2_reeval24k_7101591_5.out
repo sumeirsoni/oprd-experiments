@@ -1,0 +1,17 @@
+=== eval-only runs/t2_qwen3_4b_to_1p7b_cka_gram_s0 arm=cka_gram seed=0 max-tokens=24000 ===
+[02:19:27] harness: loss=cka_gram device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 12821.10it/s]
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  18%|█▊        | 57/310 [00:00<00:00, 541.79it/s]Loading weights:  36%|███▌      | 112/310 [00:00<00:00, 536.29it/s]Loading weights:  54%|█████▎    | 166/310 [00:00<00:00, 532.19it/s]Loading weights:  71%|███████   | 220/310 [00:00<00:00, 523.28it/s]Loading weights:  89%|████████▉ | 277/310 [00:00<00:00, 532.41it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 542.52it/s]
+[02:19:33] supervised layers student=[7, 14] teacher=[9, 18]
+[02:19:39] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_cka_gram_s0/ckpt_final.pt
+[02:19:40] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:41<00:00, 41.03s/it]Writing model shards: 100%|██████████| 1/1 [00:41<00:00, 41.03s/it]
+[02:20:27] vllm worker: 480 prompts
+[02:40:04] eval aime24: acc=0.0104 answered=0.681 truncated=0.215
+[02:40:05] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.62s/it]Writing model shards: 100%|██████████| 1/1 [00:14<00:00, 14.62s/it]
+[02:40:23] vllm worker: 480 prompts
+[02:55:02] eval aime25: acc=0.0000 answered=0.750 truncated=0.144
+[02:55:02] DONE -> runs/t2_qwen3_4b_to_1p7b_cka_gram_s0/results.json
+REEVAL_OK runs/t2_qwen3_4b_to_1p7b_cka_gram_s0

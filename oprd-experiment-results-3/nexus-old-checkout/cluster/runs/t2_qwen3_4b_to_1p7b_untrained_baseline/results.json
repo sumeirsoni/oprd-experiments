@@ -1,0 +1,19 @@
+{
+ "losses": [],
+ "eval": {
+  "aime24": {
+   "avg_at": 16,
+   "accuracy": 0.03125,
+   "n": 480,
+   "answered_rate": 0.75625,
+   "truncation_rate": 0.18958333333333333
+  },
+  "aime25": {
+   "avg_at": 16,
+   "accuracy": 0.025,
+   "n": 480,
+   "answered_rate": 0.8104166666666667,
+   "truncation_rate": 0.12708333333333333
+  }
+ }
+}

@@ -1,0 +1,26 @@
+=== untrained baseline -> runs/pc_justRL_to_r1_1p5b_untrained_baseline (max-tokens=24000) ===
+[13:18:51] harness: loss=opd_topk device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 12642.21it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  33%|███▎      | 112/339 [00:00<00:00, 1088.72it/s]Loading weights:  76%|███████▌  | 257/339 [00:00<00:00, 1293.15it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 1333.62it/s]
+[13:18:56] supervised layers student=[7, 14] teacher=[7, 14]
+[13:20:30] refresh @step 0: generating 8 rollouts (<= 512 tok)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.38s/it]Writing model shards: 100%|██████████| 1/1 [00:17<00:00, 17.38s/it]
+[13:20:50] vllm worker: 8 prompts
+[13:22:17] refresh @step 0: 0/8 rollouts finished naturally
+[13:22:27] DONE -> runs/pc_justRL_to_r1_1p5b_untrained_baseline/results.json
+[13:22:51] harness: loss=opd_topk device=cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 13547.16it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  26%|██▋       | 89/339 [00:00<00:00, 884.76it/s]Loading weights:  69%|██████▉   | 234/339 [00:00<00:00, 1211.39it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 1289.26it/s]
+[13:22:56] supervised layers student=[7, 14] teacher=[7, 14]
+[13:23:02] eval-only: loaded runs/pc_justRL_to_r1_1p5b_untrained_baseline/ckpt_final.pt
+[13:23:04] eval aime24: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.82s/it]Writing model shards: 100%|██████████| 1/1 [00:16<00:00, 16.82s/it]
+[13:23:23] vllm worker: 480 prompts
+[13:34:03] eval aime24: acc=0.2833 answered=0.717 truncated=0.281
+[13:34:03] eval aime25: generating 480 samples (30x16)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.21s/it]Writing model shards: 100%|██████████| 1/1 [00:18<00:00, 18.22s/it]
+[13:34:24] vllm worker: 480 prompts
+[13:45:36] eval aime25: acc=0.2292 answered=0.769 truncated=0.231
+[13:45:36] DONE -> runs/pc_justRL_to_r1_1p5b_untrained_baseline/results.json

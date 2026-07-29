@@ -1,0 +1,22 @@
+[01:59:37] harness: loss=soft_knn_kl device=cuda
+[02:00:12] supervised layers student=[7, 14] teacher=[9, 18]
+[02:01:49] refresh @step 0: generating 8 rollouts
+[02:02:07] vllm worker: 8 prompts
+[02:11:08] harness: loss=soft_knn_kl device=cuda
+[02:11:14] supervised layers student=[7, 14] teacher=[9, 18]
+[02:12:59] refresh @step 0: generating 8 rollouts
+[04:51:19] harness: loss=soft_knn_kl device=cuda
+[04:51:24] supervised layers student=[7, 14] teacher=[9, 18]
+[04:52:56] refresh @step 0: generating 8 rollouts
+[04:53:18] vllm worker: 8 prompts
+[04:54:55] DONE -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline/results.json
+[04:55:35] harness: loss=soft_knn_kl device=cuda
+[04:55:41] supervised layers student=[7, 14] teacher=[9, 18]
+[04:55:48] eval-only: loaded runs/t2_qwen3_4b_to_1p7b_untrained_baseline/ckpt_final.pt
+[04:55:49] eval aime24: generating 480 samples (30x16)
+[04:56:10] vllm worker: 480 prompts
+[05:12:01] eval aime24: acc=0.0312 answered=0.756 truncated=0.190
+[05:12:02] eval aime25: generating 480 samples (30x16)
+[05:12:19] vllm worker: 480 prompts
+[05:23:51] eval aime25: acc=0.0250 answered=0.810 truncated=0.127
+[05:23:51] DONE -> runs/t2_qwen3_4b_to_1p7b_untrained_baseline/results.json

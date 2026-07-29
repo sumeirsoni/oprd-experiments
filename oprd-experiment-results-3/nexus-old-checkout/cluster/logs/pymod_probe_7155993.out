@@ -1,0 +1,38 @@
+MODULEPATH=/opt/local/stow/.modulefiles:/usr/share/Modules/modulefiles:/etc/modulefiles:/usr/share/modulefiles
+total 448
+drwxr-xr-x.  2 61203 61203  386 Jul 20 15:16 .
+drwxrwxr-x. 65 61203 61203 1485 Feb  6 17:31 ..
+-rw-r--r--.  1 61203 61203 1881 Mar 10  2025 3.10.14
+-rw-r--r--.  1 61203 61203 1880 Jun 18 16:22 3.10.4
+-rw-r--r--.  1 61203 61203 1881 Mar  5  2025 3.11.11
+-rw-r--r--.  1 61203 61203 1880 Apr 23  2024 3.11.9
+-rw-r--r--.  1 61203 61203 1880 Apr 23  2024 3.12.3
+-rw-r--r--.  1 61203 61203 1880 Jan  2  2025 3.13.1
+-rw-r--r--.  1 61203 61203 1880 Mar 10  2025 3.13.2
+-rw-r--r--.  1 61203 61203 1880 Jul  9  2025 3.13.5
+-rw-r--r--.  1 61203 61203 1880 Sep 12  2025 3.13.7
+-rw-r--r--.  1 61203 61203 1880 Nov  3  2025 3.14.0
+-rw-r--r--.  1 61203 61203 1880 Jan  6  2026 3.14.2
+-rw-r--r--.  1 61203 61203 1880 May  1 12:56 3.14.4
+-rw-r--r--.  1 61203 61203 1880 Jun  2 16:24 3.14.5
+-rw-r--r--.  1 61203 61203 1880 Jul 20 15:16 3.14.6
+-rw-r--r--.  1 61203 61203 1880 Apr 23  2024 3.8.19
+-rw-r--r--.  1 61203 61203 1880 Apr 23  2024 3.9.19
+/opt/local/stow/.modulefiles:
+Python3/3.8.19
+Python3/3.9.19
+Python3/3.10.4
+Python3/3.10.14
+Python3/3.11.9
+Python3/3.11.11
+Python3/3.12.3
+Python3/3.13.1
+Python3/3.13.2
+Python3/3.13.5
+Python3/3.13.7
+Python3/3.14.0
+Python3/3.14.2
+Python3/3.14.4
+Python3/3.14.5
+Python3/3.14.6
+/opt/local/stow/Python3-3.12.3

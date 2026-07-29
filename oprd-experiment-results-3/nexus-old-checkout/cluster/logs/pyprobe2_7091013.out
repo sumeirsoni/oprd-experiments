@@ -1,0 +1,11 @@
+MODULEPATH=
+after source MODULEPATH=/usr/share/Modules/modulefiles:/etc/modulefiles:/usr/share/modulefiles
+------------------------- /opt/local/stow/.modulefiles -------------------------
+Python3/3.8.19   Python3/3.11.9   Python3/3.13.2  Python3/3.14.2  
+Python3/3.9.19   Python3/3.11.11  Python3/3.13.5  Python3/3.14.4  
+Python3/3.10.4   Python3/3.12.3   Python3/3.13.7  Python3/3.14.5  
+Python3/3.10.14  Python3/3.13.1   Python3/3.14.0  
+/opt/local/stow/Python3-3.12.3/bin/python3
+Python 3.12.3
+/opt/local/stow/Python3-3.12.3/bin/python3
+PROBE2_OK
