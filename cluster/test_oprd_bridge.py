@@ -1,4 +1,6 @@
+import errno
 import json
+import os
 import pathlib
 import shutil
 import sys
@@ -9,6 +11,7 @@ from unittest import mock
 import torch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import oprd_atomic_directory as atomic_directory
 import oprd_bridge as bridge_module
 
 
@@ -128,6 +131,90 @@ class BridgeArtifactTests(unittest.TestCase):
                 all(not parameter.requires_grad for parameter in restored.parameters())
             )
 
+    def test_einval_native_backend_uses_reserved_fallback_round_trip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            with mock.patch.object(
+                atomic_directory.AtomicDirectoryOperations,
+                "native_rename_noreplace",
+                autospec=True,
+                side_effect=OSError(errno.EINVAL, "forced unsupported native rename"),
+            ) as native_rename, mock.patch.object(
+                atomic_directory,
+                "_reservation_fallback",
+                wraps=atomic_directory._reservation_fallback,
+            ) as reservation_fallback:
+                self.assertEqual(self.publish(artifact), artifact)
+
+            native_rename.assert_called_once()
+            reservation_fallback.assert_called_once()
+            restored, metadata = bridge_module.load_bridge_artifact(
+                artifact, device="cpu", **self.expected
+            )
+            self.assertEqual(metadata, {"epochs": 20, "best_val_cosine": 0.75})
+            for name, expected_tensor in self.bridge.state_dict().items():
+                self.assertTrue(
+                    torch.equal(restored.state_dict()[name], expected_tensor)
+                )
+            self.assertFalse(list(artifact.parent.glob(f".{artifact.name}.tmp-*")))
+
+    def test_existing_destination_types_are_untouched(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+
+            empty = root / "empty"
+            empty.mkdir()
+            empty_before = os.lstat(empty)
+            with self.assertRaises(bridge_module.ArtifactAlreadyExistsError):
+                self.publish(empty)
+            empty_after = os.lstat(empty)
+            self.assertEqual(
+                (empty_after.st_dev, empty_after.st_ino),
+                (empty_before.st_dev, empty_before.st_ino),
+            )
+            self.assertEqual(list(empty.iterdir()), [])
+
+            file_destination = root / "file"
+            file_destination.write_bytes(b"original-file")
+            file_before = os.lstat(file_destination)
+            with self.assertRaises(bridge_module.ArtifactAlreadyExistsError):
+                self.publish(file_destination)
+            file_after = os.lstat(file_destination)
+            self.assertEqual(
+                (file_after.st_dev, file_after.st_ino),
+                (file_before.st_dev, file_before.st_ino),
+            )
+            self.assertEqual(file_destination.read_bytes(), b"original-file")
+
+            symlink_target = root / "symlink-target"
+            symlink_target.mkdir()
+            symlink_destination = root / "symlink"
+            symlink_destination.symlink_to(symlink_target, target_is_directory=True)
+            symlink_before = os.lstat(symlink_destination)
+            with self.assertRaises(bridge_module.ArtifactAlreadyExistsError):
+                self.publish(symlink_destination)
+            symlink_after = os.lstat(symlink_destination)
+            self.assertEqual(
+                (symlink_after.st_dev, symlink_after.st_ino),
+                (symlink_before.st_dev, symlink_before.st_ino),
+            )
+            self.assertTrue(symlink_destination.is_symlink())
+            self.assertEqual(os.readlink(symlink_destination), os.fspath(symlink_target))
+
+            nonempty = root / "nonempty"
+            nonempty.mkdir()
+            child = nonempty / "keep.txt"
+            child.write_bytes(b"keep")
+            nonempty_before = os.lstat(nonempty)
+            with self.assertRaises(bridge_module.ArtifactAlreadyExistsError):
+                self.publish(nonempty)
+            nonempty_after = os.lstat(nonempty)
+            self.assertEqual(
+                (nonempty_after.st_dev, nonempty_after.st_ino),
+                (nonempty_before.st_dev, nonempty_before.st_ino),
+            )
+            self.assertEqual(child.read_bytes(), b"keep")
+
     def test_corrupt_tensor_is_rejected_before_deserialization(self):
         with tempfile.TemporaryDirectory() as temporary:
             artifact = pathlib.Path(temporary) / "bridge-v1"
@@ -179,14 +266,107 @@ class BridgeArtifactTests(unittest.TestCase):
     def test_staged_reload_failure_never_commits_artifact(self):
         with tempfile.TemporaryDirectory() as temporary:
             artifact = pathlib.Path(temporary) / "bridge-v1"
+            created = []
+            original_mkdtemp = bridge_module.tempfile.mkdtemp
+
+            def recording_mkdtemp(*args, **kwargs):
+                path = original_mkdtemp(*args, **kwargs)
+                created.append(pathlib.Path(path))
+                return path
+
             with mock.patch.object(
+                bridge_module.tempfile,
+                "mkdtemp",
+                side_effect=recording_mkdtemp,
+            ), mock.patch.object(
                 bridge_module,
                 "_load_bridge_artifact_common",
                 side_effect=bridge_module.ArtifactCorruptError("forced staged failure"),
             ):
                 with self.assertRaises(bridge_module.ArtifactCorruptError):
                     self.publish(artifact)
+            self.assertEqual(len(created), 1)
+            self.assertFalse(os.path.lexists(created[0]))
             self.assertFalse(artifact.exists())
+            self.assertFalse(list(artifact.parent.glob(f".{artifact.name}.tmp-*")))
+
+    def test_canonical_artifact_is_reloaded_after_promotion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            original_load = bridge_module._load_bridge_artifact_common
+            observed = []
+
+            def observing_load(path, **kwargs):
+                candidate = pathlib.Path(path)
+                observed.append((candidate, dict(kwargs)))
+                if kwargs["require_complete"]:
+                    self.assertEqual(candidate, artifact)
+                    self.assertTrue((artifact / bridge_module.COMPLETE_FILENAME).is_file())
+                    self.assertFalse(
+                        list(artifact.parent.glob(f".{artifact.name}.tmp-*"))
+                    )
+                return original_load(path, **kwargs)
+
+            with mock.patch.object(
+                bridge_module,
+                "_load_bridge_artifact_common",
+                side_effect=observing_load,
+            ):
+                self.publish(artifact)
+
+            self.assertEqual(
+                [kwargs["require_complete"] for _, kwargs in observed],
+                [False, True],
+            )
+            canonical_kwargs = observed[1][1]
+            self.assertEqual(
+                canonical_kwargs["expected_manifest_sha256"],
+                bridge_module.read_bridge_manifest(artifact)[1],
+            )
+            self.assertEqual(
+                canonical_kwargs["expected_layer_map"],
+                self.identity["layer_map"],
+            )
+            self.assertEqual(canonical_kwargs["expected_rank"], self.bridge.rank)
+            self.assertEqual(
+                canonical_kwargs["expected_student_dim"], self.bridge.student_dim
+            )
+            self.assertEqual(
+                canonical_kwargs["expected_teacher_dim"], self.bridge.teacher_dim
+            )
+
+    def test_canonical_reload_failure_leaves_promoted_artifact_intact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            original_load = bridge_module._load_bridge_artifact_common
+            calls = 0
+
+            def fail_canonical_load(path, **kwargs):
+                nonlocal calls
+                calls += 1
+                if kwargs["require_complete"]:
+                    self.assertEqual(pathlib.Path(path), artifact)
+                    self.assertTrue((artifact / bridge_module.COMPLETE_FILENAME).is_file())
+                    raise bridge_module.ArtifactCorruptError(
+                        "forced canonical reload failure"
+                    )
+                return original_load(path, **kwargs)
+
+            with mock.patch.object(
+                bridge_module,
+                "_load_bridge_artifact_common",
+                side_effect=fail_canonical_load,
+            ):
+                with self.assertRaisesRegex(
+                    bridge_module.ArtifactCorruptError,
+                    "canonical reload failure",
+                ):
+                    self.publish(artifact)
+
+            self.assertEqual(calls, 2)
+            self.assertTrue((artifact / bridge_module.COMPLETE_FILENAME).is_file())
+            self.assertTrue((artifact / bridge_module.MANIFEST_FILENAME).is_file())
+            self.assertTrue((artifact / bridge_module.TENSOR_FILENAME).is_file())
             self.assertFalse(list(artifact.parent.glob(f".{artifact.name}.tmp-*")))
 
     def test_corrupt_declared_sidecar_is_rejected(self):
@@ -245,6 +425,133 @@ class BridgeArtifactTests(unittest.TestCase):
                     expected[field] = wrong_value
                     with self.assertRaises(bridge_module.ArtifactMismatchError):
                         bridge_module.load_bridge_artifact(artifact, **expected)
+
+    def test_ambiguous_move_preserves_exact_staging_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            captured = {}
+
+            def ambiguous_move(source, destination, *, trusted_root):
+                staging = pathlib.Path(source)
+                value = os.lstat(staging)
+                captured["path"] = staging
+                captured["identity"] = (value.st_dev, value.st_ino)
+                captured["files"] = {
+                    child.relative_to(staging).as_posix(): child.read_bytes()
+                    for child in staging.rglob("*")
+                    if child.is_file()
+                }
+                self.assertEqual(pathlib.Path(destination), artifact)
+                self.assertEqual(pathlib.Path(trusted_root), artifact.parent)
+                raise atomic_directory.AmbiguousPostconditionError(
+                    "forced ambiguous move"
+                )
+
+            with mock.patch.object(
+                bridge_module,
+                "atomic_move_directory_noreplace",
+                side_effect=ambiguous_move,
+            ):
+                with self.assertRaisesRegex(
+                    bridge_module.ArtifactValidationError,
+                    "ambiguous postcondition",
+                ):
+                    self.publish(artifact)
+
+            staging = captured["path"]
+            self.assertTrue(
+                atomic_directory.directory_matches_identity(
+                    staging, captured["identity"]
+                )
+            )
+            self.assertEqual(
+                {
+                    child.relative_to(staging).as_posix(): child.read_bytes()
+                    for child in staging.rglob("*")
+                    if child.is_file()
+                },
+                captured["files"],
+            )
+            self.assertTrue((staging / bridge_module.COMPLETE_FILENAME).is_file())
+            self.assertFalse(artifact.exists())
+
+    def test_known_no_change_failure_after_promotion_begins_preserves_staging(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            captured = {}
+
+            def known_failure(source, destination, *, trusted_root):
+                staging = pathlib.Path(source)
+                value = os.lstat(staging)
+                captured["path"] = staging
+                captured["identity"] = (value.st_dev, value.st_ino)
+                captured["files"] = {
+                    child.relative_to(staging).as_posix(): child.read_bytes()
+                    for child in staging.rglob("*")
+                    if child.is_file()
+                }
+                raise atomic_directory.KnownNoChangeMoveError(
+                    "forced safe failure"
+                )
+
+            with mock.patch.object(
+                bridge_module,
+                "atomic_move_directory_noreplace",
+                side_effect=known_failure,
+            ):
+                with self.assertRaisesRegex(
+                    bridge_module.ArtifactValidationError,
+                    "forced safe failure",
+                ):
+                    self.publish(artifact)
+
+            staging = captured["path"]
+            self.assertTrue(
+                atomic_directory.directory_matches_identity(
+                    staging, captured["identity"]
+                )
+            )
+            self.assertEqual(
+                {
+                    child.relative_to(staging).as_posix(): child.read_bytes()
+                    for child in staging.rglob("*")
+                    if child.is_file()
+                },
+                captured["files"],
+            )
+            self.assertTrue((staging / bridge_module.COMPLETE_FILENAME).is_file())
+            self.assertFalse(artifact.exists())
+
+    def test_known_failure_never_cleans_replacement_staging_pathname(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "bridge-v1"
+            captured = {}
+
+            def replace_then_fail(source, destination, *, trusted_root):
+                staging = pathlib.Path(source)
+                owned = staging.with_name(f"{staging.name}.owned")
+                staging.rename(owned)
+                staging.mkdir()
+                marker = staging / "replacement.txt"
+                marker.write_bytes(b"replacement")
+                captured.update({"staging": staging, "owned": owned, "marker": marker})
+                raise atomic_directory.KnownNoChangeMoveError(
+                    "forced failure after pathname replacement"
+                )
+
+            with mock.patch.object(
+                bridge_module,
+                "atomic_move_directory_noreplace",
+                side_effect=replace_then_fail,
+            ):
+                with self.assertRaises(bridge_module.ArtifactValidationError):
+                    self.publish(artifact)
+
+            self.assertEqual(captured["marker"].read_bytes(), b"replacement")
+            self.assertTrue(
+                (captured["owned"] / bridge_module.COMPLETE_FILENAME).is_file()
+            )
+            self.assertFalse(artifact.exists())
 
     def test_existing_artifact_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as temporary:

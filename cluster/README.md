@@ -3,8 +3,10 @@
 **STATUS:** the long-rollout CUDA/vLLM/Slurm path passed the 1.5B positive-control gate.
 The recovered offline all-layer Stage-1 builder now publishes one immutable external artifact.
 The first recovered bridge smoke failed before corpus generation because its explicit Slurm export
-omitted the system toolchain path; no artifact was published. The corrected runtime contract requires
-a fresh smoke before any paper-scale build or Tier-2 seed.
+omitted the system toolchain path. A corrected run reached publish job 7161597, where the NFSv3
+artifact filesystem returned `EINVAL` for native `renameat2(RENAME_NOREPLACE)`; no artifact was
+published. The failed run is preserved, and the authenticated helper change requires a fresh DAG
+before any paper-scale build or Tier-2 seed.
 
 Verified:
 - Loss arms end-to-end on Apple MPS (Qwen2.5-0.5B): generation → teacher prefill →
@@ -55,13 +57,22 @@ Pass criteria: exact 28-to-36 map, all seven groups complete in numeric order, t
 fully reloads before `COMPLETE`, every recorded Slurm job completes with exit code zero,
 `verify.json` reports the manifest digest, and the same digest appears in `results.json`,
 `train_state_last.pt`, and the checksummed `SMOKE_COMPLETE.json` marker. Stage 2 writes into a
-sibling attempt directory and renames it to `stage2-backward-smoke` only after finished-rollout,
-finite-loss, finite-weight, exact invocation identity, and checksum validation. A killed attempt
-remains available for inspection;
-a suffix resume runs a fresh deterministic two-step attempt instead of pretending a weight-only
-checkpoint is continuation-equivalent. A pre-existing invalid canonical smoke directory is
-atomically quarantined before the fresh retry, and validated output is published with a Linux
-`renameat2(RENAME_NOREPLACE)` operation.
+sibling attempt directory and moves it to `stage2-backward-smoke` only after finished-rollout,
+finite-loss, finite-weight, exact invocation identity, checksum validation, and a staging-directory
+`fsync`. The canonical result is validated again after promotion. A killed attempt remains available
+for inspection; a suffix resume runs a fresh deterministic two-step attempt instead of pretending a
+weight-only checkpoint is continuation-equivalent. A pre-existing invalid canonical smoke directory
+is atomically quarantined before the fresh retry.
+
+Artifact publication, invalid-smoke quarantine, and final smoke promotion use the shared
+`oprd_atomic_directory.py` helper. It tries the platform-native no-replace rename first. If the
+filesystem reports that operation as unsupported, including NFSv3 `EINVAL`, it reserves the exact
+destination with an empty mode-0700 directory and then performs a plain sibling rename. The empty
+reservation can be briefly visible before the rename. The trusted parent chain must be owned by the
+effective user with group and world write bits clear, so only the owner can write publication names.
+Validation and cleanup are inode-based: cleanup removes only the exact empty reservation it created,
+and any changed inode or uncertain postcondition is reported as ambiguous and fails closed without
+unsafe cleanup.
 
 ## Environment
 
@@ -84,14 +95,17 @@ its ELF dependencies, and loads both the SONAME and generated object in a clean 
 subprocess. Setup additionally loads FlashInfer's real sampling module under the configured scratch
 workspace. Corpus and Stage-2 repeat that cached-module load before model weights.
 
-These checks cover two failures observed during bridge smoke validation. Run
+These checks cover failures observed during bridge smoke validation. Run
 `20260728T065705Z_145055` failed because the explicit Slurm export omitted the deterministic
 runtime `PATH`, leaving GCC unable to find `ld`. After that fix, run
 `20260728T165135Z_2088398` loaded the model and completed `torch.compile`, then failed because
 FlashInfer used `/nfshomes/.../.cache/flashinfer` and EngineCore could not resolve
-`libcudart.so.12`. The failed records, builds, claims, and logs are evidence, not resumable inputs
-after authenticated runtime-source changes. Reconcile and preserve them, release only the exact
-inactive claim after explicit approval, and use a fresh run ID.
+`libcudart.so.12`. Publish job 7161597 later reached the NFSv3 artifact parent but native
+`renameat2(RENAME_NOREPLACE)` returned `EINVAL`. Preserve that failed run, including its record,
+build, claim, and logs. Because the atomic publication helper changes the authenticated source
+bundle, the run is not resumable: reconcile it, release only its exact inactive claim after explicit
+approval, and submit a fresh DAG with a new run ID. The existing schema-2 environment marker remains
+valid, so no setup rerun is expected unless requirements or authenticated environment inputs change.
 
 The submitter uses an explicit Slurm export allowlist rather than `--export=ALL`. Every new record
 freezes and every phase receives the same `PATH`, `CUDA_HOME`, `FLASHINFER_NVCC`,
@@ -109,11 +123,14 @@ Four independent caches must remain under scratch and are exported before Python
 Models and datasets download at job runtime unless the cache is pre-populated; the required
 repositories are public and ungated. Preflight checks canonical paths, all writable cache roots,
 schema-2 environment identity, installed package versions, FFmpeg identity, both native probes,
-free blocks, free inodes, and quota headroom before acquiring the artifact claim or calling
-`sbatch`. It does not warm FlashInfer on the login node because login and compute nodes have
-different glibc versions while the FlashInfer cache key does not encode that ABI difference. If the
-site exposes no parseable quota command, preflight fails closed. `ALLOW_QUOTA_UNAVAILABLE=1` is an
-explicit override for use only after a manual block and inode quota check.
+free blocks, free inodes, and quota headroom. It also requires the existing artifact publication
+parent beneath scratch and performs a real atomic-directory move and collision probe there, reporting
+`native_noreplace` or `reserved_plain_rename` as the selected method. Any helper, cleanup, ownership,
+or ambiguity failure stops submission before record creation, claim acquisition, or `sbatch`.
+Preflight does not warm FlashInfer on the login node because login and compute nodes have different
+glibc versions while the FlashInfer cache key does not encode that ABI difference. If the site
+exposes no parseable quota command, preflight fails closed. `ALLOW_QUOTA_UNAVAILABLE=1` is an explicit
+override for use only after a manual block and inode quota check.
 
 **Disk:** each task writes ~7-10GB under `runs/<task>/` (two bf16 checkpoints + a transient
 fp32 `tmp_policy/` dump per generation round, deleted after each round). Put the clone (or at
@@ -199,7 +216,8 @@ cost proposal; do not extrapolate from the old run.
 mkdir -p cluster/logs cluster/runs
 sbatch cluster/nexus/setup_env.sbatch
 # Wait for terminal success and venv/.oprd-env-ready.json.
-
+# Preflight probes publication semantics in the existing cluster directory on the
+# same scratch filesystem. Fresh submission creates the canonical artifact parent.
 BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh --preflight-only
 BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh
 
@@ -227,8 +245,9 @@ runtime script or operations helper, preserve the failed build and record, expli
 inactive claim, and submit a fresh smoke with a new run ID. Never bypass the source-digest check to
 reuse an incompatible record.
 
-Do not submit `tier2_bridge_bakeoff.sbatch` for `oprd_bridge` until the external-artifact smoke
-passes and the artifact path, manifest digest, revisions, quota, and cost have been reviewed.
+Production Tier 2 is prohibited. Do not submit `tier2_bridge_bakeoff.sbatch` for `oprd_bridge`
+until the external-artifact smoke passes and the artifact path, manifest digest, revisions, quota,
+and cost have been reviewed and separate production approval is recorded.
 The portable Tier-2 wrapper requires `STUDENT_REVISION`, `TEACHER_REVISION`, `TOKENIZER`,
 `TOKENIZER_REVISION`, `DATASET_REVISION`, `DATASET_SPLIT`, and `PROMPT_KEY` for every runnable
 arm. OPRD tasks additionally require `BRIDGE_ARTIFACT`, `BRIDGE_MANIFEST_SHA256`, and

@@ -158,15 +158,19 @@ class AtomicJsonAndPathTests(unittest.TestCase):
             with self.assertRaises(ops.UnsafePathError):
                 ops.validate_paths_under_scratch(scratch, [link / "cache"])
 
-    def test_source_bundle_digest_changes_with_any_runtime_source(self):
+    def test_source_bundle_digest_includes_atomic_directory_helper(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
+            self.assertIn(
+                "cluster/oprd_atomic_directory.py",
+                ops.SOURCE_BUNDLE_PATHS,
+            )
             for relative in ops.SOURCE_BUNDLE_PATHS:
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(relative, encoding="utf-8")
             first = ops.compute_source_bundle_sha256(root)
-            changed = root / ops.SOURCE_BUNDLE_PATHS[-1]
+            changed = root / "cluster" / "oprd_atomic_directory.py"
             changed.write_text("changed", encoding="utf-8")
             self.assertNotEqual(first, ops.compute_source_bundle_sha256(root))
 
@@ -834,6 +838,8 @@ class PreflightTests(unittest.TestCase):
             )
             hf_home = scratch / "hf-cache"
             writable = scratch / "records"
+            publication_parent = scratch / "artifacts"
+            publication_parent.mkdir(mode=0o700)
             workspace = scratch / "flashinfer"
             workspace.mkdir()
             workspace = workspace.resolve()
@@ -871,6 +877,12 @@ class PreflightTests(unittest.TestCase):
                 "readelf": os.fspath(readelf),
             }
             import_timeouts = []
+            selected_atomic_method = ["native_noreplace"]
+
+            def atomic_directory_probe(parent, *, trusted_root):
+                self.assertEqual(parent, publication_parent.resolve())
+                self.assertEqual(trusted_root, scratch.resolve())
+                return types.SimpleNamespace(method=selected_atomic_method[0])
 
             def recording_runner(arguments, **kwargs):
                 executable = arguments[0]
@@ -945,6 +957,7 @@ class PreflightTests(unittest.TestCase):
             preflight_arguments = {
                 "scratch": scratch,
                 "hf_home": hf_home,
+                "publication_parent": publication_parent,
                 "python": python,
                 "required_imports": ["json", "some.fake.module"],
                 "required_scripts": [script],
@@ -962,6 +975,7 @@ class PreflightTests(unittest.TestCase):
                 "allow_quota_unavailable": True,
                 "which_fn": lambda command: commands.get(command),
                 "runner": recording_runner,
+                "atomic_directory_probe": atomic_directory_probe,
             }
             report = ops.run_preflight(**preflight_arguments)
             self.assertTrue(report["ok"], report)
@@ -979,6 +993,49 @@ class PreflightTests(unittest.TestCase):
                 "test",
             )
             self.assertEqual(report["quota"]["status"], "unavailable")
+            self.assertEqual(
+                report["checks"]["atomic_directory_publish"],
+                {
+                    "ok": True,
+                    "parent": os.fspath(publication_parent.resolve()),
+                    "method": "native_noreplace",
+                },
+            )
+
+            selected_atomic_method[0] = "reserved_plain_rename"
+            fallback = ops.run_preflight(**preflight_arguments)
+            self.assertTrue(fallback["ok"], fallback)
+            self.assertEqual(
+                fallback["checks"]["atomic_directory_publish"]["method"],
+                "reserved_plain_rename",
+            )
+
+            def failing_atomic_directory_probe(parent, *, trusted_root):
+                raise RuntimeError("atomic helper exploded")
+
+            helper_failure_arguments = {
+                **preflight_arguments,
+                "atomic_directory_probe": failing_atomic_directory_probe,
+            }
+            helper_failure = ops.run_preflight(**helper_failure_arguments)
+            self.assertFalse(helper_failure["ok"])
+            self.assertEqual(
+                helper_failure["checks"]["atomic_directory_publish"]["ok"],
+                False,
+            )
+            self.assertEqual(
+                helper_failure["checks"]["atomic_directory_publish"][
+                    "error_type"
+                ],
+                "RuntimeError",
+            )
+            self.assertTrue(
+                any(
+                    "atomic directory publish: atomic helper exploded" in error
+                    for error in helper_failure["errors"]
+                ),
+                helper_failure,
+            )
 
             saved_runtime = libcudart.read_bytes()
             libcudart.unlink()
@@ -1006,10 +1063,13 @@ class PreflightTests(unittest.TestCase):
             python = scratch / "python"
             python.write_text("#!/bin/sh\necho 'Python 3.11.8'\n", encoding="utf-8")
             python.chmod(0o755)
+            publication_parent = scratch / "publication"
+            publication_parent.mkdir(mode=0o700)
             executable = os.fspath(python)
             report = ops.run_preflight(
                 scratch=scratch,
                 hf_home=scratch / "hf",
+                publication_parent=publication_parent,
                 python=python,
                 required_imports=[],
                 required_scripts=[],

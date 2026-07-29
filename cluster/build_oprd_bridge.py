@@ -1005,6 +1005,7 @@ def _source_provenance() -> dict[str, Any]:
     source_files = [
         pathlib.Path(__file__).resolve(),
         pathlib.Path(__file__).resolve().with_name("oprd_bridge.py"),
+        pathlib.Path(__file__).resolve().with_name("oprd_atomic_directory.py"),
         pathlib.Path(__file__).resolve().with_name("train_harness.py"),
     ]
     return {
@@ -3256,16 +3257,8 @@ def command_publish(args: argparse.Namespace) -> None:
                 "build_config.json": contract,
                 "provenance.json": provenance_payload,
             }
-            if artifact_dir.exists():
-                # A crash can occur after atomic rename but before state.json updates.
-                _assert_exact_artifact(
-                    artifact_dir,
-                    bridge,
-                    stage1_metadata,
-                    sidecars,
-                    expected,
-                )
-            else:
+            published_now = False
+            if not artifact_dir.exists():
                 try:
                     publish_bridge_artifact(
                         artifact_dir,
@@ -3288,14 +3281,21 @@ def command_publish(args: argparse.Namespace) -> None:
                         stage1_metadata=stage1_metadata,
                         extra_json_files=sidecars,
                     )
+                    published_now = True
                 except ArtifactAlreadyExistsError:
-                    _assert_exact_artifact(
-                        artifact_dir,
-                        bridge,
-                        stage1_metadata,
-                        sidecars,
-                        expected,
-                    )
+                    # Another publisher may have won after the existence check.
+                    pass
+            # A crash can occur after promotion but before state.json updates. New
+            # publication already performed the same canonical reload and exact tensor
+            # checks, so repeat the full assertion only for recovered artifacts.
+            if not published_now:
+                _assert_exact_artifact(
+                    artifact_dir,
+                    bridge,
+                    stage1_metadata,
+                    sidecars,
+                    expected,
+                )
             _finish_phase(
                 paths,
                 state,

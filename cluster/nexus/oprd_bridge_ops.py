@@ -25,6 +25,13 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 
+CLUSTER_DIRECTORY = pathlib.Path(__file__).resolve().parent.parent
+if os.fspath(CLUSTER_DIRECTORY) not in sys.path:
+    sys.path.insert(0, os.fspath(CLUSTER_DIRECTORY))
+
+from oprd_atomic_directory import probe_atomic_directory_move
+
+
 SCHEMA_VERSION = 1
 CLAIM_FILENAME = "claim.json"
 SMOKE_DIRECTORY = "stage2-backward-smoke"
@@ -61,6 +68,7 @@ VERIFY_CHECKED_PHASES = BUILDER_REQUIRED_PHASES[:-1]
 SOURCE_BUNDLE_PATHS = (
     "cluster/build_oprd_bridge.py",
     "cluster/oprd_bridge.py",
+    "cluster/oprd_atomic_directory.py",
     "cluster/train_harness.py",
     "cluster/requirements.txt",
     "cluster/nexus/oprd_bridge_ops.py",
@@ -1073,6 +1081,7 @@ def run_preflight(
     *,
     scratch: os.PathLike[str] | str,
     hf_home: os.PathLike[str] | str,
+    publication_parent: os.PathLike[str] | str,
     python: os.PathLike[str] | str,
     required_imports: Sequence[str],
     required_scripts: Sequence[os.PathLike[str] | str],
@@ -1099,6 +1108,7 @@ def run_preflight(
     which_fn: Callable[[str], str | None] = shutil.which,
     runner: Runner = subprocess.run,
     writable_probe: Callable[[pathlib.Path], None] = _probe_writable_path,
+    atomic_directory_probe: Callable[..., Any] = probe_atomic_directory_move,
 ) -> dict[str, Any]:
     """Run a fully parameterized cluster preflight and return a JSON report."""
 
@@ -1119,6 +1129,45 @@ def run_preflight(
         }
     except OpsError as exc:
         errors.append(str(exc))
+
+    if scratch_path is None:
+        report["checks"]["atomic_directory_publish"] = {
+            "ok": False,
+            "error": "scratch validation failed",
+        }
+        errors.append("atomic directory publish: scratch validation failed")
+    else:
+        try:
+            publish_parent = canonical_path_under_scratch(
+                scratch_path,
+                publication_parent,
+                must_exist=True,
+            )
+            if not publish_parent.is_dir() or publish_parent.is_symlink():
+                raise OpsError(
+                    f"publication parent is not a real directory: {publish_parent}"
+                )
+            probe_result = atomic_directory_probe(
+                publish_parent,
+                trusted_root=scratch_path,
+            )
+            method = getattr(probe_result, "method", None)
+            if not isinstance(method, str) or not method:
+                raise OpsError(
+                    f"atomic directory probe returned an invalid method: {method!r}"
+                )
+            report["checks"]["atomic_directory_publish"] = {
+                "ok": True,
+                "parent": os.fspath(publish_parent),
+                "method": method,
+            }
+        except Exception as exc:
+            report["checks"]["atomic_directory_publish"] = {
+                "ok": False,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+            }
+            errors.append(f"atomic directory publish: {exc}")
 
     if scratch_path is not None:
         try:
@@ -2561,6 +2610,7 @@ def build_parser() -> argparse.ArgumentParser:
     preflight = subparsers.add_parser("preflight")
     _add_scratch(preflight)
     preflight.add_argument("--hf-home", required=True)
+    preflight.add_argument("--publication-parent", required=True)
     preflight.add_argument("--python", required=True)
     _add_cuda_runtime_arguments(preflight, include_flashinfer=True)
     preflight.add_argument("--import", dest="required_imports", action="append", default=[])
@@ -2578,6 +2628,9 @@ def build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--linker-command", default="ld")
     preflight.add_argument("--quota-user")
     preflight.add_argument("--allow-quota-unavailable", action="store_true")
+
+    source_bundle = subparsers.add_parser("source-bundle-sha256")
+    source_bundle.add_argument("--root", required=True)
 
     paths = subparsers.add_parser("check-paths")
     _add_scratch(paths)
@@ -2681,6 +2734,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = run_preflight(
                 scratch=args.scratch,
                 hf_home=args.hf_home,
+                publication_parent=args.publication_parent,
                 python=args.python,
                 required_imports=args.required_imports,
                 required_scripts=args.required_scripts,
@@ -2706,6 +2760,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _json_print(result)
             return 0 if result["ok"] else 1
+        if args.command == "source-bundle-sha256":
+            print(compute_source_bundle_sha256(args.root))
+            return 0
         if args.command == "check-paths":
             _json_print(validate_paths_under_scratch(args.scratch, args.path))
             return 0

@@ -13,32 +13,6 @@
 set -euo pipefail
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-rename_noreplace() {
-  "$PYTHON" - "$1" "$2" <<'PY'
-import ctypes
-import os
-import sys
-source = os.fsencode(sys.argv[1])
-destination = os.fsencode(sys.argv[2])
-libc = ctypes.CDLL(None, use_errno=True)
-renameat2 = getattr(libc, "renameat2", None)
-if renameat2 is None:
-    raise SystemExit("renameat2 is unavailable; refusing a non-atomic publish fallback")
-renameat2.argtypes = [
-    ctypes.c_int,
-    ctypes.c_char_p,
-    ctypes.c_int,
-    ctypes.c_char_p,
-    ctypes.c_uint,
-]
-renameat2.restype = ctypes.c_int
-AT_FDCWD = -100
-RENAME_NOREPLACE = 1
-if renameat2(AT_FDCWD, source, AT_FDCWD, destination, RENAME_NOREPLACE) != 0:
-    error = ctypes.get_errno()
-    raise OSError(error, os.strerror(error), sys.argv[2])
-PY
-}
 
 set +u
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
@@ -52,6 +26,7 @@ ROOT=${ROOT:-$SCRATCH_ROOT/oprd-experiments}
 CLUSTER_DIR=$ROOT/cluster
 NEXUS_DIR=$CLUSTER_DIR/nexus
 PYTHON=${PYTHON:-$ROOT/venv/bin/python}
+ATOMIC_DIRECTORY=$CLUSTER_DIR/oprd_atomic_directory.py
 BRIDGE_RUNTIME_PATH=${BRIDGE_RUNTIME_PATH:?submit_oprd_bridge.sh must export BRIDGE_RUNTIME_PATH}
 BRIDGE_CUDA_HOME=${BRIDGE_CUDA_HOME:?submit_oprd_bridge.sh must export BRIDGE_CUDA_HOME}
 BRIDGE_CUDA_NVCC=${BRIDGE_CUDA_NVCC:?submit_oprd_bridge.sh must export BRIDGE_CUDA_NVCC}
@@ -78,6 +53,8 @@ VERIFY=$BRIDGE_BUILD_DIR/verify.json
 ENV_READY=$ROOT/venv/.oprd-env-ready.json
 
 [[ -x "$PYTHON" ]] || fail "venv Python is missing or not executable: $PYTHON"
+[[ -r "$ATOMIC_DIRECTORY" ]] ||
+  fail "atomic directory helper is missing or unreadable: $ATOMIC_DIRECTORY"
 [[ -r "$ENV_READY" ]] || fail "environment-ready marker is missing: $ENV_READY"
 "$PYTHON" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version' || fail "venv Python is not 3.12"
 [[ -r "$CONTRACT" ]] || fail "bridge contract is missing: $CONTRACT"
@@ -188,7 +165,10 @@ if [[ -e "$SMOKE_OUT" ]]; then
     printf 'STAGE2_SMOKE_ALREADY_VALID out=%s manifest=%s\n' "$SMOKE_OUT" "${BRIDGE_VALUES[11]}"
     exit 0
   fi
-  rename_noreplace "$SMOKE_OUT" "$SMOKE_QUARANTINE" ||
+  "$PYTHON" "$ATOMIC_DIRECTORY" move \
+    --source "$SMOKE_OUT" \
+    --destination "$SMOKE_QUARANTINE" \
+    --trusted-root "$SCRATCH_ROOT" ||
     fail "cannot quarantine invalid canonical smoke output"
 fi
 
@@ -343,6 +323,13 @@ else:
 print(f"STAGE2_SMOKE_OK out={out} manifest={expected} marker={destination}")
 PY
 
-rename_noreplace "$SMOKE_STAGING" "$SMOKE_OUT" ||
+"$PYTHON" "$ATOMIC_DIRECTORY" move \
+  --source "$SMOKE_STAGING" \
+  --destination "$SMOKE_OUT" \
+  --trusted-root "$SCRATCH_ROOT" ||
   fail "cannot atomically publish validated Stage-2 smoke output"
+"$PYTHON" "$OPS" validate-success \
+  --build-dir "$BRIDGE_BUILD_DIR" \
+  --artifact "$BRIDGE_ARTIFACT" ||
+  fail "published Stage-2 smoke output failed canonical validation"
 printf 'STAGE2_SMOKE_PUBLISHED out=%s manifest=%s\n' "$SMOKE_OUT" "${BRIDGE_VALUES[11]}"

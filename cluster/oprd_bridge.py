@@ -7,19 +7,27 @@ artifact I/O. It does not import transformers or instantiate any model or tokeni
 from __future__ import annotations
 
 import copy
-import ctypes
-import errno
 import hashlib
 import json
 import math
 import os
 import pathlib
 import shutil
-import sys
 import tempfile
 from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
 import torch
+
+from oprd_atomic_directory import (
+    AmbiguousPostconditionError,
+    AtomicDirectoryError,
+    DestinationCollisionError,
+    KnownNoChangeMoveError,
+    UnsafePathError,
+    UnsupportedPlatformError,
+    atomic_move_directory_noreplace,
+    directory_matches_identity,
+)
 
 
 ARTIFACT_TYPE = "oprd_bridge"
@@ -447,47 +455,56 @@ def _require_finite_tensors(
 
 
 def _rename_directory_noreplace(source: pathlib.Path, destination: pathlib.Path) -> None:
-    libc = ctypes.CDLL(None, use_errno=True)
-    source_bytes = os.fsencode(source)
-    destination_bytes = os.fsencode(destination)
-    if sys.platform.startswith("linux"):
-        rename = getattr(libc, "renameat2", None)
-        if rename is None:
-            raise ArtifactValidationError(
-                "renameat2 is unavailable; refusing a non-atomic artifact publish"
-            )
-        rename.argtypes = [
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_uint,
-        ]
-        rename.restype = ctypes.c_int
-        result = rename(-100, source_bytes, -100, destination_bytes, 1)
-    elif sys.platform == "darwin":
-        rename = getattr(libc, "renamex_np", None)
-        if rename is None:
-            raise ArtifactValidationError(
-                "renamex_np is unavailable; refusing a non-atomic artifact publish"
-            )
-        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-        rename.restype = ctypes.c_int
-        result = rename(source_bytes, destination_bytes, 0x00000004)
-    else:
+    source_path = pathlib.Path(os.path.abspath(os.fspath(source)))
+    destination_path = pathlib.Path(os.path.abspath(os.fspath(destination)))
+    if source_path.parent != destination_path.parent:
         raise ArtifactValidationError(
-            f"no atomic no-replace directory rename is available on {sys.platform}"
+            "bridge artifact staging and destination directories must be siblings"
         )
-    if result != 0:
-        error = ctypes.get_errno()
-        if error in {errno.EEXIST, errno.ENOTEMPTY}:
-            raise ArtifactAlreadyExistsError(
-                f"refusing to overwrite existing bridge artifact: {destination}"
-            )
+    try:
+        atomic_move_directory_noreplace(
+            source_path,
+            destination_path,
+            trusted_root=destination_path.parent,
+        )
+    except DestinationCollisionError as exc:
+        raise ArtifactAlreadyExistsError(
+            f"refusing to overwrite existing bridge artifact: {destination}"
+        ) from exc
+    except AmbiguousPostconditionError as exc:
         raise ArtifactValidationError(
-            f"cannot atomically publish bridge artifact {destination}: "
-            f"{os.strerror(error)}"
+            "atomic bridge artifact promotion has an ambiguous postcondition; "
+            f"automatic staging cleanup was skipped: {exc}"
+        ) from exc
+    except (
+        KnownNoChangeMoveError,
+        UnsafePathError,
+        UnsupportedPlatformError,
+    ) as exc:
+        raise ArtifactValidationError(
+            f"cannot atomically publish bridge artifact {destination}: {exc}"
+        ) from exc
+    except AtomicDirectoryError as exc:
+        raise ArtifactValidationError(
+            f"atomic bridge artifact publication failed for {destination}: {exc}"
+        ) from exc
+
+
+def _require_exact_serialized_tensors(
+    actual: Mapping[str, torch.Tensor],
+    expected: Mapping[str, torch.Tensor],
+    *,
+    context: str,
+) -> None:
+    if set(actual) != set(expected):
+        raise ArtifactCorruptError(
+            f"{context} bridge tensor names changed during serialization"
         )
+    for name, tensor in expected.items():
+        if not torch.equal(actual[name], tensor):
+            raise ArtifactCorruptError(
+                f"{context} bridge tensor changed during serialization: {name}"
+            )
 
 
 def publish_bridge_artifact(
@@ -509,7 +526,10 @@ def publish_bridge_artifact(
     """Atomically publish a new immutable bridge artifact directory.
 
     The destination must not exist. All files are written and synced in a sibling
-    temporary directory, with ``COMPLETE`` written last, before one atomic rename.
+    temporary directory, with ``COMPLETE`` written last. Promotion uses a native
+    no-replace rename when available. On filesystems that reject the native operation,
+    the fallback briefly reserves the destination with an empty private directory
+    before atomically renaming the completed staging directory over that reservation.
     """
     if not isinstance(bridge, BridgeBank):
         raise ArtifactValidationError("bridge must be a BridgeBank")
@@ -579,12 +599,13 @@ def publish_bridge_artifact(
         )
 
     _, save_file = _safetensors_functions()
-    temporary = pathlib.Path(
-        tempfile.mkdtemp(
-            prefix=f".{destination.name}.tmp-", dir=os.fspath(destination.parent)
-        )
+    temporary_name = tempfile.mkdtemp(
+        prefix=f".{destination.name}.tmp-", dir=os.fspath(destination.parent)
     )
-    published = False
+    temporary_stat = os.lstat(temporary_name)
+    temporary_identity = (temporary_stat.st_dev, temporary_stat.st_ino)
+    temporary = pathlib.Path(temporary_name)
+    preserve_staging = False
     try:
         tensor_path = temporary / TENSOR_FILENAME
         tensors = {
@@ -654,27 +675,49 @@ def publish_bridge_artifact(
             require_complete=False,
             expected_manifest_sha256=manifest_digest,
         )
-        if set(staged_tensors) != set(tensors):
-            raise ArtifactCorruptError(
-                "staged bridge tensor names changed during serialization"
-            )
-        for name, tensor in tensors.items():
-            if not torch.equal(staged_tensors[name], tensor):
-                raise ArtifactCorruptError(
-                    f"staged bridge tensor changed during serialization: {name}"
-                )
+        _require_exact_serialized_tensors(
+            staged_tensors,
+            tensors,
+            context="staged",
+        )
+        del staged_tensors
 
         complete_path = temporary / COMPLETE_FILENAME
         complete_path.write_text(f"manifest_sha256 {manifest_digest}\n", encoding="ascii")
         _fsync_file(complete_path)
-        _fsync_directory(temporary)
 
+        preserve_staging = True
         _rename_directory_noreplace(temporary, destination)
-        published = True
-        _fsync_directory(destination.parent)
+
+        _, _, _, _, canonical_tensors = _load_bridge_artifact_common(
+            destination,
+            expected_student_model_id=identity["student_model_id"],
+            expected_student_model_revision=identity["student_model_revision"],
+            expected_teacher_model_id=identity["teacher_model_id"],
+            expected_teacher_model_revision=identity["teacher_model_revision"],
+            expected_tokenizer_id=identity["tokenizer_id"],
+            expected_tokenizer_revision=identity["tokenizer_revision"],
+            expected_stage1_contract_sha256=identity["stage1_contract_sha256"],
+            expected_corpus_id=identity["corpus_id"],
+            expected_layer_map=normalized_map,
+            expected_rank=bridge.rank,
+            expected_student_dim=bridge.student_dim,
+            expected_teacher_dim=bridge.teacher_dim,
+            device="cpu",
+            require_complete=True,
+            expected_manifest_sha256=manifest_digest,
+        )
+        _require_exact_serialized_tensors(
+            canonical_tensors,
+            tensors,
+            context="published",
+        )
         return destination
     finally:
-        if not published:
+        if (
+            not preserve_staging
+            and directory_matches_identity(temporary, temporary_identity)
+        ):
             shutil.rmtree(temporary, ignore_errors=True)
 
 

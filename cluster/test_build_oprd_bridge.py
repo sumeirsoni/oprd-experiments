@@ -106,6 +106,16 @@ class CorpusContractTests(unittest.TestCase):
                     str(source), "dataset", expected
                 )
 
+    def test_source_provenance_hashes_atomic_directory_helper(self):
+        helper = pathlib.Path(builder.__file__).resolve().with_name(
+            "oprd_atomic_directory.py"
+        )
+        provenance = builder._source_provenance()
+        self.assertEqual(
+            provenance["source_files_sha256"][helper.name],
+            builder._sha256_file(helper),
+        )
+
     def test_prompt_selection_recovers_either_half_of_atomic_pair(self):
         prompts = [
             {
@@ -716,6 +726,13 @@ class RestartAndSelectionTests(unittest.TestCase):
             with contextlib.ExitStack() as stack:
                 for patch in patches:
                     stack.enter_context(patch)
+                exact_artifact = stack.enter_context(
+                    mock.patch.object(
+                        builder,
+                        "_assert_exact_artifact",
+                        wraps=builder._assert_exact_artifact,
+                    )
+                )
                 with mock.patch.object(
                     builder, "_finish_phase", side_effect=RuntimeError("after rename")
                 ):
@@ -723,6 +740,7 @@ class RestartAndSelectionTests(unittest.TestCase):
                         builder.command_publish(
                             argparse.Namespace(work_dir=str(paths.root))
                         )
+                self.assertEqual(exact_artifact.call_count, 0)
                 self.assertTrue((artifact / "COMPLETE").is_file())
                 self.assertEqual(
                     builder._read_state(paths)["phases"]["publish"]["status"],
@@ -743,6 +761,7 @@ class RestartAndSelectionTests(unittest.TestCase):
                     builder.command_publish(
                         argparse.Namespace(work_dir=str(paths.root))
                     )
+                self.assertEqual(exact_artifact.call_count, 1)
 
             state = builder._read_state(paths)
             self.assertEqual(state["phases"]["publish"]["status"], "complete")

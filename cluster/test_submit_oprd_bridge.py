@@ -10,7 +10,8 @@ import unittest
 
 
 REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
-SOURCE_NEXUS = REPOSITORY / "cluster" / "nexus"
+SOURCE_CLUSTER = REPOSITORY / "cluster"
+SOURCE_NEXUS = SOURCE_CLUSTER / "nexus"
 SUBMITTER = SOURCE_NEXUS / "submit_oprd_bridge.sh"
 
 
@@ -30,6 +31,10 @@ class SubmitBridgeTests(unittest.TestCase):
         (cluster / "requirements.txt").write_text("test-only\n", encoding="utf-8")
         for name in ("build_oprd_bridge.py", "oprd_bridge.py", "train_harness.py"):
             (cluster / name).write_text(f"# test {name}\n", encoding="utf-8")
+        shutil.copy2(
+            SOURCE_CLUSTER / "oprd_atomic_directory.py",
+            cluster / "oprd_atomic_directory.py",
+        )
         shutil.copy2(SOURCE_NEXUS / "oprd_bridge_ops.py", nexus / "oprd_bridge_ops.py")
         shutil.copy2(SUBMITTER, nexus / "submit_oprd_bridge.sh")
         for name in (
@@ -307,12 +312,20 @@ class SubmitBridgeTests(unittest.TestCase):
                     )
                 self.assertIn("set +u", script)
 
-    def test_stage2_smoke_uses_validated_no_replace_publication(self):
+    def test_stage2_smoke_uses_shared_atomic_directory_helper(self):
         script = (SOURCE_NEXUS / "oprd_bridge_stage2_smoke.sbatch").read_text()
+        helper_move = '"$PYTHON" "$ATOMIC_DIRECTORY" move'
         self.assertIn("SLURM_RESTART_COUNT", script)
-        self.assertIn("renameat2", script)
-        self.assertIn("RENAME_NOREPLACE", script)
-        self.assertIn("validate-success", script)
+        self.assertIn("ATOMIC_DIRECTORY=$CLUSTER_DIR/oprd_atomic_directory.py", script)
+        self.assertEqual(script.count(helper_move), 2)
+        self.assertEqual(script.count('--trusted-root "$SCRATCH_ROOT"'), 2)
+        self.assertIn('--source "$SMOKE_OUT"', script)
+        self.assertIn('--destination "$SMOKE_QUARANTINE"', script)
+        self.assertIn('--source "$SMOKE_STAGING"', script)
+        self.assertIn('--destination "$SMOKE_OUT"', script)
+        self.assertNotIn("renameat2", script)
+        self.assertNotIn("RENAME_NOREPLACE", script)
+        self.assertNotIn("ctypes", script)
         self.assertIn("start_step", script)
         self.assertIn("resumed_from", script)
         self.assertIn("--require-finished", script)
@@ -322,6 +335,29 @@ class SubmitBridgeTests(unittest.TestCase):
             script.index("STAGE2_SMOKE_ALREADY_VALID"),
             script.index("from flashinfer.sampling import get_sampling_module"),
         )
+        final_move = script.rindex(helper_move)
+        final_validation = script.rindex('"$PYTHON" "$OPS" validate-success')
+        published = script.index("STAGE2_SMOKE_PUBLISHED")
+        self.assertLess(final_move, final_validation)
+        self.assertLess(final_validation, published)
+
+    def test_submitter_probes_atomic_publish_before_any_mutation(self):
+        script = SUBMITTER.read_text()
+        self.assertIn('"$CLUSTER_DIR/oprd_atomic_directory.py"', script)
+        self.assertIn('--script "$CLUSTER_DIR/oprd_atomic_directory.py"', script)
+        self.assertIn('--publication-parent "$CLUSTER_DIR"', script)
+        self.assertIn(
+            '"$PYTHON" "$OPS" source-bundle-sha256 --root "$ROOT"',
+            script,
+        )
+        self.assertNotIn("digest.update(len(name).to_bytes", script)
+        preflight = script.index("load_runtime_modules\nrun_preflight\n")
+        initialize = script.index('"$PYTHON" "$OPS" init-record')
+        claim = script.index('"$PYTHON" "$OPS" claim', initialize)
+        submit = script.index('JOB_ID=$(submit_job', claim)
+        self.assertLess(preflight, initialize)
+        self.assertLess(initialize, claim)
+        self.assertLess(claim, submit)
 
     def test_fresh_submission_records_exact_ordered_eleven_job_chain(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -543,6 +579,78 @@ class SubmitBridgeTests(unittest.TestCase):
                 "2000",
             )
 
+    def test_atomic_publish_probe_failure_submits_no_jobs_or_claim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (
+                scratch,
+                cluster,
+                fake_python,
+                modules,
+                bin_dir,
+                counter,
+                log,
+            ) = self.make_cluster_tree(root)
+            cuda_home = (root / "cuda-12.8.1").resolve()
+            publication_parent = (
+                cluster
+                / "artifacts"
+                / "oprd_bridge"
+                / "qwen3_4b_to_1p7b"
+                / "smoke"
+            )
+            cluster.chmod(0o777)
+            environment = {
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "USER": "test-user",
+                "SCRATCH_ROOT": str(scratch),
+                "ROOT": str(scratch / "oprd-experiments"),
+                "PYTHON": str(fake_python),
+                "MODULES_INIT": str(modules),
+                "BRIDGE_RUNTIME_PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "BRIDGE_CUDA_HOME": str(cuda_home),
+                "BRIDGE_CUDA_NVCC": str(cuda_home / "bin" / "nvcc"),
+                "BRIDGE_RUNTIME_LD_LIBRARY_PATH": str(cuda_home / "lib64"),
+                "VLLM_CACHE_ROOT": str(scratch / "vllm-cache"),
+                "TRITON_CACHE_DIR": str(scratch / "triton-cache"),
+                "FLASHINFER_WORKSPACE_BASE": str(
+                    (scratch / "flashinfer-workspace").resolve()
+                ),
+                "FAKE_LIBCUDART": str(
+                    (cuda_home / "lib64" / "libcudart.so.12").resolve()
+                ),
+                "BRIDGE_RUN_ID": "atomic-probe-failure",
+                "SUBMIT_MIN_FREE_GIB": "0",
+                "SUBMIT_MIN_FREE_INODES": "0",
+                "ALLOW_QUOTA_UNAVAILABLE": "1",
+                "SBATCH_COUNTER": str(counter),
+                "SBATCH_LOG": str(log),
+            }
+            completed = subprocess.run(
+                ["bash", str(SUBMITTER)],
+                cwd=REPOSITORY,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn('"atomic_directory_publish"', completed.stdout)
+            self.assertIn("group- or world-writable", completed.stdout)
+            self.assertEqual(counter.read_text(encoding="ascii"), "0\n")
+            self.assertFalse(log.exists())
+            self.assertFalse(
+                (
+                    cluster
+                    / "job_ids"
+                    / "oprd_bridge_atomic-probe-failure.json"
+                ).exists()
+            )
+            self.assertFalse(
+                (publication_parent / ".rank8_all_layers.claim").exists()
+            )
+
     def test_submission_rejects_export_delimiters_before_side_effects(self):
         cases = {
             "VLLM_CACHE_ROOT": "bad,cache",
@@ -727,7 +835,7 @@ class SubmitBridgeTests(unittest.TestCase):
                 "flashinfer_workspace_base", unchanged["configuration"]
             )
 
-    def test_legacy_record_resume_rejects_changed_source_without_mutation(self):
+    def test_resume_rejects_changed_atomic_helper_without_mutation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (
@@ -792,9 +900,9 @@ class SubmitBridgeTests(unittest.TestCase):
             )
             claim = pathlib.Path(record["claim_dir"])
             build = pathlib.Path(record["build_dir"])
-            (cluster / "build_oprd_bridge.py").write_text(
-                "# authenticated source changed\n", encoding="utf-8"
-            )
+            record_before_resume = record_path.read_bytes()
+            helper = cluster / "oprd_atomic_directory.py"
+            helper.write_bytes(helper.read_bytes() + b"\n# authenticated helper changed\n")
 
             resumed = subprocess.run(
                 ["bash", str(SUBMITTER), "--resume", str(record_path)],
@@ -810,6 +918,7 @@ class SubmitBridgeTests(unittest.TestCase):
             self.assertTrue(record_path.is_file())
             self.assertTrue(build.is_dir())
             self.assertTrue(claim.is_dir())
+            self.assertEqual(record_path.read_bytes(), record_before_resume)
             unchanged = json.loads(record_path.read_text(encoding="utf-8"))
             self.assertNotIn("cuda_home", unchanged["configuration"])
 

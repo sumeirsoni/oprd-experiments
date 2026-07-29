@@ -40,32 +40,7 @@ PY
 }
 
 compute_source_digest() {
-  "$PYTHON" - \
-    "$CLUSTER_DIR/build_oprd_bridge.py" \
-    "$CLUSTER_DIR/oprd_bridge.py" \
-    "$CLUSTER_DIR/train_harness.py" \
-    "$CLUSTER_DIR/requirements.txt" \
-    "$NEXUS_DIR/oprd_bridge_ops.py" \
-    "$NEXUS_DIR/submit_oprd_bridge.sh" \
-    "$NEXUS_DIR/oprd_bridge_corpus.sbatch" \
-    "$NEXUS_DIR/oprd_bridge_teacher.sbatch" \
-    "$NEXUS_DIR/oprd_bridge_student_groups.sbatch" \
-    "$NEXUS_DIR/oprd_bridge_publish.sbatch" \
-    "$NEXUS_DIR/oprd_bridge_stage2_smoke.sbatch" <<'PY'
-import hashlib
-import pathlib
-import sys
-digest = hashlib.sha256()
-for raw in sys.argv[1:]:
-    path = pathlib.Path(raw).resolve(strict=True)
-    name = path.name.encode()
-    payload = path.read_bytes()
-    digest.update(len(name).to_bytes(8, "big"))
-    digest.update(name)
-    digest.update(len(payload).to_bytes(8, "big"))
-    digest.update(payload)
-print(digest.hexdigest())
-PY
+  "$PYTHON" "$OPS" source-bundle-sha256 --root "$ROOT"
 }
 
 load_runtime_modules() {
@@ -106,6 +81,7 @@ run_preflight() {
   "$PYTHON" "$OPS" preflight \
     --scratch "$SCRATCH_ROOT" \
     --hf-home "$BRIDGE_HF_HOME" \
+    --publication-parent "$CLUSTER_DIR" \
     --python "$PYTHON" \
     --runtime-path "$BRIDGE_RUNTIME_PATH" \
     --cuda-home "$BRIDGE_CUDA_HOME" \
@@ -120,6 +96,7 @@ run_preflight() {
     --import transformers \
     --import datasets \
     --import vllm \
+    --script "$CLUSTER_DIR/oprd_atomic_directory.py" \
     --script "$NEXUS_DIR/oprd_bridge_corpus.sbatch" \
     --script "$NEXUS_DIR/oprd_bridge_teacher.sbatch" \
     --script "$NEXUS_DIR/oprd_bridge_student_groups.sbatch" \
@@ -419,6 +396,8 @@ done
 [[ -d "$SCRATCH_ROOT" && -w "$SCRATCH_ROOT" ]] || fail "scratch is unavailable or not writable: $SCRATCH_ROOT"
 [[ -d "$CLUSTER_DIR" ]] || fail "cluster directory is missing: $CLUSTER_DIR"
 [[ -x "$PYTHON" ]] || fail "venv Python is missing or not executable: $PYTHON"
+[[ -r "$CLUSTER_DIR/oprd_atomic_directory.py" ]] ||
+  fail "atomic directory helper is missing or unreadable: $CLUSTER_DIR/oprd_atomic_directory.py"
 [[ -f "$OPS" ]] || fail "operations helper is missing: $OPS"
 [[ -f "$BRIDGE_BUILDER" ]] || fail "bridge builder is missing: $BRIDGE_BUILDER"
 command -v sbatch >/dev/null 2>&1 || fail "sbatch is not available"
