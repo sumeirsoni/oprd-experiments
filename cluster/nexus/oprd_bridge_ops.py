@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import errno
 import fcntl
 import hashlib
 import json
@@ -21,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
@@ -38,6 +40,8 @@ SMOKE_DIRECTORY = "stage2-backward-smoke"
 SMOKE_COMPLETE_FILENAME = "SMOKE_COMPLETE.json"
 PREFLIGHT_IMPORT_TIMEOUT_SECONDS = 180
 TOOLCHAIN_TIMEOUT_SECONDS = 60
+TEMP_DIRECTORY_CLEANUP_ATTEMPTS = 8
+TEMP_DIRECTORY_CLEANUP_INITIAL_DELAY_SECONDS = 0.1
 CUDA_RUNTIME_TIMEOUT_SECONDS = 60
 CUDA_RUNTIME_SONAME = "libcudart.so.12"
 FLASHINFER_DISTRIBUTION = "flashinfer-python"
@@ -534,6 +538,31 @@ def _run_text(
         raise OpsError(f"command failed to run: {args[0]}: {exc}") from exc
 
 
+def _remove_temporary_directory(
+    path: os.PathLike[str] | str,
+    *,
+    rmtree_fn: Callable[[os.PathLike[str] | str], None] = shutil.rmtree,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> None:
+    directory = pathlib.Path(path)
+    for attempt in range(TEMP_DIRECTORY_CLEANUP_ATTEMPTS):
+        try:
+            rmtree_fn(directory)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            retryable = exc.errno in {errno.EBUSY, errno.ENOTEMPTY}
+            if not retryable or attempt + 1 == TEMP_DIRECTORY_CLEANUP_ATTEMPTS:
+                raise OpsError(
+                    f"cannot clean temporary directory after "
+                    f"{attempt + 1} attempts: {directory}: {exc}"
+                ) from exc
+            sleep_fn(
+                TEMP_DIRECTORY_CLEANUP_INITIAL_DELAY_SECONDS * (2**attempt)
+            )
+
+
 def probe_native_toolchain(
     scratch: os.PathLike[str] | str,
     *,
@@ -574,10 +603,10 @@ def probe_native_toolchain(
     if linker_probe.returncode != 0 or not linker_lines:
         detail = (linker_probe.stderr or linker_probe.stdout).strip()
         raise OpsError(f"linker version probe failed: {detail}")
-    with tempfile.TemporaryDirectory(
-        prefix=".oprd-toolchain.", dir=scratch_path
-    ) as temporary:
-        temporary_path = pathlib.Path(temporary)
+    temporary_path = pathlib.Path(
+        tempfile.mkdtemp(prefix=".oprd-toolchain.", dir=scratch_path)
+    )
+    try:
         source = temporary_path / "probe.c"
         output = temporary_path / "probe.so"
         source.write_text(
@@ -604,6 +633,8 @@ def probe_native_toolchain(
             raise OpsError(f"compiler/linker probe failed: {detail}")
         if not output.is_file() or output.is_symlink() or output.stat().st_size == 0:
             raise OpsError("compiler/linker probe did not produce a shared object")
+    finally:
+        _remove_temporary_directory(temporary_path)
     return {
         "compiler_path": os.fspath(compiler),
         "compiler_version": compiler_lines[0],

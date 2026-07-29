@@ -1,7 +1,9 @@
+import errno
 import hashlib
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -752,6 +754,44 @@ class PreflightTests(unittest.TestCase):
                 [ops.TOOLCHAIN_TIMEOUT_SECONDS] * 3,
             )
             self.assertEqual(list(scratch.glob(".oprd-toolchain.*")), [])
+
+    def test_temporary_directory_cleanup_retries_transient_nfs_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary) / ".oprd-toolchain.test"
+            directory.mkdir()
+            (directory / ".nfs-test").write_bytes(b"probe")
+            attempts = []
+            delays = []
+
+            def rmtree(path):
+                attempts.append(pathlib.Path(path))
+                if len(attempts) < 3:
+                    raise OSError(errno.ENOTEMPTY, "Directory not empty", path)
+                shutil.rmtree(path)
+
+            ops._remove_temporary_directory(
+                directory, rmtree_fn=rmtree, sleep_fn=delays.append
+            )
+            self.assertEqual(attempts, [directory] * 3)
+            self.assertEqual(delays, [0.1, 0.2])
+            self.assertFalse(directory.exists())
+
+    def test_temporary_directory_cleanup_rejects_persistent_nfs_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary) / ".oprd-toolchain.test"
+            directory.mkdir()
+            delays = []
+
+            def rmtree(path):
+                raise OSError(errno.EBUSY, "Device or resource busy", path)
+
+            with self.assertRaisesRegex(
+                ops.OpsError, "cannot clean temporary directory after 8 attempts"
+            ):
+                ops._remove_temporary_directory(
+                    directory, rmtree_fn=rmtree, sleep_fn=delays.append
+                )
+            self.assertEqual(len(delays), 7)
 
     def test_native_toolchain_probe_rejects_missing_commands(self):
         with tempfile.TemporaryDirectory() as temporary:
