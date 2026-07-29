@@ -132,13 +132,19 @@ glibc versions while the FlashInfer cache key does not encode that ABI differenc
 exposes no parseable quota command, preflight fails closed. `ALLOW_QUOTA_UNAVAILABLE=1` is an explicit
 override for use only after a manual block and inode quota check.
 
-**Disk:** each task writes ~7-10GB under `runs/<task>/` (two bf16 checkpoints + a transient
-fp32 `tmp_policy/` dump per generation round, deleted after each round). Put the clone (or at
-least `runs/`) on scratch, not home.
+**Disk:** each trained task writes ~7-10GB under `runs/<task>/` (two bf16 checkpoints + a
+transient fp32 `tmp_policy/` dump per generation round, deleted after each round). The 27-task
+paper matrix therefore needs substantially more scratch than the generic 50-GiB bridge preflight
+gate. Confirm capacity for the production bridge, caches, transient model copies, failed attempts,
+and roughly 24 trained outputs before submission. Do not reclaim space by deleting preserved runs
+or caches without separate approval.
 
-**Walltime/failure behavior:** training results (`results.json` with losses/diagnostics) are
-written BEFORE eval starts, so a walltime kill during eval loses only the eval — rerun it from
-the checkpoint with `--eval-only --eval aime24,aime25 --out runs/<same-dir>`. Weight-level
+**Walltime/failure behavior:** the Nexus paper wrapper requests 72 hours because related 36-hour
+runs timed out. Treat 72 hours as an initial ceiling, not a measured estimate: run task 0 alone and
+review its elapsed time and scratch high-water mark before the matrix. Training results
+(`results.json` with losses/diagnostics) are written BEFORE eval starts, so a walltime kill during
+eval loses only the eval - rerun it from the checkpoint with `--eval-only --eval aime24,aime25
+--out runs/<same-dir>`. Weight-level
 mid-training rescue is supported with `--resume-from` / `--start-step`. Every 100 steps and at
 normal completion, `train_state_last.pt` atomically stores synchronized student/map
 weights, loss history, and the immutable bridge reference when applicable. `oprd_bridge` training
@@ -151,18 +157,17 @@ are not restored, so this remains weight-level recovery rather than continuation
 ## Known limitation: cross-tokenizer pair
 
 The phi4mini→Qwen pair is **not implemented** (needs the anchor-fingerprint OT bridge, review
-§5.8; token-aligned losses are undefined across tokenizers — the harness exits with a clear
-error). The tier2 sbatch **skips it by default** via `SKIP_PAIRS`; its 18 array tasks exit 0
-in seconds. Pairs interleave every 6 task ids, so do NOT try to exclude them by trimming the
-array range. To enable later (after the bridge exists): `SKIP_PAIRS= sbatch tier2_bridge_bakeoff.sbatch`
-(set it EMPTY — unsetting it restores the default skip).
+§5.8; token-aligned losses are undefined across tokenizers). It is not part of the Nexus paper
+matrix. That matrix is deliberately limited to Qwen3-4B→Qwen3-1.7B so every array task performs a
+meaningful run under one pinned tokenizer identity.
 
 ## Files
 
 - `tier1_tau_sweep.sbatch` - 24 tasks (8 tau values x 3 seeds), same-architecture 1.5B pair.
-- `tier2_bridge_bakeoff.sbatch` - corrected all-layer 36-task matrix. Every runnable arm requires
-  the same pinned model, tokenizer, and dataset identities; only `oprd_bridge` additionally requires
-  the external artifact and manifest digest. The cross-tokenizer Phi pair remains skipped.
+- `nexus/tier2_bridge_bakeoff.sbatch` - fixed 27-task Qwen paper matrix: seven representation/control
+  objectives including `depth_gram`, `opd_topk` as a positive control, and the untrained student baseline, each evaluated
+  with seeds 0, 1, and 2. It requires an explicitly validated production build, artifact, and fresh
+  result namespace.
 - `oprd_bridge.py` - authoritative layer mapping, `BridgeBank`, contract digest, and immutable
   safetensors artifact publication/loading.
 - `build_oprd_bridge.py` - restartable seed-independent Stage-1 builder with explicit phases.
@@ -186,8 +191,10 @@ array range. To enable later (after the bridge exists): `SKIP_PAIRS= sbatch tier
 - `linear_map_mse` deliberately remains a separate jointly trained full-rank contrast. It uses a
   seeded bounded least-squares calibration sample (`--linear-map-init-rows`, default 512), then
   checkpoints the map with the student.
-- The other five arms are projector-free by construction and require no bridge artifact, but the
-  Tier-2 wrappers still pin them to the same model, tokenizer, dataset revision, split, and prompt key.
+- The other representation arms and the `opd_topk` positive control require no bridge artifact,
+  but the Nexus Tier-2 wrapper still pins them to the same model, tokenizer, dataset revision, split,
+  and prompt key. The untrained baseline loads only the pinned student and tokenizer, performs no
+  training rollout or teacher prefill, and uses the same three stochastic evaluation seeds.
 - `requirements.txt` contains the Linux/CUDA dependency floors.
 
 ## How the ACTUAL Tier-0/3 verdicts (../tier0-results.md, ../tier3-results.md) set the knobs
@@ -195,10 +202,10 @@ array range. To enable later (after the bridge exists): `SKIP_PAIRS= sbatch tier
 | Measured verdict | Knob setting (now the default) |
 |---|---|
 | M1 **NO-GO**, both pairs: row-space carries ≥99% of mKNN; relational signal richest at 25–50% depth, dead at final layer | Retained as a later layer-diagnostic hypothesis. The primary Tier-2 objective bake-off now fixes every arm to literal all-student-layer supervision, matching OPRD's reported Bridge setup and removing layer choice as a confound. |
-| M1 no-go (identity output-readable) | `soft_knn_kl` (identity) runs as **control only** — keep it in ARMS for the control row, never headline it; drop it entirely with `SKIP_ARMS=soft_knn_kl sbatch tier2_bridge_bakeoff.sbatch` if allocation is tight |
+| M1 no-go (identity output-readable) | `soft_knn_kl` (identity) runs as **control only** - keep it in the fixed paper matrix for the control row and never headline it. If allocation is insufficient, revise and record the matrix rather than silently dropping an arm through the submission environment. |
 | M2: identity ranked first, local-distance ≈ global second (both pairs) — but M1 overrides identity-only as a treatment | LN-Dist stays the lead relational arm; no knob change |
 | M3 **AMBIGUOUS**, rollout-level trend weakly negative for geometry | a functional-bridge (`_fbridge`) arm variant is recommended by the Tier-0 verdict but is **deferred — not implemented in this run**; treat current geometric-arm wins as provisional until it exists |
-| M4: OPRD rel. variance 0.389 vs OPD 0.857; power table (tier0-results.md) says 2-pt effects need ~53–82 Avg@16 *eval samples* per arm; 1-pt needs 200–700 | `--eval-avg-at 16` × 3 training seeds ≈ 48 samples/arm — adequate for 2-pt effects only; never claim 1-pt differences from this design |
+| M4: OPRD rel. variance 0.389 vs OPD 0.857; the power table in `tier0-results.md` requires substantially more independent training seeds for small effects | Three seeds make this an exploratory objective comparison. Report uncertainty and do not claim that the design is powered for a two-point difference. |
 | Tier 3 pilot (1.5B, ../tier3-results.md): row-only ≥ full functionally, null-only hurts; **mid-layer supervision won KL while an eight-depth band won top-1** | Motivates a later layer sweep on the strongest bridge objectives; it no longer changes the layer coverage of the primary Tier-2 objective comparison. |
 
 ## Allocation estimate
@@ -245,12 +252,68 @@ runtime script or operations helper, preserve the failed build and record, expli
 inactive claim, and submit a fresh smoke with a new run ID. Never bypass the source-digest check to
 reuse an incompatible record.
 
-Production Tier 2 is prohibited. Do not submit `tier2_bridge_bakeoff.sbatch` for `oprd_bridge`
-until the external-artifact smoke passes and the artifact path, manifest digest, revisions, quota,
-and cost have been reviewed and separate production approval is recorded.
-The portable Tier-2 wrapper requires `STUDENT_REVISION`, `TEACHER_REVISION`, `TOKENIZER`,
-`TOKENIZER_REVISION`, `DATASET_REVISION`, `DATASET_SPLIT`, and `PROMPT_KEY` for every runnable
-arm. OPRD tasks additionally require `BRIDGE_ARTIFACT`, `BRIDGE_MANIFEST_SHA256`, and
-`BRIDGE_STAGE1_CONTRACT_SHA256`; the production wrapper rejects the smoke-contract digest. The
-Nexus wrapper derives the shared identity from `contract.json` and the artifact digest from
-`verify.json`.
+Production Tier 2 remains a staged decision. Preparing and validating the wrapper does not
+authorize either the production bridge build or a Tier-2 `sbatch` call.
+
+Before the production bridge build, increase scratch capacity and recheck free bytes, free inodes,
+and quota headroom. Do not lower the storage gate or delete preserved evidence to make the check
+pass. Once capacity and the paper-scale build are explicitly approved, build from the exact deployed
+revision:
+
+```bash
+repo=/cmlscratch/$USER/oprd-experiments-main
+cd "$repo"
+env \
+  SCRATCH_ROOT=/cmlscratch/$USER \
+  ROOT="$repo" \
+  BRIDGE_SMOKE=0 \
+  ALLOW_PAPER_SCALE=1 \
+  ALLOW_QUOTA_UNAVAILABLE=1 \
+  "$repo/cluster/nexus/submit_oprd_bridge.sh"
+```
+
+Reconcile the printed record to terminal success. Then set `RECORD` to that exact record and read
+the build and artifact paths from it rather than guessing them:
+
+```bash
+RECORD="$repo/cluster/job_ids/<printed-record>.json"
+mapfile -t production_paths < <(
+  "$repo/venv/bin/python" - "$RECORD" <<'PY'
+import json
+import pathlib
+import sys
+
+record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(record["build_dir"])
+print(record["artifact_dir"])
+PY
+)
+BUILD_DIR=${production_paths[0]}
+ARTIFACT_DIR=${production_paths[1]}
+"$repo/venv/bin/python" "$repo/cluster/nexus/oprd_bridge_ops.py" validate-published \
+  --build-dir "$BUILD_DIR" \
+  --artifact "$ARTIFACT_DIR"
+```
+
+The Nexus Tier-2 wrapper accepts exactly those two validated paths plus a fresh result namespace.
+Run one full-parameter OPRD profile first. Task 0 is `oprd_bridge`, seed 0:
+
+```bash
+sbatch --array=0 \
+  "$repo/cluster/nexus/tier2_bridge_bakeoff.sbatch" \
+  "$BUILD_DIR" "$ARTIFACT_DIR" "t2_profile_<revision>"
+```
+
+Review its terminal state, elapsed time, memory, scratch high-water mark, checkpoint, finite losses,
+bridge digest, and completed AIME results. A full matrix requires a new namespace and a separate
+submission decision after that review:
+
+```bash
+sbatch \
+  "$repo/cluster/nexus/tier2_bridge_bakeoff.sbatch" \
+  "$BUILD_DIR" "$ARTIFACT_DIR" "t2_paper_<revision>"
+```
+
+The fixed matrix contains 27 tasks: nine labeled rows across seeds 0, 1, and 2. It records the exact
+source revision and Slurm identity in each run configuration, rejects an existing output directory,
+and takes no scientific settings from the submission shell.

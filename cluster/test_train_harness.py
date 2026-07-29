@@ -1,8 +1,10 @@
+import json
 import pathlib
 import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import torch
 
@@ -310,6 +312,7 @@ class TrainingStateAndLossTests(unittest.TestCase):
             "eval_avg_at": 2,
             "steps": 2,
             "eval_only": False,
+            "resume_from": "",
             "rollout_tokens": 0,
             "supervise_last_k": 0,
             "rollout_refresh": 0,
@@ -339,6 +342,90 @@ class TrainingStateAndLossTests(unittest.TestCase):
                     harness._validate_runtime_args(
                         self.runtime_args(**{field: value})
                     )
+
+    def test_runtime_validation_accepts_fresh_zero_step_baseline(self):
+        harness._validate_runtime_args(self.runtime_args(steps=0))
+
+    def test_runtime_validation_rejects_invalid_zero_step_combinations(self):
+        with self.assertRaisesRegex(SystemExit, "fresh untrained baseline"):
+            harness._validate_runtime_args(
+                self.runtime_args(steps=0, resume_from="ckpt.pt")
+            )
+        with self.assertRaisesRegex(SystemExit, "fresh untrained baseline"):
+            harness._validate_runtime_args(
+                self.runtime_args(steps=0, start_step=1)
+            )
+        with self.assertRaisesRegex(SystemExit, "nonnegative"):
+            harness._validate_runtime_args(self.runtime_args(steps=-1))
+
+    def test_untrained_baseline_writes_untouched_checkpoint_without_training(self):
+        student = torch.nn.Linear(3, 2)
+        original = {key: value.detach().clone() for key, value in student.state_dict().items()}
+        args = SimpleNamespace(
+            tokenizer="org/tokenizer",
+            tokenizer_revision="1" * 40,
+            student="org/student",
+            student_revision="2" * 40,
+            eval="",
+            eval_avg_at=16,
+            seed=2,
+            max_tokens=128,
+            backend="hf",
+            loss="opd_topk",
+            eval_only=False,
+            steps=0,
+            run_label="untrained_baseline",
+            result_namespace="paper-test",
+            source_revision="3" * 40,
+        )
+        metadata = harness._run_metadata(args)
+        with tempfile.TemporaryDirectory() as temporary:
+            out = pathlib.Path(temporary)
+            config_path = out / "config.json"
+            with mock.patch.object(
+                harness.AutoTokenizer, "from_pretrained", return_value=object()
+            ), mock.patch.object(
+                harness.AutoModelForCausalLM, "from_pretrained", return_value=student
+            ), mock.patch.object(
+                harness, "load_prompt_texts", side_effect=AssertionError("training prompts loaded")
+            ), mock.patch.object(
+                harness, "teacher_prefill", side_effect=AssertionError("teacher prefill called")
+            ):
+                harness._run_untrained_baseline(args, out, config_path, metadata)
+
+            checkpoint = torch.load(out / "ckpt_final.pt", map_location="cpu")
+            for key, value in original.items():
+                self.assertTrue(torch.allclose(checkpoint[key].float(), value.float(), atol=1e-3))
+            state = torch.load(out / "train_state_last.pt", map_location="cpu")
+            self.assertEqual(state["step"], 0)
+            self.assertEqual(state["losses"], [])
+            results = json.loads((out / "results.json").read_text())
+            self.assertEqual(results["run_metadata"]["run_kind"], "untrained_baseline")
+            self.assertEqual(results["losses"], [])
+
+    def test_run_metadata_records_only_allowlisted_scheduler_identity(self):
+        args = SimpleNamespace(
+            eval_only=False,
+            steps=2,
+            run_label="oprd_bridge",
+            loss="oprd_bridge",
+            result_namespace="paper-test",
+            source_revision="a" * 40,
+        )
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "SLURM_JOB_ID": "10",
+                "SLURM_ARRAY_JOB_ID": "9",
+                "SLURM_ARRAY_TASK_ID": "2",
+                "SECRET_VALUE": "not-recorded",
+            },
+            clear=True,
+        ):
+            metadata = harness._run_metadata(args)
+        self.assertEqual(metadata["run_kind"], "training")
+        self.assertEqual(metadata["slurm"]["array_task_id"], "2")
+        self.assertNotIn("SECRET_VALUE", json.dumps(metadata))
 
     def test_atomic_training_state_keeps_bridge_map_step_and_losses_together(self):
         student = torch.nn.Linear(3, 2)

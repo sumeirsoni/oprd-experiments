@@ -61,6 +61,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import pathlib
 import re
 import shutil
@@ -170,6 +171,9 @@ def parse_args():
                    help="0-based optimizer step to resume from; --steps is the TOTAL target. "
                         "LR schedule is advanced to this index before the loop.")
     p.add_argument("--diagnostics", default="", help="comma list of: calibrated_mknn,cka,dist_n")
+    p.add_argument("--run-label", default="", help="paper-facing arm label recorded in run metadata")
+    p.add_argument("--result-namespace", default="", help="shared experiment namespace recorded in run metadata")
+    p.add_argument("--source-revision", default="", help="exact source revision recorded in run metadata")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -240,11 +244,13 @@ def _validate_runtime_args(a):
         "--max-tokens": a.max_tokens,
         "--eval-avg-at": a.eval_avg_at,
     }
-    if not a.eval_only:
-        positive_integers["--steps"] = a.steps
     for option, value in positive_integers.items():
         if value < 1:
             raise SystemExit(f"{option} must be positive")
+    if not a.eval_only and a.steps < 0:
+        raise SystemExit("--steps must be nonnegative")
+    if not a.eval_only and a.steps == 0 and (a.resume_from or a.start_step):
+        raise SystemExit("--steps 0 is only valid for a fresh untrained baseline")
     for option, value in {
         "--rollout-tokens": a.rollout_tokens,
         "--supervise-last-k": a.supervise_last_k,
@@ -542,7 +548,11 @@ def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
             student.save_pretrained(tmp, safe_serialization=True)
             tok.save_pretrained(tmp)
             # free the GPU for the worker: offload everything, restore after
-            student.to("cpu"); teacher.to("cpu"); _move_optimizer(opt, "cpu")
+            student.to("cpu")
+            if teacher is not None:
+                teacher.to("cpu")
+            if opt is not None:
+                _move_optimizer(opt, "cpu")
             for module in aux_modules:
                 module.to("cpu")
             torch.cuda.empty_cache()
@@ -561,7 +571,11 @@ def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
             gen_ids = json.loads((out / "worker_out.json").read_text())["gen_ids"]
             shutil.rmtree(tmp, ignore_errors=True)
             (out / "worker_out.json").unlink(missing_ok=True)
-            student.to(DEV); teacher.to(DEV); _move_optimizer(opt, DEV)
+            student.to(DEV)
+            if teacher is not None:
+                teacher.to(DEV)
+            if opt is not None:
+                _move_optimizer(opt, DEV)
             for module in aux_modules:
                 module.to(DEV)
             return [{"prompt_ids": pid[i], "gen_ids": gen_ids[i]} for i in range(len(pid))]
@@ -840,13 +854,64 @@ def diagnostics(names, s_pool, t_pool, rollout_texts):
     return d
 
 
+def _run_metadata(a):
+    return {
+        "schema_version": 1,
+        "run_kind": (
+            "evaluation" if a.eval_only else
+            "untrained_baseline" if a.steps == 0 else
+            "training"
+        ),
+        "arm_label": a.run_label or a.loss,
+        "result_namespace": a.result_namespace or None,
+        "source_revision": a.source_revision or None,
+        "slurm": {
+            "job_id": os.environ.get("SLURM_JOB_ID"),
+            "array_job_id": os.environ.get("SLURM_ARRAY_JOB_ID"),
+            "array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
+        },
+    }
+
+
+def _run_untrained_baseline(a, out, config_path, run_metadata):
+    tok = AutoTokenizer.from_pretrained(
+        a.tokenizer, **_revision_kwargs(a.tokenizer_revision)
+    )
+    student = AutoModelForCausalLM.from_pretrained(
+        a.student, dtype=torch.float32, **_revision_kwargs(a.student_revision)
+    ).to(DEV).eval()
+    config_path.write_text(json.dumps(vars(a) | {"run_metadata": run_metadata}, indent=1))
+
+    save_training_state(out / "train_state_last.pt", student, None, 0, [])
+    torch.save(
+        {key: value.to(torch.bfloat16).cpu() for key, value in student.state_dict().items()},
+        out / "ckpt_final.pt",
+    )
+    res = {
+        "run_metadata": run_metadata,
+        "losses": [],
+        "resumed_from": None,
+        "start_step": 0,
+    }
+    (out / "results.json").write_text(json.dumps(res, indent=1))
+
+    eval_names = [name for name in a.eval.split(",") if name]
+    if eval_names:
+        gen = make_generator(student, None, None, tok, a, out)
+        res["eval"] = eval_aime(
+            gen, tok, eval_names, a.eval_avg_at, a.seed, out, a.max_tokens
+        )
+        (out / "results.json").write_text(json.dumps(res, indent=1))
+    log(f"DONE -> {out}/results.json", out)
+
+
 # ---------------------------------------------------------------- main
 
 def main():
     a = parse_args()
     a.tokenizer = a.tokenizer or a.student
     _validate_runtime_args(a)
-    if a.loss == "oprd_bridge" and not a.eval_only:
+    if a.loss == "oprd_bridge" and not a.eval_only and a.steps > 0:
         _require_oprd_artifact_inputs(a)
         a.bridge_stage1_contract_sha256 = (
             a.bridge_stage1_contract_sha256 or stage1_contract_sha256()
@@ -860,10 +925,15 @@ def main():
     invocation_config = ("eval_config.json" if a.eval_only else
                          "resume_config.json" if a.resume_from else "config.json")
     config_path = out / invocation_config
-    config_path.write_text(json.dumps(vars(a), indent=1))
+    run_metadata = _run_metadata(a)
+    config_path.write_text(json.dumps(vars(a) | {"run_metadata": run_metadata}, indent=1))
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     log(f"harness: loss={a.loss} device={DEV}", out)
+
+    if not a.eval_only and a.steps == 0:
+        _run_untrained_baseline(a, out, config_path, run_metadata)
+        return
 
     student_config = AutoConfig.from_pretrained(
         a.student, **_revision_kwargs(a.student_revision)
@@ -896,7 +966,8 @@ def main():
     config = vars(a) | {"resolved_student_layers": lay_s,
                         "resolved_teacher_layers": lay_t,
                         "resolved_layer_map": {str(k): v for k, v in lmap.items()},
-                        "bridge_reference": bridge_reference}
+                        "bridge_reference": bridge_reference,
+                        "run_metadata": run_metadata}
     config_path.write_text(json.dumps(config, indent=1))
     log(f"supervised layer map={list(lmap.items())}", out)
 
@@ -938,7 +1009,7 @@ def main():
         opt, lambda s: min(1.0, (s + 1) / 10) * 0.5 * (1 + math.cos(math.pi * s / max(a.steps, 1))))
 
     gen = make_generator(student, teacher, opt, tok, a, out, aux_modules)
-    res = {}
+    res = {"run_metadata": run_metadata}
 
     if a.eval_only:
         ckpt = out / "ckpt_final.pt"

@@ -13,6 +13,7 @@ REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
 SOURCE_CLUSTER = REPOSITORY / "cluster"
 SOURCE_NEXUS = SOURCE_CLUSTER / "nexus"
 SUBMITTER = SOURCE_NEXUS / "submit_oprd_bridge.sh"
+TIER2_WRAPPER = SOURCE_NEXUS / "tier2_bridge_bakeoff.sbatch"
 
 
 class SubmitBridgeTests(unittest.TestCase):
@@ -311,6 +312,42 @@ class SubmitBridgeTests(unittest.TestCase):
                         script.index('"$OPS" check-environment'),
                     )
                 self.assertIn("set +u", script)
+
+    def test_tier2_wrapper_freezes_the_paper_matrix(self):
+        script = TIER2_WRAPPER.read_text()
+        self.assertIn("#SBATCH --time=72:00:00", script)
+        self.assertIn("#SBATCH --array=0-26%4", script)
+        self.assertIn("#SBATCH --export=NONE", script)
+        self.assertIn("/cmlscratch/%u/oprd-experiments-main/cluster/logs", script)
+        self.assertIn('readonly ROOT="$SCRATCH_ROOT/oprd-experiments-main"', script)
+        self.assertIn('export HF_HOME="$SCRATCH_ROOT/hf-cache"', script)
+        self.assertIn('export VLLM_CACHE_ROOT="$SCRATCH_ROOT/vllm-cache"', script)
+        self.assertIn('export TRITON_CACHE_DIR="$SCRATCH_ROOT/triton-cache"', script)
+        self.assertIn(
+            'export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"',
+            script,
+        )
+        self.assertIn("[[ $# -eq 3 ]]", script)
+        self.assertIn('"$PYTHON" "$OPS" validate-published', script)
+        self.assertLess(
+            script.index('"$PYTHON" "$OPS" validate-published'),
+            script.index('srun "$PYTHON" train_harness.py'),
+        )
+        self.assertIn("depth_gram", script)
+        self.assertIn("opd_topk", script)
+        self.assertIn("untrained_baseline", script)
+        self.assertIn("--steps 0", script)
+        self.assertIn("--steps 2000", script)
+        self.assertIn("--rollout-tokens 16000", script)
+        self.assertIn("--supervise-last-k 2000", script)
+        self.assertIn("--max-tokens 24000", script)
+        self.assertIn('mkdir "$OUT" || fail', script)
+        self.assertNotIn("SKIP_ARMS", script)
+        self.assertNotIn("SKIP_PAIRS", script)
+        self.assertNotIn("phi4mini", script)
+        self.assertNotIn("rm -", script)
+        self.assertNotIn("${STEPS:-", script)
+        self.assertNotIn("${RESULT_NS:-", script)
 
     def test_stage2_smoke_uses_shared_atomic_directory_helper(self):
         script = (SOURCE_NEXUS / "oprd_bridge_stage2_smoke.sbatch").read_text()
