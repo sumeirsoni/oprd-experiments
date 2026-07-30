@@ -296,23 +296,28 @@ ARTIFACT_DIR=${production_paths[1]}
 ```
 
 The Nexus Tier-2 wrapper accepts exactly those two validated paths plus a fresh result namespace.
-Run one full-parameter OPRD profile first. Task 0 is `oprd_bridge`, seed 0:
+Choose the final paper namespace before profiling. Task 0 is `oprd_bridge`, seed 0, and its successful
+output becomes the first member of the final matrix rather than a disposable duplicate:
 
 ```bash
+RESULT_NS="t2_paper_<revision>"
 sbatch --array=0 \
   "$repo/cluster/nexus/tier2_bridge_bakeoff.sbatch" \
-  "$BUILD_DIR" "$ARTIFACT_DIR" "t2_profile_<revision>"
+  "$BUILD_DIR" "$ARTIFACT_DIR" "$RESULT_NS"
 ```
 
 Review its terminal state, elapsed time, memory, scratch high-water mark, checkpoint, finite losses,
-bridge digest, and completed AIME results. A full matrix requires a new namespace and a separate
-submission decision after that review:
+bridge digest, and completed AIME results. If it passes, keep the exact source revision, artifact,
+protocol, and namespace fixed, then submit only tasks 1 through 26 after a separate matrix decision:
 
 ```bash
-sbatch \
+sbatch --array=1-26%4 \
   "$repo/cluster/nexus/tier2_bridge_bakeoff.sbatch" \
-  "$BUILD_DIR" "$ARTIFACT_DIR" "t2_paper_<revision>"
+  "$BUILD_DIR" "$ARTIFACT_DIR" "$RESULT_NS"
 ```
+
+If task 0 fails or requires any code or protocol change, abandon that namespace and restart the
+corrected matrix under a new namespace. Do not mix a corrected remainder with the old profile output.
 
 The fixed matrix contains 27 tasks: nine labeled rows across seeds 0, 1, and 2. It records the exact
 source revision and Slurm identity in each run configuration, rejects an existing output directory,
