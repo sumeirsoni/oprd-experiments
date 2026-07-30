@@ -528,6 +528,22 @@ def _move_optimizer(opt, device):
                 st[k] = v.to(device)
 
 
+def _record_worker_failure(out, completed):
+    stdout_path = out / "worker_stdout.log"
+    stderr_path = out / "worker_stderr.log"
+    stdout_path.write_text(completed.stdout or "")
+    stderr_path.write_text(completed.stderr or "")
+    stderr = completed.stderr or ""
+    if len(stderr) <= 8000:
+        excerpt = stderr
+    else:
+        excerpt = stderr[:4000] + "\n... full stderr saved to worker_stderr.log ...\n" + stderr[-4000:]
+    return (
+        f"vllm worker failed with exit code {completed.returncode}; "
+        f"stdout={stdout_path}, stderr={stderr_path}:\n{excerpt}"
+    )
+
+
 def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
     """Returns gen(prompt_texts, seeds) -> [{prompt_ids, gen_ids}].
     seeds: one int per prompt (drives per-request vLLM seeds / hf global seeding)."""
@@ -567,7 +583,7 @@ def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
             r = subprocess.run([sys.executable, __file__, "--_worker", str(spec_path)],
                                capture_output=True, text=True)
             if r.returncode != 0:
-                raise RuntimeError(f"vllm worker failed:\n{r.stderr[-4000:]}")
+                raise RuntimeError(_record_worker_failure(out, r))
             gen_ids = json.loads((out / "worker_out.json").read_text())["gen_ids"]
             shutil.rmtree(tmp, ignore_errors=True)
             (out / "worker_out.json").unlink(missing_ok=True)

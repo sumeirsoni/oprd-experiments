@@ -1,5 +1,6 @@
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -426,6 +427,20 @@ class TrainingStateAndLossTests(unittest.TestCase):
         self.assertEqual(metadata["run_kind"], "training")
         self.assertEqual(metadata["slurm"]["array_task_id"], "2")
         self.assertNotIn("SECRET_VALUE", json.dumps(metadata))
+
+    def test_worker_failure_persists_complete_subprocess_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            out = pathlib.Path(temporary)
+            stderr = "compiler root cause\n" + "x" * 9000 + "\nfinal traceback"
+            completed = subprocess.CompletedProcess(
+                ["worker"], 1, stdout="worker stdout", stderr=stderr
+            )
+            message = harness._record_worker_failure(out, completed)
+            self.assertEqual((out / "worker_stdout.log").read_text(), "worker stdout")
+            self.assertEqual((out / "worker_stderr.log").read_text(), stderr)
+            self.assertIn("compiler root cause", message)
+            self.assertIn("final traceback", message)
+            self.assertIn("full stderr saved", message)
 
     def test_atomic_training_state_keeps_bridge_map_step_and_losses_together(self):
         student = torch.nn.Linear(3, 2)
