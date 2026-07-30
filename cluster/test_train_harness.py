@@ -428,6 +428,39 @@ class TrainingStateAndLossTests(unittest.TestCase):
         self.assertEqual(metadata["slurm"]["array_task_id"], "2")
         self.assertNotIn("SECRET_VALUE", json.dumps(metadata))
 
+    def test_worker_environment_forces_gcc_linker_and_scratch_caches(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(
+            "os.environ",
+            {
+                "PATH": "/usr/bin",
+                "COMPILER_PATH": "/usr/bin",
+                "VLLM_CACHE_ROOT": "/scratch/vllm",
+                "TRITON_CACHE_DIR": "/scratch/triton",
+            },
+            clear=True,
+        ):
+            out = pathlib.Path(temporary)
+            environment = harness._worker_environment(out)
+            compiler = pathlib.Path(environment["CC"])
+            self.assertEqual(
+                compiler.read_text(), '#!/bin/sh\nexec /usr/bin/gcc -B/usr/bin "$@"\n'
+            )
+            self.assertEqual(compiler.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(environment["COMPILER_PATH"], "/usr/bin")
+            self.assertEqual(
+                environment["TORCHINDUCTOR_CACHE_DIR"],
+                "/scratch/vllm/torchinductor",
+            )
+
+            harness.os.environ.clear()
+            harness._apply_worker_environment(environment)
+            self.assertEqual(harness.os.environ["CC"], str(compiler))
+            self.assertEqual(harness.os.environ["TRITON_CACHE_DIR"], "/scratch/triton")
+
+    def test_worker_environment_rejects_unknown_keys(self):
+        with self.assertRaisesRegex(RuntimeError, "unsupported environment keys"):
+            harness._apply_worker_environment({"UNSAFE": "value"})
+
     def test_worker_failure_persists_complete_subprocess_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             out = pathlib.Path(temporary)

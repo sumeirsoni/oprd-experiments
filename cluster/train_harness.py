@@ -502,10 +502,51 @@ def hidden_forward(model, **kwargs):
 
 # ---------------------------------------------------------------- generation
 
+WORKER_ENVIRONMENT_KEYS = (
+    "PATH",
+    "COMPILER_PATH",
+    "CUDA_HOME",
+    "LD_LIBRARY_PATH",
+    "XDG_CACHE_HOME",
+    "VLLM_CACHE_ROOT",
+    "TRITON_CACHE_DIR",
+    "FLASHINFER_WORKSPACE_BASE",
+)
+
+
+def _worker_environment(out):
+    compiler = (out / "triton_gcc.sh").resolve()
+    compiler.write_text(
+        '#!/bin/sh\nexec /usr/bin/gcc -B/usr/bin "$@"\n'
+    )
+    compiler.chmod(0o700)
+    environment = {
+        key: os.environ[key] for key in WORKER_ENVIRONMENT_KEYS if os.environ.get(key)
+    }
+    environment["CC"] = str(compiler)
+    if cache_root := environment.get("VLLM_CACHE_ROOT"):
+        environment["TORCHINDUCTOR_CACHE_DIR"] = str(
+            pathlib.Path(cache_root) / "torchinductor"
+        )
+    return environment
+
+
+def _apply_worker_environment(environment):
+    allowed = {*WORKER_ENVIRONMENT_KEYS, "CC", "TORCHINDUCTOR_CACHE_DIR"}
+    unknown = set(environment) - allowed
+    if unknown:
+        raise RuntimeError(f"worker spec contains unsupported environment keys: {sorted(unknown)}")
+    for key, value in environment.items():
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"worker environment value must be a nonempty string: {key}")
+        os.environ[key] = value
+
+
 def _worker_main(spec_path):
     """vLLM generation worker: runs in its own process so engine memory/teardown
     never touches the training process. Reads a JSON spec, writes gen_ids JSON."""
     spec = json.loads(pathlib.Path(spec_path).read_text())
+    _apply_worker_environment(spec.get("environment", {}))
     from vllm import LLM, SamplingParams
     try:
         from vllm import TokensPrompt
@@ -576,7 +617,8 @@ def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
             # (and HF then mis-parses it as a hub repo id)
             spec = {"model_dir": str(tmp), "prompt_ids": pid, "seeds": list(seeds),
                     "max_tokens": max_tokens, "gpu_mem_util": a.gpu_mem_util,
-                    "out_json": str((out / "worker_out.json").resolve())}
+                    "out_json": str((out / "worker_out.json").resolve()),
+                    "environment": _worker_environment(out)}
             spec_path = (out / "worker_spec.json").resolve()
             spec_path.write_text(json.dumps(spec))
             log(f"vllm worker: {len(pid)} prompts", out)
