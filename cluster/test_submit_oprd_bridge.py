@@ -321,7 +321,10 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn("/cmlscratch/%u/oprd-experiments-main/cluster/logs", script)
         self.assertIn('readonly ROOT="$SCRATCH_ROOT/oprd-experiments-main"', script)
         self.assertIn('export HF_HOME="$SCRATCH_ROOT/hf-cache"', script)
+        self.assertIn('export XDG_CACHE_HOME="$SCRATCH_ROOT/vllm-cache"', script)
         self.assertIn('export VLLM_CACHE_ROOT="$SCRATCH_ROOT/vllm-cache"', script)
+        self.assertIn("export COMPILER_PATH=/usr/bin", script)
+        self.assertIn("/usr/bin/gcc -print-prog-name=ld", script)
         self.assertIn('export TRITON_CACHE_DIR="$SCRATCH_ROOT/triton-cache"', script)
         self.assertIn(
             'export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"',

@@ -43,10 +43,12 @@ readonly BRIDGE_CUDA_HOME=/opt/common/cuda/cuda-12.8.1
 readonly BRIDGE_CUDA_NVCC="$BRIDGE_CUDA_HOME/bin/nvcc"
 readonly BRIDGE_RUNTIME_LD_LIBRARY_PATH="$BRIDGE_CUDA_HOME/lib64"
 export PATH="$BRIDGE_RUNTIME_PATH"
+export COMPILER_PATH=/usr/bin
 export CUDA_HOME="$BRIDGE_CUDA_HOME"
 export FLASHINFER_NVCC="$BRIDGE_CUDA_NVCC"
 export LD_LIBRARY_PATH="$BRIDGE_RUNTIME_LD_LIBRARY_PATH"
 export HF_HOME="$SCRATCH_ROOT/hf-cache"
+export XDG_CACHE_HOME="$SCRATCH_ROOT/vllm-cache"
 export VLLM_CACHE_ROOT="$SCRATCH_ROOT/vllm-cache"
 export TRITON_CACHE_DIR="$SCRATCH_ROOT/triton-cache"
 export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"
@@ -56,6 +58,10 @@ export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"
 [[ -x "$PYTHON" ]] || fail "venv Python is missing or not executable: $PYTHON"
 [[ -r "$ENV_READY" ]] || fail "environment-ready marker is missing: $ENV_READY"
 command -v ffmpeg >/dev/null 2>&1 || fail "bundled FFmpeg is unavailable from the venv"
+TRITON_LINKER=$(/usr/bin/gcc -print-prog-name=ld) || fail "cannot resolve GCC linker"
+[[ "$TRITON_LINKER" == /usr/bin/ld* && -x "$TRITON_LINKER" ]] ||
+  fail "GCC linker is not an executable under /usr/bin: $TRITON_LINKER"
+readonly TRITON_LINKER
 [[ -d "$BRIDGE_BUILD_INPUT" && ! -L "$BRIDGE_BUILD_INPUT" ]] ||
   fail "BUILD_DIR must be a real directory: $BRIDGE_BUILD_INPUT"
 [[ -d "$BRIDGE_ARTIFACT_INPUT" && ! -L "$BRIDGE_ARTIFACT_INPUT" ]] ||
