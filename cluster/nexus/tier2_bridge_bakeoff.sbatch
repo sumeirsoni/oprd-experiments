@@ -52,6 +52,7 @@ export XDG_CACHE_HOME="$SCRATCH_ROOT/vllm-cache"
 export VLLM_CACHE_ROOT="$SCRATCH_ROOT/vllm-cache"
 export TRITON_CACHE_DIR="$SCRATCH_ROOT/triton-cache"
 export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"
+readonly SRUN_EXPORTS=PATH,COMPILER_PATH,CUDA_HOME,FLASHINFER_NVCC,LD_LIBRARY_PATH,HF_HOME,XDG_CACHE_HOME,VLLM_CACHE_ROOT,TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE
 
 [[ "$MODULE_CUDA_HOME" == "$BRIDGE_CUDA_HOME" ]] ||
   fail "cuda/12.8.1 resolved unexpected CUDA_HOME: $MODULE_CUDA_HOME"
@@ -212,7 +213,7 @@ readonly COMMON_ARGS=(
 )
 
 if [[ "$ARM" == untrained_baseline ]]; then
-  srun "$PYTHON" train_harness.py \
+  srun --export="$SRUN_EXPORTS" "$PYTHON" train_harness.py \
     --loss opd_topk \
     --steps 0 \
     "${COMMON_ARGS[@]}"
@@ -228,7 +229,7 @@ if [[ "$ARM" == oprd_bridge ]]; then
   )
 fi
 
-srun "$PYTHON" train_harness.py \
+srun --export="$SRUN_EXPORTS" "$PYTHON" train_harness.py \
   --loss "$ARM" \
   --n-prompts 4000 \
   --supervised-layers all \

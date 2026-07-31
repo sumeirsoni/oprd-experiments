@@ -325,6 +325,9 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn('export VLLM_CACHE_ROOT="$SCRATCH_ROOT/vllm-cache"', script)
         self.assertIn("export COMPILER_PATH=/usr/bin", script)
         self.assertIn("/usr/bin/gcc -print-prog-name=ld", script)
+        self.assertIn("readonly SRUN_EXPORTS=PATH,COMPILER_PATH,CUDA_HOME", script)
+        self.assertEqual(script.count('srun --export="$SRUN_EXPORTS"'), 2)
+        self.assertNotIn("srun --export=ALL", script)
         self.assertIn('export TRITON_CACHE_DIR="$SCRATCH_ROOT/triton-cache"', script)
         self.assertIn(
             'export FLASHINFER_WORKSPACE_BASE="$SCRATCH_ROOT/flashinfer-workspace"',
@@ -334,7 +337,7 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn('"$PYTHON" "$OPS" validate-published', script)
         self.assertLess(
             script.index('"$PYTHON" "$OPS" validate-published'),
-            script.index('srun "$PYTHON" train_harness.py'),
+            script.index('srun --export="$SRUN_EXPORTS" "$PYTHON" train_harness.py'),
         )
         self.assertIn("depth_gram", script)
         self.assertIn("opd_topk", script)
