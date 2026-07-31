@@ -58,6 +58,7 @@ Cross-tokenizer pairs (Phi-4-mini -> Qwen) are NOT implemented; the harness exit
 a clear error if teacher/student vocabs differ (tier2 sbatch skips that pair by default).
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -500,6 +501,19 @@ def hidden_forward(model, **kwargs):
     return backbone(output_hidden_states=True, **kwargs)
 
 
+def student_forward(model, *, hidden_states=False, **kwargs):
+    """Use BF16 CUDA kernels while retaining FP32 master weights and optimizer state."""
+    autocast = (
+        torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+        if DEV == "cuda"
+        else contextlib.nullcontext()
+    )
+    with autocast:
+        if hidden_states:
+            return hidden_forward(model, **kwargs)
+        return model(**kwargs)
+
+
 # ---------------------------------------------------------------- generation
 
 WORKER_ENVIRONMENT_KEYS = (
@@ -507,6 +521,7 @@ WORKER_ENVIRONMENT_KEYS = (
     "COMPILER_PATH",
     "CUDA_HOME",
     "LD_LIBRARY_PATH",
+    "PYTORCH_CUDA_ALLOC_CONF",
     "XDG_CACHE_HOME",
     "VLLM_CACHE_ROOT",
     "TRITON_CACHE_DIR",
@@ -630,8 +645,6 @@ def make_generator(student, teacher, opt, tok, a, out, aux_modules=None):
             shutil.rmtree(tmp, ignore_errors=True)
             (out / "worker_out.json").unlink(missing_ok=True)
             student.to(DEV)
-            if teacher is not None:
-                teacher.to(DEV)
             if opt is not None:
                 _move_optimizer(opt, DEV)
             for module in aux_modules:
@@ -725,7 +738,7 @@ def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=
         off = ts["off"]
         ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
         gstart = len(r["prompt_ids"])
-        o = hidden_forward(student, input_ids=ids, use_cache=False)
+        o = student_forward(student, hidden_states=True, input_ids=ids, use_cache=False)
         idx = torch.as_tensor(local, dtype=torch.long)
         for ls in lay_s:
             hs = o.hidden_states[ls][0, gstart + off:gstart + glen].bfloat16().cpu()
@@ -744,7 +757,7 @@ def collect_pool_states(student, rolls, tstates, lay_s, lmap, max_tok, out, cap=
 def save_training_state(path, student, wmap, step, losses, bridge_reference=None):
     """Atomically save synchronized weight-level rescue state and loss history."""
     payload = {"version": 2, "step": step, "losses": list(losses),
-               "student": {k: v.to(torch.bfloat16).cpu()
+               "student": {k: v.detach().cpu().to(torch.bfloat16)
                            for k, v in student.state_dict().items()},
                "wmap": ({k: v.detach().cpu() for k, v in wmap.state_dict().items()}
                         if wmap is not None else None),
@@ -1040,10 +1053,16 @@ def main():
                          "here — this harness supports shared-vocab pairs only (see docstring).")
 
     teacher = AutoModelForCausalLM.from_pretrained(
-        a.teacher, dtype=torch.bfloat16, **_revision_kwargs(a.teacher_revision)
+        a.teacher,
+        dtype=torch.bfloat16,
+        attn_implementation="sdpa",
+        **_revision_kwargs(a.teacher_revision),
     ).to(DEV).eval()
     student = AutoModelForCausalLM.from_pretrained(
-        a.student, dtype=torch.float32, **_revision_kwargs(a.student_revision)
+        a.student,
+        dtype=torch.float32,
+        attn_implementation="sdpa",
+        **_revision_kwargs(a.student_revision),
     )
     student.gradient_checkpointing_enable()
     student.config.use_cache = False
@@ -1157,10 +1176,22 @@ def main():
                 rolls = [r for r in rolls if len(r["gen_ids"]) < rt]
             if not rolls:
                 return None, None  # caller keeps the previous pool
-            tstates = teacher_prefill(teacher, rolls, lay_t, out, rt,
-                                      last_k=a.supervise_last_k,
-                                      topk_targets=(a.loss == "opd_topk"),
-                                      store_hidden=need_teacher_hidden)
+            teacher.to(DEV)
+            try:
+                tstates = teacher_prefill(
+                    teacher,
+                    rolls,
+                    lay_t,
+                    out,
+                    rt,
+                    last_k=a.supervise_last_k,
+                    topk_targets=(a.loss == "opd_topk"),
+                    store_hidden=need_teacher_hidden,
+                )
+            finally:
+                teacher.to("cpu")
+                if DEV == "cuda":
+                    torch.cuda.empty_cache()
             return rolls, tstates
 
         rolls, tstates = refresh(start)
@@ -1197,14 +1228,14 @@ def main():
                 ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
                 gstart = len(r["prompt_ids"])
                 if a.loss == "opd_topk":
-                    o = student(input_ids=ids)
+                    o = student_forward(student, input_ids=ids)
                     lq = torch.log_softmax(
                         o.logits[0, gstart + off - 1:gstart + glen - 1].float(), -1)
                     tk_ids = ts["tk_ids"].to(DEV).long()
                     tk_p = ts["tk_p"].to(DEV).float()
                     loss = -(tk_p * lq.gather(-1, tk_ids)).sum(-1).mean()
                 else:
-                    o = hidden_forward(student, input_ids=ids, use_cache=False)
+                    o = student_forward(student, hidden_states=True, input_ids=ids, use_cache=False)
                     s_states = {ls: o.hidden_states[ls][0, gstart + off:gstart + glen].float()
                                 for ls in lay_s}
                     t_states = {ls: ts["h"][lmap[ls]][:sup] for ls in lay_s}
@@ -1221,7 +1252,11 @@ def main():
                 (loss * w).backward()
                 batch_losses.append(loss_value)
                 toks_done += eff
-                del o
+                if a.loss == "opd_topk":
+                    del lq, tk_ids, tk_p
+                else:
+                    del s_states, t_states
+                del ids, loss, o
                 if DEV == "mps":
                     torch.mps.empty_cache()
             grad_norm = torch.nn.utils.clip_grad_norm_(params, 1.0)
@@ -1240,7 +1275,7 @@ def main():
                     out / "train_state_last.pt", student, wmap,
                     step + 1, losses, bridge_reference=bridge_reference,
                 )
-                torch.save({k: v.to(torch.bfloat16).cpu()
+                torch.save({k: v.detach().cpu().to(torch.bfloat16)
                             for k, v in student.state_dict().items()}, out / "ckpt_last.pt")
                 if wmap is not None:  # compatibility artifact; exact resume uses train_state_last
                     torch.save({k: v.detach().cpu() for k, v in wmap.state_dict().items()},
@@ -1250,7 +1285,7 @@ def main():
             out / "train_state_last.pt", student, wmap,
             a.steps, losses, bridge_reference=bridge_reference,
         )
-        torch.save({k: v.to(torch.bfloat16).cpu() for k, v in student.state_dict().items()},
+        torch.save({k: v.detach().cpu().to(torch.bfloat16) for k, v in student.state_dict().items()},
                    out / "ckpt_final.pt")
         if wmap is not None:
             torch.save(wmap.state_dict(), out / "wmap_final.pt")
@@ -1271,7 +1306,7 @@ def main():
                     glen = min(len(r["gen_ids"]), rt)
                     off = ts["off"]
                     ids = torch.tensor([r["prompt_ids"] + r["gen_ids"][:glen]], device=DEV)
-                    o = hidden_forward(student, input_ids=ids, use_cache=False)
+                    o = student_forward(student, hidden_states=True, input_ids=ids, use_cache=False)
                     sp.append(o.hidden_states[lay_s[-1]][0, len(r["prompt_ids"]) + off:
                                                          len(r["prompt_ids"]) + glen].float().cpu())
                     tp.append(ts["h"][lmap[lay_s[-1]]][:glen - off].float())

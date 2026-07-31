@@ -301,6 +301,15 @@ class TrainingStateAndLossTests(unittest.TestCase):
     def tearDown(self):
         harness.DEV = self.old_dev
 
+    def test_cuda_student_forward_uses_bfloat16_autocast(self):
+        harness.DEV = "cuda"
+        model = mock.Mock(return_value=SimpleNamespace(logits=torch.ones(1)))
+        with mock.patch.object(harness.torch, "autocast") as autocast:
+            output = harness.student_forward(model, input_ids=torch.ones(1, dtype=torch.long))
+        autocast.assert_called_once_with(device_type="cuda", dtype=torch.bfloat16)
+        model.assert_called_once()
+        self.assertEqual(output.logits.item(), 1.0)
+
     @staticmethod
     def runtime_args(**overrides):
         values = {
@@ -434,6 +443,7 @@ class TrainingStateAndLossTests(unittest.TestCase):
             {
                 "PATH": "/usr/bin",
                 "COMPILER_PATH": "/usr/bin",
+                "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
                 "VLLM_CACHE_ROOT": "/scratch/vllm",
                 "TRITON_CACHE_DIR": "/scratch/triton",
             },
@@ -447,6 +457,10 @@ class TrainingStateAndLossTests(unittest.TestCase):
             )
             self.assertEqual(compiler.stat().st_mode & 0o777, 0o700)
             self.assertEqual(environment["COMPILER_PATH"], "/usr/bin")
+            self.assertEqual(
+                environment["PYTORCH_CUDA_ALLOC_CONF"],
+                "expandable_segments:True",
+            )
             self.assertEqual(
                 environment["TORCHINDUCTOR_CACHE_DIR"],
                 "/scratch/vllm/torchinductor",
