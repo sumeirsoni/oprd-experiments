@@ -13,7 +13,7 @@ A separate official-code-faithful task-0 path now lives under `official_stage2/`
 `a63236c990b1bfa9551e9d020719490d3ecd93e8` and requires:
 
 - one node with eight GPUs using the pinned verl/Ray/FSDP/vLLM stack;
-- the ordered 17,398-row official DAPO parquet, batch 8, drop-last, one epoch, and 2,174 updates;
+- the ordered 17,917-row official DAPO parquet, batch 8, drop-last, one epoch, and 2,239 updates;
 - two fresh responses per prompt at temperature 1.0, top-p 1.0, and a 16,384-token cap;
 - raw chat with Qwen thinking disabled, cap-hitter retention, and no rollout reuse;
 - all-layer rank-8 frozen bridge loss over the final 2,000 valid response tokens;
@@ -60,7 +60,7 @@ sbatch cluster/nexus/task0_official_stage2.sbatch \
 
 This is a non-array job and cannot submit tasks 1-26. It captures and validates the actual resolved
 Hydra configuration before training. It writes `COMPLETE` only after finding the one-epoch
-`global_step_2174` checkpoint, merging its FSDP actor shards into an authenticated Hugging Face
+`global_step_2239` checkpoint, merging its FSDP actor shards into an authenticated Hugging Face
 checkpoint, rejecting later steps and failure markers, and writing an `ACCEPTED_OFFICIAL_TASK0`
 report.
 

@@ -52,7 +52,7 @@ class OfficialTask0AcceptanceTests(unittest.TestCase):
         (run / "actual-python-argv.json").write_text(
             '["-m","verl.trainer.main_ppo"]\n', encoding="utf-8"
         )
-        checkpoint = run / "checkpoints" / "global_step_2174"
+        checkpoint = run / "checkpoints" / "global_step_2239"
         checkpoint.mkdir(parents=True)
         (checkpoint / "model.bin").write_bytes(b"fixture checkpoint")
         merged = run / "merged-hf"
@@ -69,14 +69,14 @@ class OfficialTask0AcceptanceTests(unittest.TestCase):
             contract, run = self.make_run(pathlib.Path(temporary))
             result = self.accept(run, contract)
             self.assertEqual(result["status"], "ACCEPTED_OFFICIAL_TASK0")
-            self.assertEqual(result["global_step"], 2174)
+            self.assertEqual(result["global_step"], 2239)
             self.assertEqual(len(result["checkpoint_tree_sha256"]), 64)
             self.assertEqual(len(result["checkpoint_files"]), 1)
 
     def test_acceptance_rejects_later_steps_and_failure_markers(self):
         with tempfile.TemporaryDirectory() as temporary:
             contract, run = self.make_run(pathlib.Path(temporary))
-            (run / "checkpoints" / "global_step_2175").mkdir()
+            (run / "checkpoints" / "global_step_2240").mkdir()
             with self.assertRaisesRegex(validate_task0.Task0ValidationError, "beyond"):
                 self.accept(run, contract)
 

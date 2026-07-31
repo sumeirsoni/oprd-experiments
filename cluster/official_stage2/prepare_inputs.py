@@ -11,7 +11,7 @@ import pathlib
 import stat
 import subprocess
 import tempfile
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from contract import canonical_json_bytes, contract_sha256, load_contract
 
@@ -189,6 +189,43 @@ def authenticate_dataset(
         row_digest.update(
             canonical_json_bytes({"index": index, "prompt": prompt}) + b"\n"
         )
+
+    try:
+        from transformers import AutoTokenizer
+    except ImportError as exc:
+        raise InputError("transformers is required to validate DAPO prompt lengths") from exc
+    tokenizer_contract = contract["models"]["tokenizer"]
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_contract["id"], revision=tokenizer_contract["revision"]
+    )
+    prompt_lengths = []
+    for index, prompt in enumerate(prompt_rows):
+        encoded = tokenizer.apply_chat_template(
+            prompt,
+            tokenize=True,
+            add_generation_prompt=True,
+            enable_thinking=data_contract["enable_thinking"],
+        )
+        input_ids = encoded["input_ids"] if isinstance(encoded, Mapping) else encoded
+        if not isinstance(input_ids, list):
+            raise InputError(f"tokenizer returned invalid input IDs at row {index}")
+        prompt_lengths.append(len(input_ids))
+    retained_rows = [
+        index
+        for index, length in enumerate(prompt_lengths)
+        if length <= data_contract["max_prompt_tokens"]
+    ]
+    overlong_rows = len(prompt_lengths) - len(retained_rows)
+    if len(retained_rows) != data_contract["post_filter_rows"]:
+        raise InputError(
+            "DAPO post-filter row count mismatch: "
+            f"expected {data_contract['post_filter_rows']}, got {len(retained_rows)}"
+        )
+    if overlong_rows != data_contract["overlong_prompt_rows"]:
+        raise InputError(
+            "DAPO overlong prompt count mismatch: "
+            f"expected {data_contract['overlong_prompt_rows']}, got {overlong_rows}"
+        )
     manifest = {
         "schema_version": 1,
         "artifact_kind": "official_dapo_parquet",
@@ -204,6 +241,13 @@ def authenticate_dataset(
         "schema": str(table.schema),
         "prompt_key": data_contract["prompt_key"],
         "row_order_sha256": row_digest.hexdigest(),
+        "prompt_tokens": {
+            "minimum": min(prompt_lengths),
+            "maximum": max(prompt_lengths),
+            "limit": data_contract["max_prompt_tokens"],
+            "post_filter_rows": len(retained_rows),
+            "overlong_rows": overlong_rows,
+        },
         "expected_updates": data_contract["expected_updates"],
         "expected_consumed_rows": data_contract["expected_consumed_rows"],
         "expected_dropped_tail_rows": data_contract["expected_dropped_tail_rows"],

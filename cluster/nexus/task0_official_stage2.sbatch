@@ -69,6 +69,14 @@ readonly PYTHONDONTWRITEBYTECODE=1
   fail "pinned student model is missing"
 [[ -d $MODEL_DIR/Qwen3-4B && ! -L $MODEL_DIR/Qwen3-4B ]] ||
   fail "pinned teacher model is missing"
+EXPECTED_UPDATES=$(
+  "$PYTHON" - "$CONTRACT" <<'PY'
+import json, pathlib, sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["training_data"]["expected_updates"])
+PY
+)
+readonly EXPECTED_UPDATES
+[[ $EXPECTED_UPDATES =~ ^[1-9][0-9]*$ ]] || fail "invalid expected update count"
 [[ ! -e $RESULT_DIRECTORY ]] || fail "result namespace already exists: $RESULT_DIRECTORY"
 [[ ! -e $RESOLVED_STAGING && ! -e $PREFLIGHT_STAGING ]] ||
   fail "stale task-0 staging metadata exists"
@@ -165,11 +173,12 @@ srun --export="$OFFICIAL_EXPORTS" bash -c \
   bash "$SOURCE"
 
 CHECKPOINT=$(
-  "$PYTHON" - "$RESULT_DIRECTORY" <<'PY'
+  "$PYTHON" - "$RESULT_DIRECTORY" "$EXPECTED_UPDATES" <<'PY'
 import pathlib, sys
-matches = list(pathlib.Path(sys.argv[1]).rglob("global_step_2174"))
+step = int(sys.argv[2])
+matches = list(pathlib.Path(sys.argv[1]).rglob(f"global_step_{step}"))
 if len(matches) != 1:
-    raise SystemExit(f"expected one global_step_2174 checkpoint, found {len(matches)}")
+    raise SystemExit(f"expected one global_step_{step} checkpoint, found {len(matches)}")
 print(matches[0])
 PY
 )

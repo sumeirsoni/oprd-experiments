@@ -248,6 +248,14 @@ def preflight(
         "DAPO Git blob mismatch",
     )
     _require(
+        data_manifest["prompt_tokens"]["post_filter_rows"] == data["post_filter_rows"],
+        "DAPO post-filter row count mismatch",
+    )
+    _require(
+        data_manifest["prompt_tokens"]["overlong_rows"] == data["overlong_prompt_rows"],
+        "DAPO overlong prompt count mismatch",
+    )
+    _require(
         data_manifest["expected_updates"] == data["expected_updates"],
         "DAPO update count mismatch",
     )

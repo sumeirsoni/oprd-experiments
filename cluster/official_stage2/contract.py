@@ -131,11 +131,13 @@ def validate_contract(contract: Mapping[str, Any]) -> None:
     data = contract["training_data"]
     _require_git_commit(data["dataset_revision"], "training_data.dataset_revision")
     _require_git_commit(data["official_git_blob"], "training_data.official_git_blob")
+    _require(data["post_filter_rows"] == data["rows"], "unexpected filtered DAPO row count")
+    _require(data["overlong_prompt_rows"] == 0, "official DAPO should have no overlong prompts")
     _require(data["shuffle"] is False, "training data must not shuffle")
     _require(data["drop_last"] is True, "training data must drop the final partial batch")
-    expected_updates = data["rows"] // data["prompt_batch_size"]
+    expected_updates = data["post_filter_rows"] // data["prompt_batch_size"]
     expected_consumed = expected_updates * data["prompt_batch_size"]
-    expected_tail = list(range(expected_consumed, data["rows"]))
+    expected_tail = list(range(expected_consumed, data["post_filter_rows"]))
     _require(data["expected_updates"] == expected_updates, "update count mismatch")
     _require(data["expected_consumed_rows"] == expected_consumed, "consumed row count mismatch")
     _require(data["expected_dropped_tail_rows"] == expected_tail, "drop-last rows mismatch")
@@ -222,7 +224,7 @@ def expected_resolved_config(contract: Mapping[str, Any]) -> dict[str, Any]:
             "shuffle": False,
             "drop_last": True,
             "prompt_batch_size": 8,
-            "expected_updates": 2174,
+            "expected_updates": contract["training_data"]["expected_updates"],
             "enable_thinking": False,
         },
         "rollout": {
@@ -272,7 +274,7 @@ def validate_resolved_config(
         "data.shuffle": False,
         "data.drop_last": True,
         "data.prompt_batch_size": 8,
-        "data.expected_updates": 2174,
+        "data.expected_updates": contract["training_data"]["expected_updates"],
         "data.enable_thinking": False,
         "rollout.responses_per_prompt": 2,
         "rollout.temperature": 1.0,

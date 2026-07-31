@@ -11,18 +11,18 @@ import contract as task0_contract
 import prepare_inputs
 
 
-EXPECTED_CONTRACT_SHA256 = "4e9eb4bf3fff8116f9e736ec90614e10eccaad3a3eeaf2b2cddc5ba61fed97c2"
+EXPECTED_CONTRACT_SHA256 = "8dd4079e2822a7ae7f94c224b27560e3e6fe36fc09d77fdcd0472f71e3e6b253"
 
 
 class OfficialTask0ContractTests(unittest.TestCase):
     def test_contract_digest_and_internal_counts_are_stable(self):
         contract = task0_contract.load_contract()
         self.assertEqual(task0_contract.contract_sha256(contract), EXPECTED_CONTRACT_SHA256)
-        self.assertEqual(contract["training_data"]["expected_updates"], 2174)
-        self.assertEqual(contract["training_data"]["expected_consumed_rows"], 17392)
+        self.assertEqual(contract["training_data"]["expected_updates"], 2239)
+        self.assertEqual(contract["training_data"]["expected_consumed_rows"], 17912)
         self.assertEqual(
             contract["training_data"]["expected_dropped_tail_rows"],
-            [17392, 17393, 17394, 17395, 17396, 17397],
+            [17912, 17913, 17914, 17915, 17916],
         )
         self.assertEqual(contract["rollout"]["responses_per_update"], 16)
 
@@ -59,11 +59,11 @@ class OfficialTask0ContractTests(unittest.TestCase):
     def test_resolved_config_requires_every_scientific_value(self):
         resolved = {
             "data": {
-                "rows": 17398,
+                "rows": 17917,
                 "shuffle": False,
                 "drop_last": True,
                 "prompt_batch_size": 8,
-                "expected_updates": 2174,
+                "expected_updates": 2239,
                 "enable_thinking": False,
             },
             "rollout": {
