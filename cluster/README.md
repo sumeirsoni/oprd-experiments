@@ -1,27 +1,83 @@
-# OPRD Tier 1–2 cluster scripts
+# OPRD Tier 1-2 cluster scripts
 
-**STATUS:** the long-rollout CUDA/vLLM/Slurm path passed the 1.5B positive-control gate.
-The recovered offline all-layer Stage-1 builder now publishes one immutable external artifact.
-The first recovered bridge smoke failed before corpus generation because its explicit Slurm export
-omitted the system toolchain path. A corrected run reached publish job 7161597, where the NFSv3
-artifact filesystem returned `EINVAL` for native `renameat2(RENAME_NOREPLACE)`; no artifact was
-published. The failed run is preserved, and the authenticated helper change requires a fresh DAG
-before any paper-scale build or Tier-2 seed.
+## Current protocol status
 
-Verified:
-- Loss arms end-to-end on Apple MPS (Qwen2.5-0.5B): generation → teacher prefill →
-  training steps → diagnostics, finite losses. Also: rollout refresh, AIME eval
-  (with per-sample seeds → genuinely distinct Avg@N samples), `--eval-only`, `--track-stable-rank`.
-- CUDA/vLLM/Slurm long-rollout protocol at 1.5B: 16k rollouts, final-2k supervision,
-  naturally finished traces, checkpoint/eval rescues, and 24k AIME evaluation.
-- An independent adversarial code review confirmed KL directions, gradient flow, masking, and
-  token alignment empirically, and its findings (vLLM API drift, in-process engine OOM,
-  answer-normalization bug, degenerate Avg@N seeding) are fixed in the current version.
+The immutable Qwen3-4B to Qwen3-1.7B Stage-1 bridge and its external-artifact backward path have
+run successfully on Nexus. The completed single-H200 task-0 namespace `t2_paper_a4d7f92` is retained
+as an infrastructure pilot, but it is **not** a paper reproduction. Its Stage-2 harness reused cached
+rollouts, sampled one response per prompt, filtered cap hitters, traversed a prompt subset, and used
+project-specific optimizer and evaluation settings.
 
-**Still untested:**
-- real-model external-artifact Stage 1 and Stage 2 on Qwen3-4B to Qwen3-1.7B;
-- realistic four-layer cache size, scratch high-water mark, and checkpoint restart behavior;
-- all-layer CKA and full-rank `linear_map_mse` peak GPU memory.
+A separate official-code-faithful task-0 path now lives under `official_stage2/` and the matching
+`nexus/*official_stage2*` jobs. It pins official OPRD commit
+`a63236c990b1bfa9551e9d020719490d3ecd93e8` and requires:
+
+- one node with eight GPUs using the pinned verl/Ray/FSDP/vLLM stack;
+- the ordered 17,398-row official DAPO parquet, batch 8, drop-last, one epoch, and 2,174 updates;
+- two fresh responses per prompt at temperature 1.0, top-p 1.0, and a 16,384-token cap;
+- raw chat with Qwen thinking disabled, cap-hitter retention, and no rollout reuse;
+- all-layer rank-8 frozen bridge loss over the final 2,000 valid response tokens;
+- AdamW at `1e-5`, weight decay `0.01`, clip threshold `1000`, constant LR, and zero warmup.
+
+The original `train_harness.py` remains a controls/debugging runner. Legacy array task 0 now fails
+closed and directs operators to `nexus/task0_official_stage2.sbatch`. Tasks 1-26 remain blocked.
+No full official task 0 or evaluation job is authorized until the eight-GPU smoke and canary pass
+and their measured resource report receives separate approval.
+
+The historical sections below describe the Stage-1 recovery and project-control harness. Where they
+call the old Tier-2 wrapper a paper matrix, the current protocol status above takes precedence.
+
+## Official Stage-2 readiness workflow
+
+The new workflow uses a distinct scratch root, environment, source checkout, models, bridge adapter,
+and run namespaces under `/cmlscratch/$USER/oprd-official-stage2`. It never mutates the existing
+bridge/control environment.
+
+```bash
+# Preparation only. Each destination is fresh and no-overwrite.
+sbatch cluster/nexus/prepare_official_stage2.sbatch
+sbatch cluster/nexus/prepare_official_models.sbatch
+sbatch cluster/nexus/prepare_official_bridge.sbatch
+
+# After all three preparation jobs validate and publish their manifests:
+sbatch cluster/nexus/setup_official_stage2.sbatch
+
+# Eight-GPU distributed smoke, then a longer resource canary.
+sbatch cluster/nexus/official_stage2_smoke.sbatch official-smoke-<revision> 16
+sbatch cluster/nexus/official_stage2_smoke.sbatch official-canary-<revision> 80
+```
+
+The smoke and canary run the actual official verl/Ray/FSDP/vLLM path against ordered DAPO prefixes.
+They are not paper results. Review their logs, memory, scratch growth, counter behavior, and projected
+full-run cost before requesting production authorization.
+
+After separate approval, the dedicated production command is:
+
+```bash
+sbatch cluster/nexus/task0_official_stage2.sbatch \
+  official-task0-<revision> <full-clean-project-git-commit>
+```
+
+This is a non-array job and cannot submit tasks 1-26. It captures and validates the actual resolved
+Hydra configuration before training. It writes `COMPLETE` only after finding the one-epoch
+`global_step_2174` checkpoint, merging its FSDP actor shards into an authenticated Hugging Face
+checkpoint, rejecting later steps and failure markers, and writing an `ACCEPTED_OFFICIAL_TASK0`
+report.
+
+Evaluation is independently authorized and submitted only against that accepted checkpoint:
+
+```bash
+sbatch cluster/nexus/evaluate_official_stage2.sbatch \
+  /cmlscratch/$USER/oprd-official-stage2/runs/official-task0-<revision> \
+  official-eval-<revision>
+```
+
+The six evaluation jobs cover AIME24, AIME25, and AIMO under two non-pooled tracks:
+`published_offline_exact` preserves the pinned evaluator's prompt and unseeded-request behavior;
+`corrected_seeded_single_suffix` uses exactly one instruction suffix and deterministic request seeds.
+Both preserve raw response text and authoritative vLLM finish metadata in checksummed JSONL, then
+run the pinned official grader as a standalone score layer. Rescoring validates the generation
+manifest and does not need model loading or dataset downloads.
 
 ## Cluster smokes
 
@@ -164,10 +220,13 @@ meaningful run under one pinned tokenizer identity.
 ## Files
 
 - `tier1_tau_sweep.sbatch` - 24 tasks (8 tau values x 3 seeds), same-architecture 1.5B pair.
-- `nexus/tier2_bridge_bakeoff.sbatch` - fixed 27-task Qwen paper matrix: seven representation/control
-  objectives including `depth_gram`, `opd_topk` as a positive control, and the untrained student baseline, each evaluated
-  with seeds 0, 1, and 2. It requires an explicitly validated production build, artifact, and fresh
-  result namespace.
+- `official_stage2/` - canonical official task-0 contract, source/data authentication, bridge adapter,
+  task acceptance checks, immutable evaluation artifacts, eight-worker generation, and rescoring.
+- `nexus/task0_official_stage2.sbatch` - dedicated non-array official task-0 launcher.
+- `nexus/official_stage2_smoke.sbatch` - eight-GPU official-stack smoke/canary on ordered DAPO prefixes.
+- `nexus/evaluate_official_stage2.sbatch` - separately authorized dual-track AIME24/AIME25/AIMO evaluation.
+- `nexus/tier2_bridge_bakeoff.sbatch` - legacy project-control array. Task 0 is disabled because this
+  cached-rollout harness is not the official OPRD Stage-2 protocol. Other tasks remain unsubmitted.
 - `oprd_bridge.py` - authoritative layer mapping, `BridgeBank`, contract digest, and immutable
   safetensors artifact publication/loading.
 - `build_oprd_bridge.py` - restartable seed-independent Stage-1 builder with explicit phases.
@@ -175,8 +234,8 @@ meaningful run under one pinned tokenizer identity.
   two-step external-artifact Stage-2 smoke.
 - `nexus/oprd_bridge_ops.py` - preflight, artifact claims, atomic job records, terminal status,
   authenticated success checks, and safe suffix-resume decisions.
-- `train_harness.py` - Stage-2 harness. `--supervised-layers all` maps unequal depths with OPRD
-  Eq. 11 and `oprd_bridge` validates its artifact before model generation.
+- `train_harness.py` - project controls and debugging harness. It validates the external bridge and
+  OPRD layer map, but its rollout lifecycle is not accepted as the official task-0 implementation.
 
 ### Bridge procedure
 

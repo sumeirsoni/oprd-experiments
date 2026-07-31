@@ -5,10 +5,12 @@ which representational structure actually transfers, where the useful signal liv
 the LM head, and which cross-architecture bridge objective deserves training compute.
 
 Tiers 0/3, the Tier-1 sweep, the original confounded Tier-2 run, and the positive-control gate
-are complete. The next cluster experiment is the corrected cross-size Tier-2 bake-off packaged
-in [`cluster/`](cluster/): literal all-student-layer supervision, OPRD Eq. 11 depth mapping,
-16k rollouts, final-2k supervision, and one separately built immutable paper-scale bridge shared
-by every OPRD Stage-2 seed.
+are complete. The immutable Qwen3-4B to Qwen3-1.7B bridge also passed a single-H200 Stage-2 pilot,
+but that cached-rollout run is not a paper reproduction. The next cluster experiment is a separate
+official-code-faithful task 0 packaged in [`cluster/official_stage2/`](cluster/official_stage2/):
+the pinned official verl/Ray/FSDP/vLLM stack on one eight-GPU node, ordered one-epoch DAPO traversal,
+two fresh responses per prompt, the frozen all-layer rank-8 bridge, and auditable raw evaluation
+artifacts. Tasks 1-26 remain blocked until task 0 is accepted and reviewed.
 
 ## Results so far (read these two files first)
 
@@ -48,11 +50,11 @@ BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh
 cluster/nexus/submit_oprd_bridge.sh --status cluster/job_ids/<record>.json
 ```
 
-The corrected Tier-2 wrapper fixes every representation arm to literal all-student-layer
-coverage and pins every runnable arm to the same model, tokenizer, and dataset identities. The
-OPRD arm additionally requires an explicit immutable artifact and manifest digest, rejects the
-smoke contract in production, and never fits Stage 1 inside a seed run. Environment details,
-resource caveats, the seven-group builder, and the smoke ladder are in `cluster/README.md`.
+The old Tier-2 wrapper remains available only for project controls and now rejects task 0. Official
+task 0 has its own contract, dependency environment, bridge-format adapter, source/data manifests,
+eight-GPU smoke and canary, non-array production launcher, and dual-track offline evaluation. The
+preparation order, resource gates, exact scientific settings, and acceptance rules are documented in
+`cluster/README.md`. Preparing or smoking the workflow does not authorize full training or evaluation.
 
 ## Repo map
 

@@ -19,6 +19,9 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ $# -eq 3 ]] ||
   fail "usage: tier2_bridge_bakeoff.sbatch BUILD_DIR ARTIFACT_DIR RESULT_NAMESPACE"
+if [[ ${SLURM_ARRAY_TASK_ID:-} == 0 ]]; then
+  fail "legacy task 0 is disabled: use nexus/task0_official_stage2.sbatch"
+fi
 
 readonly RUN_USER=${SLURM_JOB_USER:?SLURM_JOB_USER is required}
 readonly SCRATCH_ROOT="/cmlscratch/$RUN_USER"

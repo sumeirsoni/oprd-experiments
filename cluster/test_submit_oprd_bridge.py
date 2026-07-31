@@ -318,6 +318,10 @@ class SubmitBridgeTests(unittest.TestCase):
         self.assertIn("#SBATCH --time=72:00:00", script)
         self.assertIn("#SBATCH --array=0-26%4", script)
         self.assertIn("#SBATCH --export=NONE", script)
+        self.assertIn(
+            'fail "legacy task 0 is disabled: use nexus/task0_official_stage2.sbatch"',
+            script,
+        )
         self.assertIn("/cmlscratch/%u/oprd-experiments-main/cluster/logs", script)
         self.assertIn('readonly ROOT="$SCRATCH_ROOT/oprd-experiments-main"', script)
         self.assertIn('export HF_HOME="$SCRATCH_ROOT/hf-cache"', script)

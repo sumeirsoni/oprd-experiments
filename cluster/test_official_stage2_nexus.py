@@ -1,0 +1,109 @@
+import pathlib
+import unittest
+
+
+CLUSTER = pathlib.Path(__file__).resolve().parent
+NEXUS = CLUSTER / "nexus"
+OFFICIAL = CLUSTER / "official_stage2"
+
+
+class OfficialStage2NexusTests(unittest.TestCase):
+    def test_production_launcher_is_dedicated_eight_gpu_non_array_job(self):
+        script = (NEXUS / "task0_official_stage2.sbatch").read_text()
+        self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("#SBATCH --nodes=1", script)
+        self.assertIn("#SBATCH --mem=500G", script)
+        self.assertIn("#SBATCH --export=NONE", script)
+        self.assertNotIn("#SBATCH --array", script)
+        self.assertIn("[[ $# -eq 2 ]]", script)
+        self.assertIn("PROJECT_REVISION", script)
+        self.assertIn("USE_REP_DISTILLATION=True", script)
+        self.assertIn("REP_DISTILLATION_ONLY=True", script)
+        self.assertIn("REP_DISTILLATION_COEF=10.0", script)
+        self.assertIn("REP_DISTILLATION_LAST_K=2000", script)
+        self.assertIn("REP_DISTILLATION_LAYERS=all", script)
+        self.assertIn("REP_LOW_RANK=8", script)
+        self.assertIn("REP_FREEZE_PS=True", script)
+        self.assertIn("LOG_PROB_TOP_K=0", script)
+        self.assertIn("MINI_BATCH_SIZE=8", script)
+        self.assertIn("N_RESPONSES=2", script)
+        self.assertIn("TEMPERATURE=1.0", script)
+        self.assertIn("LR_SCHEDULER=constant", script)
+        self.assertIn("MODEL_DTYPE=fp32", script)
+        self.assertIn("validate-resolved", script)
+        self.assertIn("capture_bin", script)
+        self.assertIn("actual-hydra.yaml", script)
+        self.assertIn("verl.model_merger", script)
+        self.assertIn("merged-hf", script)
+        self.assertIn("ACCEPTED_OFFICIAL_TASK0", script)
+        self.assertNotIn("train_harness.py", script)
+
+    def test_setup_uses_separate_environment_and_linux_resolved_lock(self):
+        script = (NEXUS / "setup_official_stage2.sbatch").read_text()
+        self.assertIn("env-a63236c", script)
+        self.assertIn("official_requirements.in", script)
+        self.assertIn('"$UV" pip compile', script)
+        self.assertIn("--python-platform x86_64-unknown-linux-gnu", script)
+        self.assertIn("--generate-hashes", script)
+        self.assertIn("vllm", script)
+        self.assertIn("ray", script)
+        self.assertIn("flash_attn", script)
+        self.assertNotIn("$PROJECT_ROOT/venv/bin/python\" -m pip install", script)
+
+    def test_prepare_jobs_publish_fresh_authenticated_inputs(self):
+        source = (NEXUS / "prepare_official_stage2.sbatch").read_text()
+        self.assertIn("a63236c990b1bfa9551e9d020719490d3ecd93e8", source)
+        self.assertIn("prepare_inputs.py", source)
+        self.assertIn("dapo-math-17k.parquet", source)
+        self.assertIn("oprd_atomic_directory.py", source)
+        self.assertIn("[[ ! -e $DESTINATION ]]", source)
+
+        bridge = (NEXUS / "prepare_official_bridge.sbatch").read_text()
+        self.assertIn("convert_bridge_to_official.py", bridge)
+        self.assertIn("rank8_all_layers", bridge)
+        self.assertIn("[[ ! -e $DESTINATION ]]", bridge)
+
+        models = (NEXUS / "prepare_official_models.sbatch").read_text()
+        self.assertIn("ea980cb0a6c2ae4b936e82123acc929f1cec04c1", models)
+        self.assertIn("1cfa9a7208912126459214e8b04321603b3df60c", models)
+        self.assertIn("oprd_atomic_directory.py", models)
+
+    def test_smoke_uses_actual_eight_gpu_stack_with_small_ordered_prefix(self):
+        script = (NEXUS / "official_stage2_smoke.sbatch").read_text()
+        self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("ROWS must be 16 for smoke or 80 for canary", script)
+        self.assertIn("slice(0, rows)", script)
+        self.assertIn("low_rank_rep_distillation.sh", script)
+        self.assertIn("REP_LOW_RANK_INIT_CHECKPOINT", script)
+        self.assertNotIn("train_harness.py", script)
+
+    def test_evaluation_is_separate_dual_track_six_job_array(self):
+        script = (NEXUS / "evaluate_official_stage2.sbatch").read_text()
+        self.assertIn("#SBATCH --array=0-5", script)
+        self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("published_offline_exact", script)
+        self.assertIn("corrected_seeded_single_suffix", script)
+        self.assertIn("generate_eval.py", script)
+        self.assertIn("aime_eval.py", script)
+        self.assertIn("validate_task0.py", script)
+        self.assertIn('value["merged_checkpoint"]', script)
+        self.assertIn("merged_checkpoint_tree_sha256", script)
+        self.assertIn("ACCEPTED_OFFICIAL_TASK0", script)
+
+    def test_legacy_task_zero_fails_before_runtime_setup(self):
+        script = (NEXUS / "tier2_bridge_bakeoff.sbatch").read_text()
+        failure = script.index("legacy task 0 is disabled")
+        module_load = script.index("module load cuda/12.8.1")
+        self.assertLess(failure, module_load)
+
+    def test_official_requirements_pin_the_primary_runtime_family(self):
+        requirements = (OFFICIAL / "official_requirements.in").read_text()
+        self.assertIn("vllm==0.11.0", requirements)
+        self.assertIn("torch==2.8.0", requirements)
+        self.assertIn("flash-attn==2.8.1", requirements)
+        self.assertIn("flashinfer-python==0.3.1", requirements)
+        self.assertIn("numpy<2.0.0", requirements)
+
+
+if __name__ == "__main__":
+    unittest.main()

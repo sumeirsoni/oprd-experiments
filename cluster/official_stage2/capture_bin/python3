@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euo pipefail
+
+: "${OPRD_REAL_PYTHON:?OPRD_REAL_PYTHON is required}"
+
+if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
+  : "${OPRD_HYDRA_CAPTURE:?OPRD_HYDRA_CAPTURE is required}"
+  : "${OPRD_ARGV_CAPTURE:?OPRD_ARGV_CAPTURE is required}"
+  : "${OPRD_CONTRACT_TOOL:?OPRD_CONTRACT_TOOL is required}"
+  : "${OPRD_CONTRACT:?OPRD_CONTRACT is required}"
+  : "${OPRD_OFFICIAL_ROOT:?OPRD_OFFICIAL_ROOT is required}"
+  [[ ! -e $OPRD_HYDRA_CAPTURE && ! -e $OPRD_ARGV_CAPTURE ]] || {
+    printf 'ERROR: official Hydra capture path already exists\n' >&2
+    exit 1
+  }
+  HYDRA_TEMP=$OPRD_HYDRA_CAPTURE.tmp.$$
+  ARGV_TEMP=$OPRD_ARGV_CAPTURE.tmp.$$
+  trap 'rm -f -- "$HYDRA_TEMP" "$ARGV_TEMP"' EXIT
+  "$OPRD_REAL_PYTHON" "$@" --cfg job --resolve > "$HYDRA_TEMP"
+  "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
+    validate-hydra --hydra "$HYDRA_TEMP" --official-root "$OPRD_OFFICIAL_ROOT" >/dev/null
+  "$OPRD_REAL_PYTHON" - "$ARGV_TEMP" "$@" <<'PY'
+import json
+import pathlib
+import sys
+pathlib.Path(sys.argv[1]).write_text(
+    json.dumps(sys.argv[2:], ensure_ascii=False, separators=(",", ":")) + "\n",
+    encoding="utf-8",
+)
+PY
+  mv "$HYDRA_TEMP" "$OPRD_HYDRA_CAPTURE"
+  mv "$ARGV_TEMP" "$OPRD_ARGV_CAPTURE"
+  trap - EXIT
+fi
+
+exec "$OPRD_REAL_PYTHON" "$@"

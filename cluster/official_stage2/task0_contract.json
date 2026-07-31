@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "contract_name": "oprd-bridge-qwen3-4b-to-1.7b-official-stage2-task0",
+  "paper": {
+    "title": "OPRD: On-Policy Representation Distillation",
+    "arxiv_id": "2606.06021v4",
+    "version_date": "2026-06-20"
+  },
+  "official_source": {
+    "repository": "https://github.com/ShenzhiYang2000/OPRD",
+    "commit": "a63236c990b1bfa9551e9d020719490d3ecd93e8",
+    "require_clean_tree": true
+  },
+  "models": {
+    "student": {
+      "id": "Qwen/Qwen3-1.7B-Base",
+      "revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+      "num_layers": 28,
+      "hidden_size": 2048
+    },
+    "teacher": {
+      "id": "Qwen/Qwen3-4B",
+      "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+      "num_layers": 36,
+      "hidden_size": 2560
+    },
+    "tokenizer": {
+      "id": "Qwen/Qwen3-1.7B-Base",
+      "revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1"
+    }
+  },
+  "stage1_bridge": {
+    "artifact_manifest_sha256": "7de0f4b3638a137d8dfb0ad542be41d76679641c99d8c674418d56cc937e938e",
+    "stage1_contract_sha256": "03e32df94e019133546038630dfcefd9413d5909a37c149c0d068d4c5b553bd5",
+    "rank": 8,
+    "layer_selection": "all",
+    "layer_mapping": "OPRD Eq. 11 proportional depth"
+  },
+  "training_data": {
+    "dataset_id": "BytedTsinghua-SIA/DAPO-Math-17k",
+    "dataset_revision": "65877096c24ffa7abc4e4fa5edb95cf3413a5674",
+    "official_path": "datasets/dapo-math-17k.parquet",
+    "official_git_blob": "1b9682b6ea847a14acbc0d060183ac62696939b3",
+    "rows": 17398,
+    "prompt_key": "prompt",
+    "shuffle": false,
+    "drop_last": true,
+    "prompt_batch_size": 8,
+    "epochs": 1,
+    "expected_updates": 2174,
+    "expected_consumed_rows": 17392,
+    "expected_dropped_tail_rows": [17392, 17393, 17394, 17395, 17396, 17397],
+    "max_prompt_tokens": 2048,
+    "overlong_prompt_policy": "filter",
+    "remaining_truncation_policy": "error",
+    "return_raw_chat": true,
+    "enable_thinking": false
+  },
+  "rollout": {
+    "responses_per_prompt": 2,
+    "responses_per_update": 16,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": -1,
+    "repetition_penalty": 1.0,
+    "max_response_tokens": 16384,
+    "max_model_tokens": 18432,
+    "ignore_eos": false,
+    "fresh_responses_each_update": true,
+    "retain_cap_hit_responses": true,
+    "request_level_seed": null
+  },
+  "objective": {
+    "representation_distillation": true,
+    "representation_only": true,
+    "projector_mode": "low_rank",
+    "rank": 8,
+    "layers": "all",
+    "positions": "last_k",
+    "last_k": 2000,
+    "loss_aggregation": "token-mean",
+    "layer_aggregation": "mean",
+    "coefficient": 10.0,
+    "freeze_student_projectors": true,
+    "freeze_teacher_projectors": true,
+    "freeze_teacher_backbone": true,
+    "train_student_backbone_only": true,
+    "log_prob_top_k": 0,
+    "policy_gradient_enabled": false,
+    "reward_model_execution": true,
+    "reward_gradient_enabled": false,
+    "kl_enabled": false,
+    "attention_distillation_enabled": false
+  },
+  "optimizer": {
+    "name": "AdamW",
+    "learning_rate": 0.00001,
+    "weight_decay": 0.01,
+    "betas": [0.9, 0.999],
+    "gradient_clip_norm": 1000.0,
+    "scheduler": "constant",
+    "warmup_steps": 0,
+    "warmup_ratio": 0.0,
+    "scheduler_resolution": "pinned-source default resolved explicitly",
+    "historical_scheduler_ambiguity": true,
+    "actor_epochs_per_generated_batch": 1,
+    "actor_minibatch_shuffle": false
+  },
+  "distributed": {
+    "nodes": 1,
+    "gpus_per_node": 8,
+    "world_size": 8,
+    "trainer": "verl Ray/FSDP",
+    "rollout_engine": "vLLM",
+    "rollout_tensor_parallel_size": 1,
+    "ulysses_sequence_parallel_size": 1,
+    "allow_single_gpu_fallback": false,
+    "allow_hf_generation_fallback": false
+  },
+  "evaluation": {
+    "datasets": ["aime24", "aime25", "aimo"],
+    "samples_per_problem": 16,
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "max_tokens": 31744,
+    "enable_thinking": false,
+    "tracks": [
+      "published_offline_exact",
+      "corrected_seeded_single_suffix"
+    ],
+    "raw_generation_artifact_required": true,
+    "standalone_rescoring_required": true
+  }
+}
