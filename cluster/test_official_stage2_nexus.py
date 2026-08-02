@@ -67,7 +67,8 @@ class OfficialStage2NexusTests(unittest.TestCase):
         bridge = (NEXUS / "prepare_official_bridge.sbatch").read_text()
         self.assertIn("convert_bridge_to_official.py", bridge)
         self.assertIn("rank8_all_layers", bridge)
-        self.assertIn("[[ ! -e $DESTINATION ]]", bridge)
+        self.assertIn("FAILED_DESTINATION", bridge)
+        self.assertIn('mv "$DESTINATION" "$FAILED_DESTINATION"', bridge)
 
         models = (NEXUS / "prepare_official_models.sbatch").read_text()
         self.assertIn("ea980cb0a6c2ae4b936e82123acc929f1cec04c1", models)

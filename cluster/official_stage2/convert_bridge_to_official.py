@@ -74,10 +74,14 @@ def _fsync_directory(path: pathlib.Path) -> None:
 
 
 def _normalized_layer_map(manifest: Mapping[str, Any]) -> dict[int, int]:
-    return {
-        int(student): int(teacher)
-        for student, teacher in manifest["bridge"]["layer_map"].items()
-    }
+    pairs = sorted(
+        (
+            (int(student), int(teacher))
+            for student, teacher in manifest["bridge"]["layer_map"].items()
+        ),
+        key=lambda pair: pair[0],
+    )
+    return dict(pairs)
 
 
 def _load_source(

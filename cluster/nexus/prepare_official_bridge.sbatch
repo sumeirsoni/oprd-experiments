@@ -22,13 +22,18 @@ readonly TOOL=$PROJECT_ROOT/cluster/official_stage2/convert_bridge_to_official.p
 readonly CONTRACT=$PROJECT_ROOT/cluster/official_stage2/task0_contract.json
 readonly SOURCE_ARTIFACT=$PROJECT_ROOT/cluster/artifacts/oprd_bridge/qwen3_4b_to_1p7b/production/rank8_all_layers
 readonly DESTINATION=$OFFICIAL_ROOT/bridge/rank8_all_layers
+readonly FAILED_DESTINATION=$OFFICIAL_ROOT/failed/bridge-${SLURM_JOB_ID}/rank8_all_layers.previous
 readonly PATH=$PROJECT_ROOT/venv/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin
 
 [[ $# -eq 0 ]] || fail "prepare_official_bridge.sbatch accepts no arguments"
 [[ -x $PYTHON ]] || fail "project Python is unavailable: $PYTHON"
 [[ -d $SOURCE_ARTIFACT && ! -L $SOURCE_ARTIFACT ]] ||
   fail "production Stage-1 bridge is missing: $SOURCE_ARTIFACT"
-[[ ! -e $DESTINATION ]] || fail "official bridge adapter already exists: $DESTINATION"
+[[ ! -e $FAILED_DESTINATION ]] || fail "bridge preservation destination already exists"
+if [[ -e $DESTINATION ]]; then
+  mkdir -p "$(dirname "$FAILED_DESTINATION")"
+  mv "$DESTINATION" "$FAILED_DESTINATION"
+fi
 mkdir -p "$OFFICIAL_ROOT/bridge"
 "$PYTHON" "$TOOL" \
   --contract "$CONTRACT" \
