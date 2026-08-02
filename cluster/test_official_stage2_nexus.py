@@ -11,6 +11,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
     def test_production_launcher_is_dedicated_eight_gpu_non_array_job(self):
         script = (NEXUS / "task0_official_stage2.sbatch").read_text()
         self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("#SBATCH --cpus-per-task=32", script)
         self.assertIn("#SBATCH --nodes=1", script)
         self.assertIn("#SBATCH --mem=500G", script)
         self.assertIn("#SBATCH --export=NONE", script)
@@ -78,6 +79,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
     def test_smoke_uses_actual_eight_gpu_stack_with_small_ordered_prefix(self):
         script = (NEXUS / "official_stage2_smoke.sbatch").read_text()
         self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("#SBATCH --cpus-per-task=32", script)
         self.assertIn("ROWS must be 16 for smoke or 80 for canary", script)
         self.assertIn("slice(0, rows)", script)
         self.assertIn("low_rank_rep_distillation.sh", script)
@@ -88,6 +90,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         script = (NEXUS / "evaluate_official_stage2.sbatch").read_text()
         self.assertIn("#SBATCH --array=0-5", script)
         self.assertIn("#SBATCH --gres=gpu:h200-sxm:8", script)
+        self.assertIn("#SBATCH --cpus-per-task=32", script)
         self.assertIn("published_offline_exact", script)
         self.assertIn("corrected_seeded_single_suffix", script)
         self.assertIn("generate_eval.py", script)
