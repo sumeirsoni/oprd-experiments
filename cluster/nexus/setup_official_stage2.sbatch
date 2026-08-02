@@ -35,14 +35,23 @@ readonly FLASHINFER_WORKSPACE_BASE=$OFFICIAL_ROOT/cache/flashinfer
 readonly OFFICIAL_CUDA_HOME=/opt/common/cuda/cuda-12.8.1
 readonly PYTHON_VERSION=3.11.13
 readonly BUILD_ROOT=$OFFICIAL_ROOT/build/verl-${SLURM_JOB_ID}
+readonly FAILED_ROOT=$OFFICIAL_ROOT/failed/setup-${SLURM_JOB_ID}
 
 [[ $# -eq 0 ]] || fail "setup_official_stage2.sbatch accepts no arguments"
 [[ -x $UV ]] || fail "authenticated uv bootstrap is missing: $UV"
 [[ -r $INPUT_REQUIREMENTS ]] || fail "official requirements input is missing"
 [[ -d $SOURCE && ! -L $SOURCE ]] || fail "pinned official source is missing: $SOURCE"
 [[ -r $SOURCE_MANIFEST ]] || fail "official source manifest is missing: $SOURCE_MANIFEST"
-[[ ! -e $ENVIRONMENT ]] || fail "official environment already exists: $ENVIRONMENT"
-[[ ! -e $BUILD_ROOT ]] || fail "official verl build staging already exists: $BUILD_ROOT"
+[[ ! -e $FAILED_ROOT ]] || fail "failed-attempt preservation root already exists: $FAILED_ROOT"
+if [[ -e $ENVIRONMENT ]]; then
+  [[ ! -e $READY_MARKER ]] || fail "ready official environment already exists: $ENVIRONMENT"
+  mkdir -p "$FAILED_ROOT"
+  mv "$ENVIRONMENT" "$FAILED_ROOT/env-a63236c.partial"
+fi
+if [[ -e $BUILD_ROOT ]]; then
+  mkdir -p "$FAILED_ROOT"
+  mv "$BUILD_ROOT" "$FAILED_ROOT/verl-build.partial"
+fi
 
 source /etc/profile.d/modules.sh 2>/dev/null || fail "cannot initialize environment modules"
 module use /opt/common/.modulefiles
@@ -71,7 +80,10 @@ INPUT_SHA256=$(sha256sum "$INPUT_REQUIREMENTS" | cut -d' ' -f1)
 readonly INPUT_SHA256
 LOCK=$LOCK_DIR/requirements-$INPUT_SHA256.txt
 readonly LOCK
-[[ ! -e $LOCK ]] || fail "resolved dependency lock already exists: $LOCK"
+if [[ -e $LOCK ]]; then
+  mkdir -p "$FAILED_ROOT"
+  mv "$LOCK" "$FAILED_ROOT/requirements.partial.txt"
+fi
 "$UV" pip compile \
   --python "$MANAGED_PYTHON" \
   --python-platform x86_64-unknown-linux-gnu \
@@ -80,9 +92,12 @@ readonly LOCK
   "$INPUT_REQUIREMENTS"
 
 "$UV" venv --seed --python "$MANAGED_PYTHON" "$ENVIRONMENT"
-"$UV" pip sync \
+"$UV" pip install \
   --python "$ENVIRONMENT/bin/python" \
-  --no-build-isolation-package flash-attn \
+  "torch==2.8.0" packaging ninja
+MAX_JOBS=16 "$UV" pip sync \
+  --python "$ENVIRONMENT/bin/python" \
+  --no-build-isolation \
   "$LOCK"
 mkdir -p "$BUILD_ROOT"
 cp -a "$SOURCE/verl/." "$BUILD_ROOT/"
