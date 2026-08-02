@@ -48,6 +48,8 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("--no-build-isolation", script)
         self.assertNotIn("--no-build-isolation-package", script)
         self.assertIn('"torch==2.8.0" packaging ninja', script)
+        self.assertIn("#SBATCH --mem=256G", script)
+        self.assertIn("UV_CONCURRENT_BUILDS=1 MAX_JOBS=4", script)
         self.assertIn("env-a63236c.partial", script)
         self.assertIn("vllm", script)
         self.assertIn("ray", script)

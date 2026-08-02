@@ -5,7 +5,7 @@
 #SBATCH --qos=cml-high_long
 #SBATCH --gres=gpu:h200-sxm:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --time=08:00:00
 #SBATCH --output=/cmlscratch/%u/oprd-experiments-main/cluster/logs/oprd_official_setup_%j.out
 #SBATCH --export=NONE
@@ -95,7 +95,7 @@ fi
 "$UV" pip install \
   --python "$ENVIRONMENT/bin/python" \
   "torch==2.8.0" packaging ninja
-MAX_JOBS=16 "$UV" pip sync \
+UV_CONCURRENT_BUILDS=1 MAX_JOBS=4 "$UV" pip sync \
   --python "$ENVIRONMENT/bin/python" \
   --no-build-isolation \
   "$LOCK"
