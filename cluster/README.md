@@ -50,8 +50,10 @@ sbatch cluster/nexus/official_stage2_smoke.sbatch official-canary-<revision> 80
 The smoke and canary run the actual official verl/Ray/FSDP/vLLM path against ordered DAPO prefixes.
 They request one node with eight H200s and 32 CPUs. The pinned official launcher also used one node
 and eight GPUs, but requested 64 CPUs; Nexus `cml-high_long` caps jobs at 32 CPUs, so the local
-wrapper uses four CPU cores per GPU without changing the scientific batch, loss, or topology. These
-runs are not paper results. Review their logs, memory, scratch growth, counter behavior, and
+wrapper uses four CPU cores per GPU without changing the scientific batch, loss, or topology. The
+jobs do not request Slurm `--exclusive`, because that implicitly allocates all 128 node CPUs and
+violates the QoS CPU cap; requesting all eight H200s already prevents GPU co-tenancy. These runs are
+not paper results. Review their logs, memory, scratch growth, counter behavior, and
 projected full-run cost before requesting production authorization.
 
 After separate approval, the dedicated production command is:

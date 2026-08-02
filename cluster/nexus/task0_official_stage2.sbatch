@@ -10,7 +10,6 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=500G
 #SBATCH --time=72:00:00
-#SBATCH --exclusive
 #SBATCH --output=/cmlscratch/%u/oprd-experiments-main/cluster/logs/oprd_official_task0_%j.out
 #SBATCH --export=NONE
 

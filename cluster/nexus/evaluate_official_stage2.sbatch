@@ -11,7 +11,6 @@
 #SBATCH --mem=500G
 #SBATCH --time=72:00:00
 #SBATCH --array=0-5
-#SBATCH --exclusive
 #SBATCH --output=/cmlscratch/%u/oprd-experiments-main/cluster/logs/oprd_official_eval_%A_%a.out
 #SBATCH --export=NONE
 
