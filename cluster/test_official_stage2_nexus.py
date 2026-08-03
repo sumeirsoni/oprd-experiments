@@ -35,6 +35,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("validate-resolved", script)
         self.assertIn("capture_bin", script)
         self.assertIn("actual-hydra.yaml", script)
+        self.assertIn("BASH_ENV", script)
         self.assertIn("verl.model_merger", script)
         self.assertIn("merged-hf", script)
         self.assertIn("ACCEPTED_OFFICIAL_TASK0", script)
@@ -53,6 +54,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("#SBATCH --mem=256G", script)
         self.assertIn("UV_CONCURRENT_BUILDS=1 MAX_JOBS=4", script)
         self.assertIn("env-a63236c.partial", script)
+        self.assertIn("env-a63236c.incompatible-", script)
         self.assertIn("vllm", script)
         self.assertIn("ray", script)
         self.assertIn("flash_attn", script)
@@ -86,6 +88,10 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("slice(0, rows)", script)
         self.assertIn("low_rank_rep_distillation.sh", script)
         self.assertIn("REP_LOW_RANK_INIT_CHECKPOINT", script)
+        self.assertIn("BASH_ENV", script)
+        self.assertIn("actual-hydra.yaml", script)
+        self.assertIn("torch.cuda.device_count() == 8", script)
+        self.assertIn("terminal log contains failure marker", script)
         self.assertNotIn("train_harness.py", script)
 
     def test_evaluation_is_separate_dual_track_six_job_array(self):
@@ -115,6 +121,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("torch==2.8.0", requirements)
         self.assertIn("flash-attn==2.8.1", requirements)
         self.assertIn("flashinfer-python==0.3.1", requirements)
+        self.assertIn("pyarrow==20.0.0", requirements)
         self.assertIn("numpy<2.0.0", requirements)
 
 

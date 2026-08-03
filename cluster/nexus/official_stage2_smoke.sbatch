@@ -28,6 +28,9 @@ readonly OFFICIAL_ROOT=$SCRATCH_ROOT/oprd-official-stage2
 readonly SOURCE=$OFFICIAL_ROOT/source/OPRD
 readonly ENVIRONMENT=$OFFICIAL_ROOT/env-a63236c
 readonly PYTHON=$ENVIRONMENT/bin/python
+readonly CAPTURE_BIN=$PROJECT_ROOT/cluster/official_stage2/capture_bin
+readonly CONTRACT=$PROJECT_ROOT/cluster/official_stage2/task0_contract.json
+readonly CONTRACT_TOOL=$PROJECT_ROOT/cluster/official_stage2/contract.py
 readonly MODEL_DIR=$OFFICIAL_ROOT/models
 readonly PROJECTOR_BANK=$OFFICIAL_ROOT/bridge/rank8_all_layers/ps_bank.pt
 readonly RUN_DIRECTORY=$OFFICIAL_ROOT/smokes/$RESULT_NAMESPACE
@@ -36,16 +39,25 @@ readonly PROJECT_PATH=$RUN_DIRECTORY/output
 readonly HOME=$OFFICIAL_ROOT/home
 readonly CUDA_HOME=/opt/common/cuda/cuda-12.8.1
 readonly LD_LIBRARY_PATH=$CUDA_HOME/lib64
-readonly PATH=$ENVIRONMENT/bin:$CUDA_HOME/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin
+readonly RUNTIME_PATH=$ENVIRONMENT/bin:$CUDA_HOME/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/bin:/sbin
 readonly HF_HOME=$OFFICIAL_ROOT/cache/huggingface
 readonly VLLM_CACHE_ROOT=$OFFICIAL_ROOT/cache/vllm
 readonly TRITON_CACHE_DIR=$OFFICIAL_ROOT/cache/triton
 readonly FLASHINFER_WORKSPACE_BASE=$OFFICIAL_ROOT/cache/flashinfer
 readonly PYTHONDONTWRITEBYTECODE=1
+readonly BASH_ENV=$WORK_DIRECTORY/bash-env
+readonly OPRD_REAL_PYTHON=$PYTHON
+readonly OPRD_HYDRA_CAPTURE=$RUN_DIRECTORY/actual-hydra.yaml
+readonly OPRD_ARGV_CAPTURE=$RUN_DIRECTORY/actual-python-argv.json
+readonly OPRD_CONTRACT_TOOL=$CONTRACT_TOOL
+readonly OPRD_CONTRACT=$CONTRACT
+readonly OPRD_OFFICIAL_ROOT=$OFFICIAL_ROOT
 
-[[ -x $PYTHON && -r $PROJECTOR_BANK ]] || fail "official environment or bridge is missing"
+[[ -x $PYTHON && -x $CAPTURE_BIN/python3 && -r $PROJECTOR_BANK ]] ||
+  fail "official environment, capture wrapper, or bridge is missing"
 [[ ! -e $RUN_DIRECTORY ]] || fail "smoke namespace already exists: $RUN_DIRECTORY"
 mkdir -p "$WORK_DIRECTORY/verl" "$WORK_DIRECTORY/datasets/test_data/AMC23" "$PROJECT_PATH"
+printf 'set -e\nset -o pipefail\n' > "$BASH_ENV"
 ln -s "$SOURCE/verl/verl" "$WORK_DIRECTORY/verl/verl"
 "$PYTHON" - "$SOURCE" "$WORK_DIRECTORY" "$ROWS" <<'PY'
 import pathlib, sys
@@ -57,8 +69,11 @@ validation = pq.read_table(source / "datasets/test_data/AMC23/test.parquet").sli
 pq.write_table(validation, work / "datasets/test_data/AMC23/test.parquet")
 PY
 
-export HOME PATH CUDA_HOME LD_LIBRARY_PATH HF_HOME VLLM_CACHE_ROOT
+export PATH=$CAPTURE_BIN:$RUNTIME_PATH
+export HOME PATH CUDA_HOME LD_LIBRARY_PATH HF_HOME VLLM_CACHE_ROOT BASH_ENV
 export TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE PYTHONDONTWRITEBYTECODE
+export OPRD_REAL_PYTHON OPRD_HYDRA_CAPTURE OPRD_ARGV_CAPTURE
+export OPRD_CONTRACT_TOOL OPRD_CONTRACT OPRD_OFFICIAL_ROOT
 export MODEL_DIR PROJECT_PATH
 export PROJECT_NAME=OPRD-Bridge-Official-Distributed-Smoke
 export TRAIN_DATASET_NAME=DAPO-Math-17k-official-smoke-$ROWS
@@ -73,11 +88,48 @@ export REP_LOW_RANK_INIT_CHECKPOINT=$PROJECTOR_BANK REP_FREEZE_PS=True
 export USE_ATT_DISTILLATION=False ATT_DISTILLATION_COEF=1.0 ATT_DISTILLATION_LAYERS=all
 export ATT_DISTILLATION_POSITIONS=last_k ATT_DISTILLATION_LAST_K=2000 ATT_DISTILLATION_FIRST_K=2000
 export ATT_DISTILLATION_MAX_KEY_LEN=4096 ATT_DISTILLATION_LOSS=mse ATT_DISTILLATION_TEMPERATURE=1.0
-readonly EXPORTS=HOME,PATH,CUDA_HOME,LD_LIBRARY_PATH,HF_HOME,VLLM_CACHE_ROOT,TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE,PYTHONDONTWRITEBYTECODE,MODEL_DIR,PROJECT_PATH,PROJECT_NAME,TRAIN_DATASET_NAME,MINI_BATCH_SIZE,TEMPERATURE,TEACHER_TEMPERATURE,REPETITION_PENALTY,N_RESPONSES,LOG_PROB_TOP_K,TOP_K_STRATEGY,REWARD_WEIGHT_MODE,LR_SCHEDULER,USE_KL,ENABLE_FORMAT_REWARD,MODEL_DTYPE,IS_PLOT,LOSS_AGG_MODE,ENABLE_ACTIVATION_OFFLOAD,USE_REP_DISTILLATION,REP_DISTILLATION_ONLY,REP_DISTILLATION_COEF,REP_DISTILLATION_POSITIONS,REP_DISTILLATION_LAST_K,REP_DISTILLATION_FIRST_K,REP_DISTILLATION_LAYERS,REP_PROJECTOR_MODE,REP_LOW_RANK,REP_LOW_RANK_INIT_CHECKPOINT,REP_FREEZE_PS,USE_ATT_DISTILLATION,ATT_DISTILLATION_COEF,ATT_DISTILLATION_LAYERS,ATT_DISTILLATION_POSITIONS,ATT_DISTILLATION_LAST_K,ATT_DISTILLATION_FIRST_K,ATT_DISTILLATION_MAX_KEY_LEN,ATT_DISTILLATION_LOSS,ATT_DISTILLATION_TEMPERATURE,SLURM_JOB_ID,CUDA_VISIBLE_DEVICES
+readonly EXPORTS=HOME,PATH,CUDA_HOME,LD_LIBRARY_PATH,HF_HOME,VLLM_CACHE_ROOT,TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE,PYTHONDONTWRITEBYTECODE,BASH_ENV,OPRD_REAL_PYTHON,OPRD_HYDRA_CAPTURE,OPRD_ARGV_CAPTURE,OPRD_CONTRACT_TOOL,OPRD_CONTRACT,OPRD_OFFICIAL_ROOT,MODEL_DIR,PROJECT_PATH,PROJECT_NAME,TRAIN_DATASET_NAME,MINI_BATCH_SIZE,TEMPERATURE,TEACHER_TEMPERATURE,REPETITION_PENALTY,N_RESPONSES,LOG_PROB_TOP_K,TOP_K_STRATEGY,REWARD_WEIGHT_MODE,LR_SCHEDULER,USE_KL,ENABLE_FORMAT_REWARD,MODEL_DTYPE,IS_PLOT,LOSS_AGG_MODE,ENABLE_ACTIVATION_OFFLOAD,USE_REP_DISTILLATION,REP_DISTILLATION_ONLY,REP_DISTILLATION_COEF,REP_DISTILLATION_POSITIONS,REP_DISTILLATION_LAST_K,REP_DISTILLATION_FIRST_K,REP_DISTILLATION_LAYERS,REP_PROJECTOR_MODE,REP_LOW_RANK,REP_LOW_RANK_INIT_CHECKPOINT,REP_FREEZE_PS,USE_ATT_DISTILLATION,ATT_DISTILLATION_COEF,ATT_DISTILLATION_LAYERS,ATT_DISTILLATION_POSITIONS,ATT_DISTILLATION_LAST_K,ATT_DISTILLATION_FIRST_K,ATT_DISTILLATION_MAX_KEY_LEN,ATT_DISTILLATION_LOSS,ATT_DISTILLATION_TEMPERATURE,SLURM_JOB_ID,CUDA_VISIBLE_DEVICES
 
+srun --export="$EXPORTS" "$PYTHON" - <<'PY'
+import torch
+assert torch.cuda.device_count() == 8, torch.cuda.device_count()
+print({"visible_gpus": torch.cuda.device_count(), "devices": [torch.cuda.get_device_name(i) for i in range(8)]})
+PY
 srun --export="$EXPORTS" bash -c \
   'cd "$1/verl" && exec bash "$2/low_rank_rep_distillation.sh"' \
   bash "$WORK_DIRECTORY" "$SOURCE"
-printf '{"status":"complete","rows":%s,"expected_updates":%s,"world_size":8}\n' \
-  "$ROWS" "$((ROWS / 8))" > "$RUN_DIRECTORY/smoke-result.json"
+"$PYTHON" - "$RUN_DIRECTORY" "$PROJECT_PATH" "$ROWS" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+run, project, rows = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), int(sys.argv[3])
+hydra = run / "actual-hydra.yaml"
+argv = run / "actual-python-argv.json"
+if not hydra.is_file() or not argv.is_file():
+    raise SystemExit("actual Hydra or argv capture is missing")
+logs = sorted((project / "logs" / "terminal").glob("*.log"))
+if len(logs) != 1:
+    raise SystemExit(f"expected one official terminal log, found {len(logs)}")
+text = logs[0].read_text(encoding="utf-8", errors="replace")
+for marker in ("Traceback", "RayActorError", "CUDA out of memory", "NCCL error"):
+    if marker in text:
+        raise SystemExit(f"terminal log contains failure marker: {marker}")
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+result = {
+    "status": "complete",
+    "rows": rows,
+    "expected_updates": rows // 8,
+    "world_size": 8,
+    "actual_hydra_sha256": sha256(hydra),
+    "actual_argv_sha256": sha256(argv),
+    "terminal_log": str(logs[0]),
+    "terminal_log_sha256": sha256(logs[0]),
+}
+(run / "smoke-result.json").write_text(
+    json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n",
+    encoding="utf-8",
+)
+PY
 printf 'OFFICIAL_STAGE2_SMOKE_COMPLETE\n' > "$RUN_DIRECTORY/COMPLETE"

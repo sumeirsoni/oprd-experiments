@@ -42,11 +42,24 @@ readonly FAILED_ROOT=$OFFICIAL_ROOT/failed/setup-${SLURM_JOB_ID}
 [[ -r $INPUT_REQUIREMENTS ]] || fail "official requirements input is missing"
 [[ -d $SOURCE && ! -L $SOURCE ]] || fail "pinned official source is missing: $SOURCE"
 [[ -r $SOURCE_MANIFEST ]] || fail "official source manifest is missing: $SOURCE_MANIFEST"
+INPUT_SHA256=$(sha256sum "$INPUT_REQUIREMENTS" | cut -d' ' -f1)
+readonly INPUT_SHA256
 [[ ! -e $FAILED_ROOT ]] || fail "failed-attempt preservation root already exists: $FAILED_ROOT"
 if [[ -e $ENVIRONMENT ]]; then
-  [[ ! -e $READY_MARKER ]] || fail "ready official environment already exists: $ENVIRONMENT"
+  PRESERVED_ENVIRONMENT=env-a63236c.partial
+  if [[ -e $READY_MARKER ]]; then
+    OLD_INPUT_SHA256=$(
+      "$PROJECT_ROOT/venv/bin/python" - "$READY_MARKER" <<'PY'
+import json, pathlib, sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["lock"]["input_sha256"])
+PY
+    )
+    [[ $OLD_INPUT_SHA256 != "$INPUT_SHA256" ]] ||
+      fail "ready official environment already matches current requirements"
+    PRESERVED_ENVIRONMENT=env-a63236c.incompatible-$OLD_INPUT_SHA256
+  fi
   mkdir -p "$FAILED_ROOT"
-  mv "$ENVIRONMENT" "$FAILED_ROOT/env-a63236c.partial"
+  mv "$ENVIRONMENT" "$FAILED_ROOT/$PRESERVED_ENVIRONMENT"
 fi
 if [[ -e $BUILD_ROOT ]]; then
   mkdir -p "$FAILED_ROOT"
@@ -76,8 +89,6 @@ MANAGED_PYTHON=$(
 ) || fail "cannot find managed Python $PYTHON_VERSION"
 readonly MANAGED_PYTHON
 
-INPUT_SHA256=$(sha256sum "$INPUT_REQUIREMENTS" | cut -d' ' -f1)
-readonly INPUT_SHA256
 LOCK=$LOCK_DIR/requirements-$INPUT_SHA256.txt
 readonly LOCK
 if [[ -e $LOCK ]]; then
