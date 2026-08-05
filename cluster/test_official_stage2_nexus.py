@@ -55,6 +55,8 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("UV_CONCURRENT_BUILDS=1 MAX_JOBS=4", script)
         self.assertIn("env-a63236c.partial", script)
         self.assertIn("env-a63236c.incompatible-", script)
+        self.assertIn('"verl.trainer.main_ppo"', script)
+        self.assertIn("AutoModelForVision2Seq", script)
         self.assertIn("vllm", script)
         self.assertIn("ray", script)
         self.assertIn("flash_attn", script)
@@ -122,6 +124,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("flash-attn==2.8.1", requirements)
         self.assertIn("flashinfer-python==0.3.1", requirements)
         self.assertIn("pyarrow==20.0.0", requirements)
+        self.assertIn("transformers==4.57.6", requirements)
         self.assertIn("numpy<2.0.0", requirements)
 
 

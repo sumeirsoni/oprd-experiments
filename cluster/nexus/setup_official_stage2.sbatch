@@ -118,8 +118,13 @@ cp -a "$SOURCE/verl/." "$BUILD_ROOT/"
 "$ENVIRONMENT/bin/python" - <<'PY'
 import importlib
 import torch
-for name in ("ray", "vllm", "verl", "flash_attn", "flashinfer", "pyarrow"):
+for name in (
+    "ray", "vllm", "verl", "verl.trainer.main_ppo", "flash_attn",
+    "flashinfer", "datasets", "pyarrow"
+):
     importlib.import_module(name)
+from transformers import AutoModelForVision2Seq
+assert AutoModelForVision2Seq is not None
 assert torch.cuda.is_available()
 assert torch.cuda.device_count() == 1, torch.cuda.device_count()
 print(torch.cuda.get_device_name(0))
