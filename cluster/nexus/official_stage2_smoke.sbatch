@@ -57,7 +57,7 @@ readonly OPRD_OFFICIAL_ROOT=$OFFICIAL_ROOT
   fail "official environment, capture wrapper, or bridge is missing"
 [[ ! -e $RUN_DIRECTORY ]] || fail "smoke namespace already exists: $RUN_DIRECTORY"
 mkdir -p "$WORK_DIRECTORY/verl" "$WORK_DIRECTORY/datasets/test_data/AMC23" "$PROJECT_PATH"
-printf 'set -e\nset -o pipefail\n' > "$BASH_ENV"
+printf 'set -e\nset -o pipefail\nunset ROCR_VISIBLE_DEVICES HIP_VISIBLE_DEVICES\n' > "$BASH_ENV"
 ln -s "$SOURCE/verl/verl" "$WORK_DIRECTORY/verl/verl"
 "$PYTHON" - "$SOURCE" "$WORK_DIRECTORY" "$ROWS" <<'PY'
 import pathlib, sys

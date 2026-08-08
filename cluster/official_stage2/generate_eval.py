@@ -85,6 +85,8 @@ def _worker(arguments: tuple[Any, ...]) -> list[dict[str, Any]]:
         dataset_sha256,
         benchmark,
     ) = arguments
+    os.environ.pop("ROCR_VISIBLE_DEVICES", None)
+    os.environ.pop("HIP_VISIBLE_DEVICES", None)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     from vllm import LLM, SamplingParams
 

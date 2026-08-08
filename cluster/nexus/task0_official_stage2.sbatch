@@ -117,7 +117,7 @@ mv "$RESOLVED_STAGING" "$RESULT_DIRECTORY/resolved-scientific-config.json"
 mv "$PREFLIGHT_STAGING" "$RESULT_DIRECTORY/preflight.json"
 readonly PROJECT_PATH=$RESULT_DIRECTORY
 readonly BASH_ENV=$RESULT_DIRECTORY/bash-env
-printf 'set -e\nset -o pipefail\n' > "$BASH_ENV"
+printf 'set -e\nset -o pipefail\nunset ROCR_VISIBLE_DEVICES HIP_VISIBLE_DEVICES\n' > "$BASH_ENV"
 readonly OPRD_REAL_PYTHON=$PYTHON
 readonly OPRD_HYDRA_CAPTURE=$RESULT_DIRECTORY/actual-hydra.yaml
 readonly OPRD_ARGV_CAPTURE=$RESULT_DIRECTORY/actual-python-argv.json
