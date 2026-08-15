@@ -96,6 +96,10 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("actual-hydra.yaml", script)
         self.assertIn("torch.cuda.device_count() == 8", script)
         self.assertIn("terminal log contains failure marker", script)
+        self.assertIn("official-runtime.log", script)
+        self.assertIn("known DataLoader shutdown warning", script)
+        self.assertIn("model_world_size_8_rank_*.pt", script)
+        self.assertIn("training/global_step:", script)
         self.assertNotIn("train_harness.py", script)
 
     def test_evaluation_is_separate_dual_track_six_job_array(self):

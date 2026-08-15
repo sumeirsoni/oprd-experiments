@@ -53,8 +53,11 @@ and eight GPUs, but requested 64 CPUs; Nexus `cml-high_long` caps jobs at 32 CPU
 wrapper uses four CPU cores per GPU without changing the scientific batch, loss, or topology. The
 jobs do not request Slurm `--exclusive`, because that implicitly allocates all 128 node CPUs and
 violates the QoS CPU cap; requesting all eight H200s already prevents GPU co-tenancy. These runs are
-not paper results. Review their logs, memory, scratch growth, counter behavior, and
-projected full-run cost before requesting production authorization.
+not paper results. The wrapper records the full runtime stream and permits the known Ray shutdown
+warning `DataLoader worker ... is killed by signal: Killed` only when it is the sole traceback, the
+final global-step metric is present, and all eight model, optimizer, and extra-state checkpoint
+shards exist. Any other traceback fails the job. Review logs, memory, scratch growth, counter
+behavior, and projected full-run cost before requesting production authorization.
 
 After separate approval, the dedicated production command is:
 
