@@ -108,80 +108,10 @@ PY
 srun --export="$EXPORTS" bash -c \
   'cd "$1/verl" && exec bash "$2/low_rank_rep_distillation.sh"' \
   bash "$WORK_DIRECTORY" "$SOURCE" 2>&1 | tee "$RUNTIME_LOG"
-"$PYTHON" - "$RUN_DIRECTORY" "$PROJECT_PATH" "$RUNTIME_LOG" "$ROWS" "$WORLD_SIZE" <<'PY'
-import hashlib
-import json
-import pathlib
-import sys
-run = pathlib.Path(sys.argv[1])
-project = pathlib.Path(sys.argv[2])
-runtime_log = pathlib.Path(sys.argv[3])
-rows = int(sys.argv[4])
-world_size = int(sys.argv[5])
-expected_updates = rows // 8
-hydra = run / "actual-hydra.yaml"
-argv = run / "actual-python-argv.json"
-if not hydra.is_file() or not argv.is_file() or not runtime_log.is_file():
-    raise SystemExit("actual Hydra, argv, or runtime capture is missing")
-logs = sorted((project / "logs" / "terminal").glob("*.log"))
-if len(logs) != 1:
-    raise SystemExit(f"expected one official terminal log, found {len(logs)}")
-terminal_text = logs[0].read_text(encoding="utf-8", errors="replace")
-for marker in ("Traceback", "RayActorError", "CUDA out of memory", "NCCL error"):
-    if marker in terminal_text:
-        raise SystemExit(f"terminal log contains failure marker: {marker}")
-step_marker = f"training/global_step:{expected_updates}"
-if step_marker not in terminal_text:
-    raise SystemExit(f"terminal log is missing final step marker: {step_marker}")
-runtime_text = runtime_log.read_text(encoding="utf-8", errors="replace")
-for marker in ("RayActorError", "ActorDiedError", "CUDA out of memory", "NCCL error"):
-    if marker in runtime_text:
-        raise SystemExit(f"runtime log contains failure marker: {marker}")
-cleanup_warning = "RuntimeError: DataLoader worker ("
-cleanup_warning_count = sum(
-    cleanup_warning in line and "is killed by signal: Killed" in line
-    for line in runtime_text.splitlines()
-)
-traceback_count = runtime_text.count("Traceback (most recent call last):")
-if traceback_count != cleanup_warning_count:
-    raise SystemExit(
-        "runtime traceback count is not explained by the known DataLoader shutdown warning: "
-        f"tracebacks={traceback_count}, cleanup_warnings={cleanup_warning_count}"
-    )
-steps = list(project.rglob(f"global_step_{expected_updates}"))
-if len(steps) != 1:
-    raise SystemExit(f"expected one final checkpoint, found {len(steps)}")
-actor = steps[0] / "actor"
-for kind in ("model", "optim", "extra_state"):
-    pattern = f"{kind}_world_size_{world_size}_rank_*.pt"
-    files = list(actor.glob(pattern))
-    if len(files) != world_size:
-        raise SystemExit(
-            f"expected {world_size} checkpoint shards for {pattern}, found {len(files)}"
-        )
-if not (actor / "huggingface" / "config.json").is_file():
-    raise SystemExit("checkpoint Hugging Face config is missing")
-def sha256(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-result = {
-    "status": "complete",
-    "rows": rows,
-    "expected_updates": expected_updates,
-    "world_size": world_size,
-    "topology_deviation_from_official": world_size != 8,
-    "checkpoint": str(steps[0]),
-    "checkpoint_shards_per_kind": world_size,
-    "cleanup_warning_count": cleanup_warning_count,
-    "actual_hydra_sha256": sha256(hydra),
-    "actual_argv_sha256": sha256(argv),
-    "runtime_log": str(runtime_log),
-    "runtime_log_sha256": sha256(runtime_log),
-    "terminal_log": str(logs[0]),
-    "terminal_log_sha256": sha256(logs[0]),
-}
-(run / "smoke-result.json").write_text(
-    json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n",
-    encoding="utf-8",
-)
-PY
-printf 'OFFICIAL_STAGE2_SMOKE_COMPLETE\n' > "$RUN_DIRECTORY/COMPLETE"
+"$PYTHON" "$PROJECT_ROOT/cluster/official_stage2/validate_smoke.py" \
+  --run-directory "$RUN_DIRECTORY" \
+  --project-path "$PROJECT_PATH" \
+  --runtime-log "$RUNTIME_LOG" \
+  --rows "$ROWS" \
+  --world-size "$WORLD_SIZE" \
+  --write-marker
