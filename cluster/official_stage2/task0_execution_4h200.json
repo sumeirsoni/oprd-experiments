@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "manifest_name": "task0-full-production-four-h200",
+  "scope": {
+    "task": 0,
+    "phase": "full_training",
+    "production_runs": 1,
+    "authorized_result_namespace": "official-task0-4h200-prod-r1",
+    "evaluation_authorized": false,
+    "tasks_1_through_26_authorized": false
+  },
+  "scientific_contract_sha256": "8dd4079e2822a7ae7f94c224b27560e3e6fe36fc09d77fdcd0472f71e3e6b253",
+  "historical_topology": {
+    "nodes": 1,
+    "gpus_per_node": 8,
+    "world_size": 8
+  },
+  "approved_topology": {
+    "nodes": 1,
+    "gpus_per_node": 4,
+    "world_size": 4,
+    "accelerator": "h200-sxm"
+  },
+  "allowed_hydra_delta": {
+    "path": "trainer.n_gpus_per_node",
+    "from": 8,
+    "to": 4
+  },
+  "preserved_invariants": {
+    "prompt_batch_size": 8,
+    "responses_per_prompt": 2,
+    "responses_per_update": 16,
+    "expected_updates": 2239,
+    "model_dtype": "fp32",
+    "optimizer": "AdamW",
+    "learning_rate": 0.00001,
+    "weight_decay": 0.01,
+    "scheduler": "constant",
+    "loss_aggregation": "token-mean",
+    "representation_coefficient": 10.0
+  },
+  "canary_evidence": {
+    "namespace": "official-canary-e0cd947-r1-4gpu",
+    "rows": 80,
+    "expected_updates": 10,
+    "world_size": 4,
+    "execution_revision": "e0cd947b30fb9356722eee275cf283faa6dd4b7c",
+    "acceptance_revision": "cfec70a286a488f3255cf3517a1988aa80645309",
+    "smoke_result_sha256": "7444c956be8b707c50f21f867f750436b9d91a0220fd5b03a064a25475152f70",
+    "actual_hydra_sha256": "73405eed2f87b366c0219e7b4d38cec714911b790fadd9924e10044f6f268cab",
+    "actual_argv_sha256": "1fed433606b3f4b40ce603646c438c6caf8e40c81b62b452382e7378f839bcfd",
+    "runtime_log_sha256": "3c820343113b151aed09bb6c3b014ea6aa1ec8a8f2f24f404517d54662fb398a",
+    "terminal_log_sha256": "61cac4392132e7e43b7cfe5ca89df097093c8e3e89a220d54da23766cff6919a"
+  }
+}

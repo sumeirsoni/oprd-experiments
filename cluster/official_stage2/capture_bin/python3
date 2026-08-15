@@ -10,6 +10,15 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   : "${OPRD_CONTRACT:?OPRD_CONTRACT is required}"
   : "${OPRD_OFFICIAL_ROOT:?OPRD_OFFICIAL_ROOT is required}"
   EXPECTED_WORLD_SIZE=${OPRD_EXPECTED_WORLD_SIZE:-8}
+  HYDRA_EXECUTION_ARGS=()
+  if [[ -n ${OPRD_EXECUTION_DEVIATION:-} ]]; then
+    EXPECTED_WORLD_SIZE=$(
+      "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
+        emit-execution --execution "$OPRD_EXECUTION_DEVIATION" |
+        "$OPRD_REAL_PYTHON" -c 'import json,sys; print(json.load(sys.stdin)["effective_topology"]["world_size"])'
+    )
+    HYDRA_EXECUTION_ARGS=(--execution "$OPRD_EXECUTION_DEVIATION")
+  fi
   [[ $EXPECTED_WORLD_SIZE == 4 || $EXPECTED_WORLD_SIZE == 8 ]] || {
     printf 'ERROR: OPRD_EXPECTED_WORLD_SIZE must be 4 or 8\n' >&2
     exit 1
@@ -38,7 +47,7 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   "$OPRD_REAL_PYTHON" "${RUN_ARGS[@]}" --cfg job --resolve > "$HYDRA_TEMP"
   "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
     validate-hydra --hydra "$HYDRA_TEMP" --official-root "$OPRD_OFFICIAL_ROOT" \
-    --expected-world-size "$EXPECTED_WORLD_SIZE" >/dev/null
+    --expected-world-size "$EXPECTED_WORLD_SIZE" "${HYDRA_EXECUTION_ARGS[@]}" >/dev/null
   "$OPRD_REAL_PYTHON" - "$ARGV_TEMP" "${RUN_ARGS[@]}" <<'PY'
 import json
 import pathlib

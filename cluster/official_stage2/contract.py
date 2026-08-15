@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 
 CONTRACT_PATH = pathlib.Path(__file__).with_name("task0_contract.json")
+EXECUTION_PATH = pathlib.Path(__file__).with_name("task0_execution_4h200.json")
 FORBIDDEN_SCIENTIFIC_ENVIRONMENT = frozenset(
     {
         "ATTENTION_DISTILLATION",
@@ -80,6 +81,104 @@ def load_contract(path: os.PathLike[str] | str = CONTRACT_PATH) -> dict[str, Any
 def contract_sha256(contract: Mapping[str, Any]) -> str:
     validate_contract(contract)
     return sha256_bytes(canonical_json_bytes(contract))
+
+
+def load_execution_manifest(
+    contract: Mapping[str, Any], path: os.PathLike[str] | str = EXECUTION_PATH
+) -> dict[str, Any]:
+    manifest = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    validate_execution_manifest(manifest, contract)
+    return manifest
+
+
+def execution_manifest_sha256(
+    manifest: Mapping[str, Any], contract: Mapping[str, Any]
+) -> str:
+    validate_execution_manifest(manifest, contract)
+    return sha256_bytes(canonical_json_bytes(manifest))
+
+
+def validate_execution_manifest(
+    manifest: Mapping[str, Any], contract: Mapping[str, Any]
+) -> None:
+    validate_contract(contract)
+    _require(manifest.get("schema_version") == 1, "execution schema version mismatch")
+    _require(
+        manifest.get("manifest_name") == "task0-full-production-four-h200",
+        "execution manifest name mismatch",
+    )
+    scope = manifest["scope"]
+    _require(scope == {
+        "task": 0,
+        "phase": "full_training",
+        "production_runs": 1,
+        "authorized_result_namespace": "official-task0-4h200-prod-r1",
+        "evaluation_authorized": False,
+        "tasks_1_through_26_authorized": False,
+    }, "execution authorization scope mismatch")
+    _require(
+        manifest["scientific_contract_sha256"] == contract_sha256(contract),
+        "execution scientific contract digest mismatch",
+    )
+    distributed = contract["distributed"]
+    _require(manifest["historical_topology"] == {
+        "nodes": distributed["nodes"],
+        "gpus_per_node": distributed["gpus_per_node"],
+        "world_size": distributed["world_size"],
+    }, "historical topology mismatch")
+    _require(manifest["approved_topology"] == {
+        "nodes": 1,
+        "gpus_per_node": 4,
+        "world_size": 4,
+        "accelerator": "h200-sxm",
+    }, "approved topology mismatch")
+    _require(manifest["allowed_hydra_delta"] == {
+        "path": "trainer.n_gpus_per_node",
+        "from": 8,
+        "to": 4,
+    }, "execution manifest must allow exactly one topology delta")
+    expected_invariants = {
+        "prompt_batch_size": contract["training_data"]["prompt_batch_size"],
+        "responses_per_prompt": contract["rollout"]["responses_per_prompt"],
+        "responses_per_update": contract["rollout"]["responses_per_update"],
+        "expected_updates": contract["training_data"]["expected_updates"],
+        "model_dtype": "fp32",
+        "optimizer": contract["optimizer"]["name"],
+        "learning_rate": contract["optimizer"]["learning_rate"],
+        "weight_decay": contract["optimizer"]["weight_decay"],
+        "scheduler": contract["optimizer"]["scheduler"],
+        "loss_aggregation": contract["objective"]["loss_aggregation"],
+        "representation_coefficient": contract["objective"]["coefficient"],
+    }
+    _require(
+        manifest["preserved_invariants"] == expected_invariants,
+        "execution preserved invariants mismatch",
+    )
+    canary = manifest["canary_evidence"]
+    _require(canary["rows"] == 80 and canary["expected_updates"] == 10, "canary size mismatch")
+    _require(canary["world_size"] == 4, "canary world size mismatch")
+    _require_git_commit(canary["execution_revision"], "canary execution revision")
+    _require_git_commit(canary["acceptance_revision"], "canary acceptance revision")
+    for field in (
+        "smoke_result_sha256", "actual_hydra_sha256", "actual_argv_sha256",
+        "runtime_log_sha256", "terminal_log_sha256",
+    ):
+        _require_sha256(canary[field], f"canary {field}")
+
+
+def effective_execution_topology(
+    manifest: Mapping[str, Any], contract: Mapping[str, Any]
+) -> dict[str, Any]:
+    validate_execution_manifest(manifest, contract)
+    return {
+        "scientific_contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_manifest_sha256(manifest, contract),
+        "historical_topology": manifest["historical_topology"],
+        "effective_topology": manifest["approved_topology"],
+        "allowed_hydra_delta": manifest["allowed_hydra_delta"],
+        "preserved_invariants": manifest["preserved_invariants"],
+        "canary_evidence": manifest["canary_evidence"],
+    }
 
 
 def _require(condition: bool, message: str) -> None:
@@ -314,8 +413,14 @@ def validate_hydra_config(
     *,
     official_root: pathlib.Path | None = None,
     expected_world_size: int = 8,
+    execution_manifest: Mapping[str, Any] | None = None,
+    contract: Mapping[str, Any] | None = None,
 ) -> None:
     """Validate the actual resolved Hydra configuration used by official verl."""
+    if execution_manifest is not None:
+        _require(contract is not None, "contract is required with execution manifest")
+        validate_execution_manifest(execution_manifest, contract)
+        expected_world_size = execution_manifest["approved_topology"]["world_size"]
     _require(expected_world_size in (4, 8), "expected world size must be four or eight")
     expected = {
         "data.shuffle": False,
@@ -347,6 +452,9 @@ def validate_hydra_config(
         "actor_rollout_ref.actor.rep_low_rank": 8,
         "actor_rollout_ref.actor.rep_freeze_ps": True,
         "actor_rollout_ref.actor.use_att_distillation": False,
+        "actor_rollout_ref.actor.fsdp_config.model_dtype": "fp32",
+        "actor_rollout_ref.ref.fsdp_config.model_dtype": "fp32",
+        "reward_model.model.dtype": "fp32",
         "actor_rollout_ref.rollout.name": "vllm",
         "actor_rollout_ref.rollout.temperature": 1.0,
         "actor_rollout_ref.rollout.top_p": 1.0,
@@ -396,6 +504,10 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("digest")
     subparsers.add_parser("validate")
+    validate_execution = subparsers.add_parser("validate-execution")
+    validate_execution.add_argument("--execution", type=pathlib.Path, required=True)
+    emit_execution = subparsers.add_parser("emit-execution")
+    emit_execution.add_argument("--execution", type=pathlib.Path, required=True)
     subparsers.add_parser("check-environment")
     subparsers.add_parser("emit-resolved")
     resolved = subparsers.add_parser("validate-resolved")
@@ -404,6 +516,7 @@ def _parser() -> argparse.ArgumentParser:
     hydra.add_argument("--hydra", type=pathlib.Path, required=True)
     hydra.add_argument("--official-root", type=pathlib.Path, required=True)
     hydra.add_argument("--expected-world-size", type=int, choices=(4, 8), default=8)
+    hydra.add_argument("--execution", type=pathlib.Path)
     return parser
 
 
@@ -414,6 +527,20 @@ def main() -> None:
         print(contract_sha256(contract))
     elif arguments.command == "validate":
         print(json.dumps({"ok": True, "contract_sha256": contract_sha256(contract)}))
+    elif arguments.command == "validate-execution":
+        manifest = load_execution_manifest(contract, arguments.execution)
+        print(json.dumps({
+            "ok": True,
+            "contract_sha256": contract_sha256(contract),
+            "execution_manifest_sha256": execution_manifest_sha256(manifest, contract),
+        }))
+    elif arguments.command == "emit-execution":
+        manifest = load_execution_manifest(contract, arguments.execution)
+        print(json.dumps(
+            effective_execution_topology(manifest, contract),
+            sort_keys=True,
+            separators=(",", ":"),
+        ))
     elif arguments.command == "check-environment":
         reject_scientific_environment()
         print(json.dumps({"ok": True}))
@@ -435,10 +562,17 @@ def main() -> None:
         except ImportError as exc:
             raise ContractError("PyYAML is required to validate resolved Hydra config") from exc
         hydra = yaml.safe_load(arguments.hydra.read_text(encoding="utf-8"))
+        execution_manifest = (
+            load_execution_manifest(contract, arguments.execution)
+            if arguments.execution
+            else None
+        )
         validate_hydra_config(
             hydra,
             official_root=arguments.official_root,
             expected_world_size=arguments.expected_world_size,
+            execution_manifest=execution_manifest,
+            contract=contract,
         )
         print(json.dumps({"ok": True, "contract_sha256": contract_sha256(contract)}))
 

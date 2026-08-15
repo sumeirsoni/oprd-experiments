@@ -12,7 +12,8 @@ A separate official-code-faithful task-0 path now lives under `official_stage2/`
 `nexus/*official_stage2*` jobs. It pins official OPRD commit
 `a63236c990b1bfa9551e9d020719490d3ecd93e8` and requires:
 
-- one node with eight GPUs using the pinned verl/Ray/FSDP/vLLM stack;
+- a historical one-node, eight-GPU scientific contract, with the authorized production execution
+  limited to four H200s by `official_stage2/task0_execution_4h200.json`;
 - the ordered 17,917-row official DAPO parquet, batch 8, drop-last, one epoch, and 2,239 updates;
 - two fresh responses per prompt at temperature 1.0, top-p 1.0, and a 16,384-token cap;
 - raw chat with Qwen thinking disabled, cap-hitter retention, and no rollout reuse;
@@ -21,8 +22,8 @@ A separate official-code-faithful task-0 path now lives under `official_stage2/`
 
 The original `train_harness.py` remains a controls/debugging runner. Legacy array task 0 now fails
 closed and directs operators to `nexus/task0_official_stage2.sbatch`. Tasks 1-26 remain blocked.
-No full official task 0 or evaluation job is authorized until the eight-GPU smoke and canary pass
-and their measured resource report receives separate approval.
+The eight-H200 smoke and four-H200 canary passed. One fixed four-H200 full task-0 production run is
+now authorized through the tracked execution manifest. Evaluation and tasks 1-26 remain unauthorized.
 
 The historical sections below describe the Stage-1 recovery and project-control harness. Where they
 call the old Tier-2 wrapper a paper matrix, the current protocol status above takes precedence.
@@ -58,26 +59,30 @@ results. The wrapper records the full runtime stream and permits the known Ray s
 `DataLoader worker ... is killed by signal: Killed` only when it is the sole traceback, the final
 global-step metric is present, and the complete model, optimizer, and extra-state shard set exists
 for the selected world size. Any other traceback fails the job. Review logs, memory, scratch growth,
-counter behavior, and projected full-run cost before requesting production authorization.
+counter behavior, and projected full-run cost. That review authorized the fixed four-H200 task-0
+execution while retaining eight GPUs as the historical contract topology.
 
-After separate approval, the dedicated production command is:
+The dedicated production command is:
 
 ```bash
 sbatch cluster/nexus/task0_official_stage2.sbatch \
-  official-task0-<revision> <full-clean-project-git-commit>
+  official-task0-4h200-prod-r1 <full-clean-project-git-commit>
 ```
 
-This is a non-array job and cannot submit tasks 1-26. It captures and validates the actual resolved
-Hydra configuration before training. It writes `COMPLETE` only after finding the one-epoch
-`global_step_2239` checkpoint, merging its FSDP actor shards into an authenticated Hugging Face
-checkpoint, rejecting later steps and failure markers, and writing an `ACCEPTED_OFFICIAL_TASK0`
-report.
+This is a fixed non-array job requesting four H200s, 16 CPUs, and 300 GiB RAM; do not override its
+resources or topology at submission. It cannot submit tasks 1-26. It authenticates the unchanged
+historical scientific contract plus the four-H200 execution manifest, then captures and validates
+the actual resolved Hydra configuration before training. Batch 8, two responses, FP32, optimizer,
+and loss remain unchanged. It writes `COMPLETE` only after finding `global_step_2239`, proving exact
+four-rank model/optimizer/extra-state shards, merging them into an authenticated Hugging Face
+checkpoint, rejecting later steps and unexplained failure markers, and writing an
+`ACCEPTED_OFFICIAL_TASK0` report.
 
 Evaluation is independently authorized and submitted only against that accepted checkpoint:
 
 ```bash
 sbatch cluster/nexus/evaluate_official_stage2.sbatch \
-  /cmlscratch/$USER/oprd-official-stage2/runs/official-task0-<revision> \
+  /cmlscratch/$USER/oprd-official-stage2/runs/official-task0-4h200-prod-r1 \
   official-eval-<revision>
 ```
 
@@ -232,7 +237,7 @@ meaningful run under one pinned tokenizer identity.
 - `official_stage2/` - canonical official task-0 contract, source/data authentication, bridge adapter,
   task acceptance checks, immutable evaluation artifacts, eight-worker generation, and rescoring.
 - `nexus/task0_official_stage2.sbatch` - dedicated non-array official task-0 launcher.
-- `nexus/official_stage2_smoke.sbatch` - eight-GPU official-stack smoke/canary on ordered DAPO prefixes.
+- `nexus/official_stage2_smoke.sbatch` - historical eight-GPU smoke and documented four-GPU canary on ordered DAPO prefixes.
 - `nexus/evaluate_official_stage2.sbatch` - separately authorized dual-track AIME24/AIME25/AIMO evaluation.
 - `nexus/tier2_bridge_bakeoff.sbatch` - legacy project-control array. Task 0 is disabled because this
   cached-rollout harness is not the official OPRD Stage-2 protocol. Other tasks remain unsubmitted.

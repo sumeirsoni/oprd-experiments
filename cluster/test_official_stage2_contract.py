@@ -47,6 +47,35 @@ class OfficialTask0ContractTests(unittest.TestCase):
                 with self.assertRaises(task0_contract.ContractError):
                     task0_contract.validate_contract(changed)
 
+    def test_four_h200_execution_manifest_is_bound_to_unchanged_contract(self):
+        contract = task0_contract.load_contract()
+        execution = task0_contract.load_execution_manifest(contract)
+        topology = task0_contract.effective_execution_topology(execution, contract)
+        self.assertEqual(topology["historical_topology"]["world_size"], 8)
+        self.assertEqual(topology["effective_topology"]["world_size"], 4)
+        self.assertEqual(topology["preserved_invariants"]["expected_updates"], 2239)
+        self.assertEqual(len(topology["execution_manifest_sha256"]), 64)
+        self.assertEqual(task0_contract.contract_sha256(contract), EXPECTED_CONTRACT_SHA256)
+
+    def test_execution_manifest_rejects_scope_digest_and_scientific_deltas(self):
+        contract = task0_contract.load_contract()
+        original = task0_contract.load_execution_manifest(contract)
+        mutations = [
+            (("scope", "evaluation_authorized"), True),
+            (("scientific_contract_sha256",), "0" * 64),
+            (("approved_topology", "world_size"), 5),
+            (("preserved_invariants", "prompt_batch_size"), 4),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path):
+                changed = copy.deepcopy(original)
+                target = changed
+                for component in path[:-1]:
+                    target = target[component]
+                target[path[-1]] = value
+                with self.assertRaises(task0_contract.ContractError):
+                    task0_contract.validate_execution_manifest(changed, contract)
+
     def test_scientific_environment_is_fail_closed(self):
         task0_contract.reject_scientific_environment({"PATH": "/usr/bin"})
         with self.assertRaisesRegex(

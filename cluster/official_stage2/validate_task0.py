@@ -9,11 +9,19 @@ import importlib.metadata
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 from typing import Any
 
-from contract import contract_sha256, load_contract, validate_resolved_config
+from contract import (
+    contract_sha256,
+    effective_execution_topology,
+    execution_manifest_sha256,
+    load_contract,
+    load_execution_manifest,
+    validate_resolved_config,
+)
 
 
 MODEL_FILES_PATH = pathlib.Path(__file__).with_name("model_files.json")
@@ -143,6 +151,36 @@ def _tree_manifest(root: pathlib.Path) -> tuple[str, list[dict[str, Any]]]:
     return digest, records
 
 
+def validate_fsdp_shards(actor: pathlib.Path, world_size: int) -> list[dict[str, Any]]:
+    _require(actor.is_dir() and not actor.is_symlink(), "actor checkpoint directory is missing")
+    expected = {
+        f"{kind}_world_size_{world_size}_rank_{rank}.pt"
+        for kind in ("model", "optim", "extra_state")
+        for rank in range(world_size)
+    }
+    actual = {
+        path.name
+        for path in actor.glob("*_world_size_*_rank_*.pt")
+        if path.is_file() or path.is_symlink()
+    }
+    _require(actual == expected, "FSDP checkpoint shard topology mismatch")
+    records = []
+    for name in sorted(expected):
+        path = actor / name
+        _require(path.is_file() and not path.is_symlink(), f"invalid FSDP shard: {path}")
+        _require(path.stat().st_size > 0, f"empty FSDP shard: {path}")
+        records.append({
+            "path": name,
+            "size": path.stat().st_size,
+            "sha256": _sha256_file(path),
+        })
+    _require(
+        (actor / "huggingface" / "config.json").is_file(),
+        "checkpoint Hugging Face config is missing",
+    )
+    return records
+
+
 def _visible_gpu_count() -> int:
     visible = os.environ.get("CUDA_VISIBLE_DEVICES")
     if visible:
@@ -182,14 +220,28 @@ def preflight(
     project_revision: str,
     stage1_artifact: pathlib.Path,
     resolved_path: pathlib.Path,
+    resolved_execution_path: pathlib.Path,
+    execution_path: pathlib.Path,
     result_directory: pathlib.Path,
     contract: dict[str, Any],
 ) -> dict[str, Any]:
     official_root = official_root.resolve(strict=True)
     project_root = project_root.resolve(strict=True)
     _validate_project_trust(project_root, project_revision)
+    execution_manifest = load_execution_manifest(contract, execution_path)
+    execution_digest = execution_manifest_sha256(execution_manifest, contract)
+    effective_topology = effective_execution_topology(execution_manifest, contract)
+    _require(
+        _load(resolved_execution_path) == effective_topology,
+        "resolved execution topology mismatch",
+    )
+    world_size = execution_manifest["approved_topology"]["world_size"]
     actual_project_revision = project_revision
     result_directory = result_directory.resolve(strict=False)
+    _require(
+        result_directory.name == execution_manifest["scope"]["authorized_result_namespace"],
+        "result namespace is not authorized by the execution manifest",
+    )
     _require(not result_directory.exists(), f"result directory already exists: {result_directory}")
     _require(
         result_directory.parent.resolve(strict=True)
@@ -323,12 +375,19 @@ def preflight(
     _require(sorted(current_freeze) == recorded_freeze, "installed package freeze changed")
     resolved = _load(resolved_path)
     validate_resolved_config(resolved, contract)
-    _require(_visible_gpu_count() == 8, "official task 0 requires exactly eight visible GPUs")
+    _require(
+        _visible_gpu_count() == world_size,
+        f"approved task 0 requires exactly {world_size} visible GPUs",
+    )
     _require(os.environ.get("SLURM_JOB_NUM_NODES") == "1", "official task 0 requires one node")
     return {
         "status": "preflight_ok",
         "project_revision": actual_project_revision,
         "contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_digest,
+        "historical_world_size": execution_manifest["historical_topology"]["world_size"],
+        "effective_world_size": world_size,
+        "canary_evidence": execution_manifest["canary_evidence"],
         "source_tree_sha256": source_manifest["tree_sha256"],
         "data_sha256": data_manifest["sha256"],
         "data_row_order_sha256": data_manifest["row_order_sha256"],
@@ -339,6 +398,7 @@ def preflight(
         "adapter_audit_sha256": adapter_validation["audit_sha256"],
         "environment_marker_sha256": _sha256_file(ready_path),
         "resolved_config_sha256": _sha256_file(resolved_path),
+        "resolved_execution_sha256": _sha256_file(resolved_execution_path),
         "expected_updates": data["expected_updates"],
     }
 
@@ -346,6 +406,7 @@ def preflight(
 def accept(
     run_directory: pathlib.Path,
     project_root: pathlib.Path,
+    execution_path: pathlib.Path,
     contract: dict[str, Any],
 ) -> dict[str, Any]:
     run_directory = run_directory.resolve(strict=True)
@@ -353,12 +414,39 @@ def accept(
     _require(preflight_path.is_file(), "run has no authenticated preflight report")
     preflight_report = _load(preflight_path)
     _require(preflight_report.get("status") == "preflight_ok", "preflight did not pass")
+    execution_manifest = load_execution_manifest(contract, execution_path)
+    execution_digest = execution_manifest_sha256(execution_manifest, contract)
+    world_size = execution_manifest["approved_topology"]["world_size"]
+    _require(
+        run_directory.name == execution_manifest["scope"]["authorized_result_namespace"],
+        "run namespace is not authorized by the execution manifest",
+    )
     _require(
         preflight_report["contract_sha256"] == contract_sha256(contract),
         "run contract digest mismatch",
     )
+    _require(
+        preflight_report["execution_manifest_sha256"] == execution_digest,
+        "run execution manifest digest mismatch",
+    )
+    _require(
+        preflight_report["effective_world_size"] == world_size,
+        "run effective world size mismatch",
+    )
     _validate_project_trust(
         project_root.resolve(strict=True), preflight_report["project_revision"]
+    )
+    resolved_execution_path = run_directory / "resolved-execution-topology.json"
+    _require(resolved_execution_path.is_file(), "resolved execution topology is missing")
+    _require(
+        _sha256_file(resolved_execution_path)
+        == preflight_report["resolved_execution_sha256"],
+        "resolved execution topology digest mismatch",
+    )
+    _require(
+        _load(resolved_execution_path)
+        == effective_execution_topology(execution_manifest, contract),
+        "resolved execution topology content mismatch",
     )
     hydra_path = run_directory / "actual-hydra.yaml"
     argv_path = run_directory / "actual-python-argv.json"
@@ -367,6 +455,13 @@ def accept(
     _require(isinstance(argv, list) and all(isinstance(value, str) for value in argv), "captured Python argv must be a string array")
     _require(argv[:2] == ["-m", "verl.trainer.main_ppo"], "captured Python argv is not the official verl trainer")
     _require("--cfg" not in argv, "captured training argv unexpectedly requests config-only mode")
+    topology_arguments = [
+        value for value in argv if value.startswith("trainer.n_gpus_per_node=")
+    ]
+    _require(
+        topology_arguments == [f"trainer.n_gpus_per_node={world_size}"],
+        "captured training argv has an invalid topology override",
+    )
     try:
         import yaml
     except ImportError as exc:
@@ -375,11 +470,22 @@ def accept(
     validate_hydra_config(
         yaml.safe_load(hydra_path.read_text(encoding="utf-8")),
         official_root=run_directory.parent.parent,
+        execution_manifest=execution_manifest,
+        contract=contract,
     )
 
     expected_step = contract["training_data"]["expected_updates"]
     checkpoints = sorted(run_directory.rglob(f"global_step_{expected_step}"))
     _require(len(checkpoints) == 1, f"expected one global_step_{expected_step} checkpoint")
+    _require(
+        checkpoints[0].is_dir() and not checkpoints[0].is_symlink(),
+        "final checkpoint must be a real directory",
+    )
+    checkpoint_resolved = checkpoints[0].resolve(strict=True)
+    _require(
+        checkpoint_resolved.is_relative_to(run_directory),
+        "final checkpoint resolves outside the run directory",
+    )
     later = [
         path
         for path in run_directory.rglob("global_step_*")
@@ -388,11 +494,31 @@ def accept(
         and int(path.name.removeprefix("global_step_")) > expected_step
     ]
     _require(not later, "run contains optimizer steps beyond the one-epoch contract")
+    fsdp_shards = validate_fsdp_shards(checkpoints[0] / "actor", world_size)
     log_paths = sorted((run_directory / "logs" / "terminal").glob("*.log"))
     _require(len(log_paths) == 1, "run must contain exactly one official terminal log")
     log_text = log_paths[0].read_text(encoding="utf-8", errors="replace")
     for failure in ("Traceback", "RayActorError", "CUDA out of memory", "NCCL error"):
         _require(failure not in log_text, f"terminal log contains failure marker: {failure}")
+    runtime_path = run_directory / "official-runtime.log"
+    _require(runtime_path.is_file(), "official runtime log is missing")
+    runtime_text = runtime_path.read_text(encoding="utf-8", errors="replace")
+    _require(
+        re.search(rf"training/global_step:{expected_step}(?![0-9])", runtime_text)
+        is not None,
+        "runtime log is missing the exact final global step",
+    )
+    for failure in ("RayActorError", "ActorDiedError", "CUDA out of memory", "NCCL error"):
+        _require(failure not in runtime_text, f"runtime log contains failure marker: {failure}")
+    cleanup_warning_count = sum(
+        "RuntimeError: DataLoader worker (" in line
+        and "is killed by signal: Killed" in line
+        for line in runtime_text.splitlines()
+    )
+    _require(
+        runtime_text.count("Traceback (most recent call last):") == cleanup_warning_count,
+        "runtime contains an unexplained traceback",
+    )
     checkpoint_tree_sha256, checkpoint_files = _tree_manifest(checkpoints[0])
     merged_checkpoint = run_directory / "merged-hf"
     _require(merged_checkpoint.is_dir() and not merged_checkpoint.is_symlink(), "merged Hugging Face checkpoint is missing")
@@ -402,10 +528,15 @@ def accept(
         "status": "ACCEPTED_OFFICIAL_TASK0",
         "project_revision": preflight_report["project_revision"],
         "contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_digest,
+        "historical_world_size": execution_manifest["historical_topology"]["world_size"],
+        "effective_world_size": world_size,
+        "topology_deviation_from_historical_official": True,
         "global_step": expected_step,
         "checkpoint": str(checkpoints[0]),
         "checkpoint_tree_sha256": checkpoint_tree_sha256,
         "checkpoint_files": checkpoint_files,
+        "fsdp_shards": fsdp_shards,
         "merged_checkpoint": str(merged_checkpoint),
         "merged_checkpoint_tree_sha256": merged_tree_sha256,
         "merged_checkpoint_files": merged_files,
@@ -413,6 +544,9 @@ def accept(
         "actual_argv_sha256": _sha256_file(argv_path),
         "terminal_log": str(log_paths[0]),
         "terminal_log_sha256": _sha256_file(log_paths[0]),
+        "runtime_log": str(runtime_path),
+        "runtime_log_sha256": _sha256_file(runtime_path),
+        "cleanup_warning_count": cleanup_warning_count,
     }
 
 
@@ -426,12 +560,18 @@ def _parser() -> argparse.ArgumentParser:
     preflight_parser.add_argument("--project-revision", required=True)
     preflight_parser.add_argument("--stage1-artifact", type=pathlib.Path, required=True)
     preflight_parser.add_argument("--resolved", type=pathlib.Path, required=True)
+    preflight_parser.add_argument("--resolved-execution", type=pathlib.Path, required=True)
+    preflight_parser.add_argument("--execution", type=pathlib.Path, required=True)
     preflight_parser.add_argument("--result-directory", type=pathlib.Path, required=True)
     accept_parser = subparsers.add_parser("accept")
     accept_parser.add_argument("--run-directory", type=pathlib.Path, required=True)
     accept_parser.add_argument("--project-root", type=pathlib.Path, required=True)
+    accept_parser.add_argument("--execution", type=pathlib.Path, required=True)
     models_parser = subparsers.add_parser("models")
     models_parser.add_argument("--models-root", type=pathlib.Path, required=True)
+    shards_parser = subparsers.add_parser("shards")
+    shards_parser.add_argument("--actor", type=pathlib.Path, required=True)
+    shards_parser.add_argument("--world-size", type=int, choices=(4, 8), required=True)
     return parser
 
 
@@ -445,13 +585,23 @@ def main() -> None:
             arguments.project_revision,
             arguments.stage1_artifact,
             arguments.resolved,
+            arguments.resolved_execution,
+            arguments.execution,
             arguments.result_directory,
             contract,
         )
     elif arguments.command == "accept":
-        result = accept(arguments.run_directory, arguments.project_root, contract)
-    else:
+        result = accept(
+            arguments.run_directory, arguments.project_root, arguments.execution, contract
+        )
+    elif arguments.command == "models":
         result = validate_model_files(arguments.models_root, contract)
+    else:
+        result = {
+            "status": "shards_ok",
+            "world_size": arguments.world_size,
+            "shards": validate_fsdp_shards(arguments.actor, arguments.world_size),
+        }
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
 
 

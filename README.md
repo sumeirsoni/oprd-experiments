@@ -6,11 +6,13 @@ the LM head, and which cross-architecture bridge objective deserves training com
 
 Tiers 0/3, the Tier-1 sweep, the original confounded Tier-2 run, and the positive-control gate
 are complete. The immutable Qwen3-4B to Qwen3-1.7B bridge also passed a single-H200 Stage-2 pilot,
-but that cached-rollout run is not a paper reproduction. The next cluster experiment is a separate
-official-code-faithful task 0 packaged in [`cluster/official_stage2/`](cluster/official_stage2/):
-the pinned official verl/Ray/FSDP/vLLM stack on one eight-GPU node, ordered one-epoch DAPO traversal,
-two fresh responses per prompt, the frozen all-layer rank-8 bridge, and auditable raw evaluation
-artifacts. Tasks 1-26 remain blocked until task 0 is accepted and reviewed.
+but that cached-rollout run is not a paper reproduction. A separate official-code-faithful task 0
+is packaged in [`cluster/official_stage2/`](cluster/official_stage2/). Its historical scientific
+contract uses one eight-GPU node; the explicitly authorized production execution uses four H200s
+under a tracked topology-deviation manifest backed by successful eight-GPU smoke and four-GPU
+canary evidence. Ordered one-epoch DAPO traversal, batch 8, two fresh responses per prompt, FP32,
+optimizer, loss, and the frozen all-layer rank-8 bridge remain unchanged. Evaluation and tasks 1-26
+remain blocked until task 0 is accepted and separately reviewed.
 
 ## Results so far (read these two files first)
 
@@ -52,9 +54,10 @@ cluster/nexus/submit_oprd_bridge.sh --status cluster/job_ids/<record>.json
 
 The old Tier-2 wrapper remains available only for project controls and now rejects task 0. Official
 task 0 has its own contract, dependency environment, bridge-format adapter, source/data manifests,
-eight-GPU smoke and canary, non-array production launcher, and dual-track offline evaluation. The
-preparation order, resource gates, exact scientific settings, and acceptance rules are documented in
-`cluster/README.md`. Preparing or smoking the workflow does not authorize full training or evaluation.
+eight-GPU smoke, accepted four-GPU canary, fixed four-H200 non-array production launcher, and
+dual-track offline evaluation. Full task-0 training is authorized through the tracked execution
+manifest; evaluation remains separately gated. The resource gates, scientific settings, and
+acceptance rules are documented in `cluster/README.md`.
 
 ## Repo map
 
