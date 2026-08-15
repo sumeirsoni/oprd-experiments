@@ -15,11 +15,14 @@
 set -euo pipefail
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -eq 2 ]] || fail "usage: official_stage2_smoke.sbatch RESULT_NAMESPACE ROWS"
+[[ $# -eq 2 || $# -eq 3 ]] ||
+  fail "usage: official_stage2_smoke.sbatch RESULT_NAMESPACE ROWS [WORLD_SIZE]"
 readonly RESULT_NAMESPACE=$1
 readonly ROWS=$2
+readonly WORLD_SIZE=${3:-8}
 [[ $RESULT_NAMESPACE =~ ^[a-z0-9][a-z0-9._-]{5,79}$ ]] || fail "invalid result namespace"
 [[ $ROWS == 16 || $ROWS == 80 ]] || fail "ROWS must be 16 for smoke or 80 for canary"
+[[ $WORLD_SIZE == 4 || $WORLD_SIZE == 8 ]] || fail "WORLD_SIZE must be 4 or 8"
 
 readonly RUN_USER=${SLURM_JOB_USER:?SLURM_JOB_USER is required}
 readonly SCRATCH_ROOT=/cmlscratch/$RUN_USER
@@ -52,6 +55,7 @@ readonly OPRD_ARGV_CAPTURE=$RUN_DIRECTORY/actual-python-argv.json
 readonly OPRD_CONTRACT_TOOL=$CONTRACT_TOOL
 readonly OPRD_CONTRACT=$CONTRACT
 readonly OPRD_OFFICIAL_ROOT=$OFFICIAL_ROOT
+readonly OPRD_EXPECTED_WORLD_SIZE=$WORLD_SIZE
 readonly RUNTIME_LOG=$RUN_DIRECTORY/official-runtime.log
 
 [[ -x $PYTHON && -x $CAPTURE_BIN/python3 && -r $PROJECTOR_BANK ]] ||
@@ -74,7 +78,7 @@ export PATH=$CAPTURE_BIN:$RUNTIME_PATH
 export HOME PATH CUDA_HOME LD_LIBRARY_PATH HF_HOME VLLM_CACHE_ROOT BASH_ENV
 export TRITON_CACHE_DIR FLASHINFER_WORKSPACE_BASE PYTHONDONTWRITEBYTECODE
 export OPRD_REAL_PYTHON OPRD_HYDRA_CAPTURE OPRD_ARGV_CAPTURE
-export OPRD_CONTRACT_TOOL OPRD_CONTRACT OPRD_OFFICIAL_ROOT
+export OPRD_CONTRACT_TOOL OPRD_CONTRACT OPRD_OFFICIAL_ROOT OPRD_EXPECTED_WORLD_SIZE
 export MODEL_DIR PROJECT_PATH
 export PROJECT_NAME=OPRD-Bridge-Official-Distributed-Smoke
 export TRAIN_DATASET_NAME=DAPO-Math-17k-official-smoke-$ROWS
@@ -89,17 +93,22 @@ export REP_LOW_RANK_INIT_CHECKPOINT=$PROJECTOR_BANK REP_FREEZE_PS=True
 export USE_ATT_DISTILLATION=False ATT_DISTILLATION_COEF=1.0 ATT_DISTILLATION_LAYERS=all
 export ATT_DISTILLATION_POSITIONS=last_k ATT_DISTILLATION_LAST_K=2000 ATT_DISTILLATION_FIRST_K=2000
 export ATT_DISTILLATION_MAX_KEY_LEN=4096 ATT_DISTILLATION_LOSS=mse ATT_DISTILLATION_TEMPERATURE=1.0
-readonly EXPORTS=HOME,PATH,CUDA_HOME,LD_LIBRARY_PATH,HF_HOME,VLLM_CACHE_ROOT,TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE,PYTHONDONTWRITEBYTECODE,BASH_ENV,OPRD_REAL_PYTHON,OPRD_HYDRA_CAPTURE,OPRD_ARGV_CAPTURE,OPRD_CONTRACT_TOOL,OPRD_CONTRACT,OPRD_OFFICIAL_ROOT,MODEL_DIR,PROJECT_PATH,PROJECT_NAME,TRAIN_DATASET_NAME,MINI_BATCH_SIZE,TEMPERATURE,TEACHER_TEMPERATURE,REPETITION_PENALTY,N_RESPONSES,LOG_PROB_TOP_K,TOP_K_STRATEGY,REWARD_WEIGHT_MODE,LR_SCHEDULER,USE_KL,ENABLE_FORMAT_REWARD,MODEL_DTYPE,IS_PLOT,LOSS_AGG_MODE,ENABLE_ACTIVATION_OFFLOAD,USE_REP_DISTILLATION,REP_DISTILLATION_ONLY,REP_DISTILLATION_COEF,REP_DISTILLATION_POSITIONS,REP_DISTILLATION_LAST_K,REP_DISTILLATION_FIRST_K,REP_DISTILLATION_LAYERS,REP_PROJECTOR_MODE,REP_LOW_RANK,REP_LOW_RANK_INIT_CHECKPOINT,REP_FREEZE_PS,USE_ATT_DISTILLATION,ATT_DISTILLATION_COEF,ATT_DISTILLATION_LAYERS,ATT_DISTILLATION_POSITIONS,ATT_DISTILLATION_LAST_K,ATT_DISTILLATION_FIRST_K,ATT_DISTILLATION_MAX_KEY_LEN,ATT_DISTILLATION_LOSS,ATT_DISTILLATION_TEMPERATURE,SLURM_JOB_ID,CUDA_VISIBLE_DEVICES
+readonly EXPORTS=HOME,PATH,CUDA_HOME,LD_LIBRARY_PATH,HF_HOME,VLLM_CACHE_ROOT,TRITON_CACHE_DIR,FLASHINFER_WORKSPACE_BASE,PYTHONDONTWRITEBYTECODE,BASH_ENV,OPRD_REAL_PYTHON,OPRD_HYDRA_CAPTURE,OPRD_ARGV_CAPTURE,OPRD_CONTRACT_TOOL,OPRD_CONTRACT,OPRD_OFFICIAL_ROOT,OPRD_EXPECTED_WORLD_SIZE,MODEL_DIR,PROJECT_PATH,PROJECT_NAME,TRAIN_DATASET_NAME,MINI_BATCH_SIZE,TEMPERATURE,TEACHER_TEMPERATURE,REPETITION_PENALTY,N_RESPONSES,LOG_PROB_TOP_K,TOP_K_STRATEGY,REWARD_WEIGHT_MODE,LR_SCHEDULER,USE_KL,ENABLE_FORMAT_REWARD,MODEL_DTYPE,IS_PLOT,LOSS_AGG_MODE,ENABLE_ACTIVATION_OFFLOAD,USE_REP_DISTILLATION,REP_DISTILLATION_ONLY,REP_DISTILLATION_COEF,REP_DISTILLATION_POSITIONS,REP_DISTILLATION_LAST_K,REP_DISTILLATION_FIRST_K,REP_DISTILLATION_LAYERS,REP_PROJECTOR_MODE,REP_LOW_RANK,REP_LOW_RANK_INIT_CHECKPOINT,REP_FREEZE_PS,USE_ATT_DISTILLATION,ATT_DISTILLATION_COEF,ATT_DISTILLATION_LAYERS,ATT_DISTILLATION_POSITIONS,ATT_DISTILLATION_LAST_K,ATT_DISTILLATION_FIRST_K,ATT_DISTILLATION_MAX_KEY_LEN,ATT_DISTILLATION_LOSS,ATT_DISTILLATION_TEMPERATURE,SLURM_JOB_ID,CUDA_VISIBLE_DEVICES
 
-srun --export="$EXPORTS" "$PYTHON" - <<'PY'
+srun --export="$EXPORTS" "$PYTHON" - "$WORLD_SIZE" <<'PY'
+import sys
 import torch
-assert torch.cuda.device_count() == 8, torch.cuda.device_count()
-print({"visible_gpus": torch.cuda.device_count(), "devices": [torch.cuda.get_device_name(i) for i in range(8)]})
+world_size = int(sys.argv[1])
+assert torch.cuda.device_count() == world_size, torch.cuda.device_count()
+print({
+    "visible_gpus": torch.cuda.device_count(),
+    "devices": [torch.cuda.get_device_name(i) for i in range(world_size)],
+})
 PY
 srun --export="$EXPORTS" bash -c \
   'cd "$1/verl" && exec bash "$2/low_rank_rep_distillation.sh"' \
   bash "$WORK_DIRECTORY" "$SOURCE" 2>&1 | tee "$RUNTIME_LOG"
-"$PYTHON" - "$RUN_DIRECTORY" "$PROJECT_PATH" "$RUNTIME_LOG" "$ROWS" <<'PY'
+"$PYTHON" - "$RUN_DIRECTORY" "$PROJECT_PATH" "$RUNTIME_LOG" "$ROWS" "$WORLD_SIZE" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -108,6 +117,7 @@ run = pathlib.Path(sys.argv[1])
 project = pathlib.Path(sys.argv[2])
 runtime_log = pathlib.Path(sys.argv[3])
 rows = int(sys.argv[4])
+world_size = int(sys.argv[5])
 expected_updates = rows // 8
 hydra = run / "actual-hydra.yaml"
 argv = run / "actual-python-argv.json"
@@ -142,14 +152,13 @@ steps = list(project.rglob(f"global_step_{expected_updates}"))
 if len(steps) != 1:
     raise SystemExit(f"expected one final checkpoint, found {len(steps)}")
 actor = steps[0] / "actor"
-for pattern in (
-    "model_world_size_8_rank_*.pt",
-    "optim_world_size_8_rank_*.pt",
-    "extra_state_world_size_8_rank_*.pt",
-):
+for kind in ("model", "optim", "extra_state"):
+    pattern = f"{kind}_world_size_{world_size}_rank_*.pt"
     files = list(actor.glob(pattern))
-    if len(files) != 8:
-        raise SystemExit(f"expected eight checkpoint shards for {pattern}, found {len(files)}")
+    if len(files) != world_size:
+        raise SystemExit(
+            f"expected {world_size} checkpoint shards for {pattern}, found {len(files)}"
+        )
 if not (actor / "huggingface" / "config.json").is_file():
     raise SystemExit("checkpoint Hugging Face config is missing")
 def sha256(path):
@@ -158,9 +167,10 @@ result = {
     "status": "complete",
     "rows": rows,
     "expected_updates": expected_updates,
-    "world_size": 8,
+    "world_size": world_size,
+    "topology_deviation_from_official": world_size != 8,
     "checkpoint": str(steps[0]),
-    "checkpoint_shards_per_kind": 8,
+    "checkpoint_shards_per_kind": world_size,
     "cleanup_warning_count": cleanup_warning_count,
     "actual_hydra_sha256": sha256(hydra),
     "actual_argv_sha256": sha256(argv),

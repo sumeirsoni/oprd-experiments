@@ -42,22 +42,23 @@ sbatch cluster/nexus/prepare_official_bridge.sbatch
 # After all three preparation jobs validate and publish their manifests:
 sbatch cluster/nexus/setup_official_stage2.sbatch
 
-# Eight-GPU distributed smoke, then a longer resource canary.
+# Eight-GPU distributed smoke, then a documented four-GPU resource canary.
 sbatch cluster/nexus/official_stage2_smoke.sbatch official-smoke-<revision> 16
-sbatch cluster/nexus/official_stage2_smoke.sbatch official-canary-<revision> 80
+sbatch --gres=gpu:h200-sxm:4 --cpus-per-task=16 --mem=300G \
+  cluster/nexus/official_stage2_smoke.sbatch official-canary-<revision>-4gpu 80 4
 ```
 
 The smoke and canary run the actual official verl/Ray/FSDP/vLLM path against ordered DAPO prefixes.
-They request one node with eight H200s and 32 CPUs. The pinned official launcher also used one node
-and eight GPUs, but requested 64 CPUs; Nexus `cml-high_long` caps jobs at 32 CPUs, so the local
-wrapper uses four CPU cores per GPU without changing the scientific batch, loss, or topology. The
-jobs do not request Slurm `--exclusive`, because that implicitly allocates all 128 node CPUs and
-violates the QoS CPU cap; requesting all eight H200s already prevents GPU co-tenancy. These runs are
-not paper results. The wrapper records the full runtime stream and permits the known Ray shutdown
-warning `DataLoader worker ... is killed by signal: Killed` only when it is the sole traceback, the
-final global-step metric is present, and all eight model, optimizer, and extra-state checkpoint
-shards exist. Any other traceback fails the job. Review logs, memory, scratch growth, counter
-behavior, and projected full-run cost before requesting production authorization.
+The smoke uses the pinned one-node, eight-GPU topology. The canary intentionally uses four H200s as
+a documented topology deviation while preserving batch 8, two responses per prompt, optimizer and
+loss settings, precision, and update count; its capture wrapper changes only
+`trainer.n_gpus_per_node`. The pinned official launcher requested 64 CPUs, while Nexus
+`cml-high_long` permits at most 32. Jobs do not request Slurm `--exclusive`. These runs are not paper
+results. The wrapper records the full runtime stream and permits the known Ray shutdown warning
+`DataLoader worker ... is killed by signal: Killed` only when it is the sole traceback, the final
+global-step metric is present, and the complete model, optimizer, and extra-state shard set exists
+for the selected world size. Any other traceback fails the job. Review logs, memory, scratch growth,
+counter behavior, and projected full-run cost before requesting production authorization.
 
 After separate approval, the dedicated production command is:
 

@@ -9,6 +9,25 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   : "${OPRD_CONTRACT_TOOL:?OPRD_CONTRACT_TOOL is required}"
   : "${OPRD_CONTRACT:?OPRD_CONTRACT is required}"
   : "${OPRD_OFFICIAL_ROOT:?OPRD_OFFICIAL_ROOT is required}"
+  EXPECTED_WORLD_SIZE=${OPRD_EXPECTED_WORLD_SIZE:-8}
+  [[ $EXPECTED_WORLD_SIZE == 4 || $EXPECTED_WORLD_SIZE == 8 ]] || {
+    printf 'ERROR: OPRD_EXPECTED_WORLD_SIZE must be 4 or 8\n' >&2
+    exit 1
+  }
+  RUN_ARGS=("$@")
+  if [[ $EXPECTED_WORLD_SIZE != 8 ]]; then
+    REPLACEMENTS=0
+    for index in "${!RUN_ARGS[@]}"; do
+      if [[ ${RUN_ARGS[$index]} == trainer.n_gpus_per_node=8 ]]; then
+        RUN_ARGS[$index]=trainer.n_gpus_per_node=$EXPECTED_WORLD_SIZE
+        REPLACEMENTS=$((REPLACEMENTS + 1))
+      fi
+    done
+    [[ $REPLACEMENTS == 1 ]] || {
+      printf 'ERROR: expected one trainer world-size override, found %s\n' "$REPLACEMENTS" >&2
+      exit 1
+    }
+  fi
   [[ ! -e $OPRD_HYDRA_CAPTURE && ! -e $OPRD_ARGV_CAPTURE ]] || {
     printf 'ERROR: official Hydra capture path already exists\n' >&2
     exit 1
@@ -16,10 +35,11 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   HYDRA_TEMP=$OPRD_HYDRA_CAPTURE.tmp.$$
   ARGV_TEMP=$OPRD_ARGV_CAPTURE.tmp.$$
   trap 'rm -f -- "$HYDRA_TEMP" "$ARGV_TEMP"' EXIT
-  "$OPRD_REAL_PYTHON" "$@" --cfg job --resolve > "$HYDRA_TEMP"
+  "$OPRD_REAL_PYTHON" "${RUN_ARGS[@]}" --cfg job --resolve > "$HYDRA_TEMP"
   "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
-    validate-hydra --hydra "$HYDRA_TEMP" --official-root "$OPRD_OFFICIAL_ROOT" >/dev/null
-  "$OPRD_REAL_PYTHON" - "$ARGV_TEMP" "$@" <<'PY'
+    validate-hydra --hydra "$HYDRA_TEMP" --official-root "$OPRD_OFFICIAL_ROOT" \
+    --expected-world-size "$EXPECTED_WORLD_SIZE" >/dev/null
+  "$OPRD_REAL_PYTHON" - "$ARGV_TEMP" "${RUN_ARGS[@]}" <<'PY'
 import json
 import pathlib
 import sys
@@ -31,6 +51,7 @@ PY
   mv "$HYDRA_TEMP" "$OPRD_HYDRA_CAPTURE"
   mv "$ARGV_TEMP" "$OPRD_ARGV_CAPTURE"
   trap - EXIT
+  set -- "${RUN_ARGS[@]}"
 fi
 
 exec "$OPRD_REAL_PYTHON" "$@"

@@ -310,9 +310,13 @@ def validate_resolved_config(
 
 
 def validate_hydra_config(
-    hydra: Mapping[str, Any], *, official_root: pathlib.Path | None = None
+    hydra: Mapping[str, Any],
+    *,
+    official_root: pathlib.Path | None = None,
+    expected_world_size: int = 8,
 ) -> None:
     """Validate the actual resolved Hydra configuration used by official verl."""
+    _require(expected_world_size in (4, 8), "expected world size must be four or eight")
     expected = {
         "data.shuffle": False,
         "data.train_batch_size": 8,
@@ -354,7 +358,7 @@ def validate_hydra_config(
         "actor_rollout_ref.rollout.tensor_model_parallel_size": 1,
         "actor_rollout_ref.rollout.log_prob_top_k": 0,
         "reward_model.enable": True,
-        "trainer.n_gpus_per_node": 8,
+        "trainer.n_gpus_per_node": expected_world_size,
         "trainer.nnodes": 1,
         "trainer.total_epochs": 1,
     }
@@ -399,6 +403,7 @@ def _parser() -> argparse.ArgumentParser:
     hydra = subparsers.add_parser("validate-hydra")
     hydra.add_argument("--hydra", type=pathlib.Path, required=True)
     hydra.add_argument("--official-root", type=pathlib.Path, required=True)
+    hydra.add_argument("--expected-world-size", type=int, choices=(4, 8), default=8)
     return parser
 
 
@@ -430,7 +435,11 @@ def main() -> None:
         except ImportError as exc:
             raise ContractError("PyYAML is required to validate resolved Hydra config") from exc
         hydra = yaml.safe_load(arguments.hydra.read_text(encoding="utf-8"))
-        validate_hydra_config(hydra, official_root=arguments.official_root)
+        validate_hydra_config(
+            hydra,
+            official_root=arguments.official_root,
+            expected_world_size=arguments.expected_world_size,
+        )
         print(json.dumps({"ok": True, "contract_sha256": contract_sha256(contract)}))
 
 
