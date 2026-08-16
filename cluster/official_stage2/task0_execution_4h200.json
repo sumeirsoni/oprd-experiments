@@ -40,15 +40,26 @@
     "max_actor_checkpoints_to_keep": 1,
     "resume_checkpoints_preserved": true
   },
-  "prior_failed_attempt": {
-    "job_id": "7257861",
-    "project_revision": "aa99ba1780a68f70cc7d0d1a15fd45e4ca696586",
-    "phase": "ray_start_before_model_loading",
-    "failure": "AF_UNIX socket path exceeded 107 bytes",
-    "runtime_log_sha256": "85c921eaf831e66cd73c1a8bf0c3bedee3655c5ea20a7158a81fc53f3f2aa126",
-    "slurm_log_sha256": "f2095f0f1b06e4f58f34f5fd5431e9a478c068a024b26cd704d039d5a81fdc51",
-    "archived_locally": true
-  },
+  "prior_failed_attempts": [
+    {
+      "job_id": "7257861",
+      "project_revision": "aa99ba1780a68f70cc7d0d1a15fd45e4ca696586",
+      "phase": "ray_start_before_model_loading",
+      "failure": "AF_UNIX socket path exceeded 107 bytes",
+      "runtime_log_sha256": "85c921eaf831e66cd73c1a8bf0c3bedee3655c5ea20a7158a81fc53f3f2aa126",
+      "slurm_log_sha256": "f2095f0f1b06e4f58f34f5fd5431e9a478c068a024b26cd704d039d5a81fdc51",
+      "archived_locally": true
+    },
+    {
+      "job_id": "7257986",
+      "project_revision": "d0d3dabcc1c3f85fbc2a846d4bcf93324c2b9f94",
+      "phase": "vllm_model_initialization_before_training",
+      "failure": "expandable CUDA allocator is incompatible with vLLM memory pool",
+      "runtime_log_sha256": "2ed641a012072867e1a8d5763d9e22c863bd70627d86f9aef54054bbfb47177d",
+      "slurm_log_sha256": "972c58a45448c11568ce16a0381d1194b9b5dba7a3ced7775ceb1c2492e7c4bb",
+      "archived_locally": true
+    }
+  ],
   "preserved_invariants": {
     "prompt_batch_size": 8,
     "responses_per_prompt": 2,
