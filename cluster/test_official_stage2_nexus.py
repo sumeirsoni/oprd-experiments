@@ -47,6 +47,7 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("OPRD_EXECUTION_DEVIATION", capture)
         self.assertIn("emit-execution", capture)
         self.assertIn("REPLACEMENTS == 1", capture)
+        self.assertIn("trainer.max_actor_ckpt_to_keep=$MAX_ACTOR_CKPTS", capture)
         self.assertIn("actual-hydra.yaml", script)
         self.assertIn("BASH_ENV", script)
         self.assertIn("unset ROCR_VISIBLE_DEVICES HIP_VISIBLE_DEVICES", script)

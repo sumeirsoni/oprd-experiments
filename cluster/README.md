@@ -73,7 +73,8 @@ This is a fixed non-array job requesting four H200s, 16 CPUs, and 300 GiB RAM; d
 resources or topology at submission. It cannot submit tasks 1-26. It authenticates the unchanged
 historical scientific contract plus the four-H200 execution manifest, then captures and validates
 the actual resolved Hydra configuration before training. Batch 8, two responses, FP32, optimizer,
-and loss remain unchanged. It writes `COMPLETE` only after finding `global_step_2239`, proving exact
+and loss remain unchanged. It saves every 200 updates but retains only the latest actor checkpoint,
+preserving resume capability within the 200 GiB scratch allocation. It writes `COMPLETE` only after finding `global_step_2239`, proving exact
 four-rank model/optimizer/extra-state shards, merging them into an authenticated Hugging Face
 checkpoint, rejecting later steps and unexplained failure markers, and writing an
 `ACCEPTED_OFFICIAL_TASK0` report.

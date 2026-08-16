@@ -132,11 +132,25 @@ def validate_execution_manifest(
         "world_size": 4,
         "accelerator": "h200-sxm",
     }, "approved topology mismatch")
-    _require(manifest["allowed_hydra_delta"] == {
-        "path": "trainer.n_gpus_per_node",
-        "from": 8,
-        "to": 4,
-    }, "execution manifest must allow exactly one topology delta")
+    _require(manifest["allowed_hydra_deltas"] == [
+        {
+            "path": "trainer.n_gpus_per_node",
+            "operation": "replace",
+            "from": 8,
+            "to": 4,
+        },
+        {
+            "path": "trainer.max_actor_ckpt_to_keep",
+            "operation": "set",
+            "from": None,
+            "to": 1,
+        },
+    ], "execution manifest Hydra deltas mismatch")
+    _require(manifest["checkpoint_policy"] == {
+        "save_frequency_updates": 200,
+        "max_actor_checkpoints_to_keep": 1,
+        "resume_checkpoints_preserved": True,
+    }, "execution checkpoint policy mismatch")
     expected_invariants = {
         "prompt_batch_size": contract["training_data"]["prompt_batch_size"],
         "responses_per_prompt": contract["rollout"]["responses_per_prompt"],
@@ -175,7 +189,8 @@ def effective_execution_topology(
         "execution_manifest_sha256": execution_manifest_sha256(manifest, contract),
         "historical_topology": manifest["historical_topology"],
         "effective_topology": manifest["approved_topology"],
-        "allowed_hydra_delta": manifest["allowed_hydra_delta"],
+        "allowed_hydra_deltas": manifest["allowed_hydra_deltas"],
+        "checkpoint_policy": manifest["checkpoint_policy"],
         "preserved_invariants": manifest["preserved_invariants"],
         "canary_evidence": manifest["canary_evidence"],
     }
@@ -470,6 +485,13 @@ def validate_hydra_config(
         "trainer.nnodes": 1,
         "trainer.total_epochs": 1,
     }
+    if execution_manifest is not None:
+        expected["trainer.save_freq"] = execution_manifest["checkpoint_policy"][
+            "save_frequency_updates"
+        ]
+        expected["trainer.max_actor_ckpt_to_keep"] = execution_manifest[
+            "checkpoint_policy"
+        ]["max_actor_checkpoints_to_keep"]
     mismatches = []
     for dotted_path, expected_value in expected.items():
         actual_value = _lookup(hydra, dotted_path)

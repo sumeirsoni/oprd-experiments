@@ -66,7 +66,8 @@ class OfficialTask0AcceptanceTests(unittest.TestCase):
         )
         (run / "actual-hydra.yaml").write_text("{}\n", encoding="utf-8")
         (run / "actual-python-argv.json").write_text(
-            '["-m","verl.trainer.main_ppo","trainer.n_gpus_per_node=4"]\n',
+            '["-m","verl.trainer.main_ppo","trainer.n_gpus_per_node=4",'
+            '"trainer.max_actor_ckpt_to_keep=1"]\n',
             encoding="utf-8",
         )
         checkpoint = run / "checkpoints" / "global_step_2239"

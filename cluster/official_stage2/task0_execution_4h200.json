@@ -21,10 +21,24 @@
     "world_size": 4,
     "accelerator": "h200-sxm"
   },
-  "allowed_hydra_delta": {
-    "path": "trainer.n_gpus_per_node",
-    "from": 8,
-    "to": 4
+  "allowed_hydra_deltas": [
+    {
+      "path": "trainer.n_gpus_per_node",
+      "operation": "replace",
+      "from": 8,
+      "to": 4
+    },
+    {
+      "path": "trainer.max_actor_ckpt_to_keep",
+      "operation": "set",
+      "from": null,
+      "to": 1
+    }
+  ],
+  "checkpoint_policy": {
+    "save_frequency_updates": 200,
+    "max_actor_checkpoints_to_keep": 1,
+    "resume_checkpoints_preserved": true
   },
   "preserved_invariants": {
     "prompt_batch_size": 8,

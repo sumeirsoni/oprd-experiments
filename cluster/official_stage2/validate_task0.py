@@ -462,6 +462,17 @@ def accept(
         topology_arguments == [f"trainer.n_gpus_per_node={world_size}"],
         "captured training argv has an invalid topology override",
     )
+    retention_arguments = [
+        value for value in argv if value.startswith("trainer.max_actor_ckpt_to_keep=")
+    ]
+    _require(
+        retention_arguments
+        == [
+            "trainer.max_actor_ckpt_to_keep="
+            f"{execution_manifest['checkpoint_policy']['max_actor_checkpoints_to_keep']}"
+        ],
+        "captured training argv has an invalid checkpoint retention override",
+    )
     try:
         import yaml
     except ImportError as exc:

@@ -65,6 +65,7 @@ class OfficialTask0ContractTests(unittest.TestCase):
             (("scientific_contract_sha256",), "0" * 64),
             (("approved_topology", "world_size"), 5),
             (("preserved_invariants", "prompt_batch_size"), 4),
+            (("checkpoint_policy", "max_actor_checkpoints_to_keep"), 2),
         ]
         for path, value in mutations:
             with self.subTest(path=path):

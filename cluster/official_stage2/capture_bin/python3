@@ -11,11 +11,21 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   : "${OPRD_OFFICIAL_ROOT:?OPRD_OFFICIAL_ROOT is required}"
   EXPECTED_WORLD_SIZE=${OPRD_EXPECTED_WORLD_SIZE:-8}
   HYDRA_EXECUTION_ARGS=()
+  MAX_ACTOR_CKPTS=
   if [[ -n ${OPRD_EXECUTION_DEVIATION:-} ]]; then
-    EXPECTED_WORLD_SIZE=$(
+    EXECUTION_JSON=$(
       "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
-        emit-execution --execution "$OPRD_EXECUTION_DEVIATION" |
-        "$OPRD_REAL_PYTHON" -c 'import json,sys; print(json.load(sys.stdin)["effective_topology"]["world_size"])'
+        emit-execution --execution "$OPRD_EXECUTION_DEVIATION"
+    )
+    EXPECTED_WORLD_SIZE=$(
+      "$OPRD_REAL_PYTHON" -c \
+        'import json,sys; print(json.load(sys.stdin)["effective_topology"]["world_size"])' \
+        <<< "$EXECUTION_JSON"
+    )
+    MAX_ACTOR_CKPTS=$(
+      "$OPRD_REAL_PYTHON" -c \
+        'import json,sys; print(json.load(sys.stdin)["checkpoint_policy"]["max_actor_checkpoints_to_keep"])' \
+        <<< "$EXECUTION_JSON"
     )
     HYDRA_EXECUTION_ARGS=(--execution "$OPRD_EXECUTION_DEVIATION")
   fi
@@ -26,16 +36,25 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   RUN_ARGS=("$@")
   if [[ $EXPECTED_WORLD_SIZE != 8 ]]; then
     REPLACEMENTS=0
+    RETENTION_OVERRIDES=0
     for index in "${!RUN_ARGS[@]}"; do
       if [[ ${RUN_ARGS[$index]} == trainer.n_gpus_per_node=8 ]]; then
         RUN_ARGS[$index]=trainer.n_gpus_per_node=$EXPECTED_WORLD_SIZE
         REPLACEMENTS=$((REPLACEMENTS + 1))
+      fi
+      if [[ ${RUN_ARGS[$index]} == trainer.max_actor_ckpt_to_keep=* ]]; then
+        RETENTION_OVERRIDES=$((RETENTION_OVERRIDES + 1))
       fi
     done
     [[ $REPLACEMENTS == 1 ]] || {
       printf 'ERROR: expected one trainer world-size override, found %s\n' "$REPLACEMENTS" >&2
       exit 1
     }
+    [[ $RETENTION_OVERRIDES == 0 && $MAX_ACTOR_CKPTS == 1 ]] || {
+      printf 'ERROR: checkpoint retention override is ambiguous\n' >&2
+      exit 1
+    }
+    RUN_ARGS+=(trainer.max_actor_ckpt_to_keep=$MAX_ACTOR_CKPTS)
   fi
   [[ ! -e $OPRD_HYDRA_CAPTURE && ! -e $OPRD_ARGV_CAPTURE ]] || {
     printf 'ERROR: official Hydra capture path already exists\n' >&2
