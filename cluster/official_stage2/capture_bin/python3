@@ -37,6 +37,7 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   if [[ $EXPECTED_WORLD_SIZE != 8 ]]; then
     REPLACEMENTS=0
     RETENTION_OVERRIDES=0
+    HYDRA_RUN_OVERRIDES=0
     for index in "${!RUN_ARGS[@]}"; do
       if [[ ${RUN_ARGS[$index]} == trainer.n_gpus_per_node=8 ]]; then
         RUN_ARGS[$index]=trainer.n_gpus_per_node=$EXPECTED_WORLD_SIZE
@@ -44,6 +45,9 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
       fi
       if [[ ${RUN_ARGS[$index]} == trainer.max_actor_ckpt_to_keep=* ]]; then
         RETENTION_OVERRIDES=$((RETENTION_OVERRIDES + 1))
+      fi
+      if [[ ${RUN_ARGS[$index]} == hydra.run.dir=* ]]; then
+        HYDRA_RUN_OVERRIDES=$((HYDRA_RUN_OVERRIDES + 1))
       fi
     done
     [[ $REPLACEMENTS == 1 ]] || {
@@ -54,7 +58,12 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
       printf 'ERROR: checkpoint retention override is ambiguous\n' >&2
       exit 1
     }
+    [[ $HYDRA_RUN_OVERRIDES == 0 && -n ${PROJECT_PATH:-} ]] || {
+      printf 'ERROR: Hydra run directory override is ambiguous\n' >&2
+      exit 1
+    }
     RUN_ARGS+=(trainer.max_actor_ckpt_to_keep=$MAX_ACTOR_CKPTS)
+    RUN_ARGS+=(hydra.run.dir=$PROJECT_PATH/hydra-run)
   fi
   [[ ! -e $OPRD_HYDRA_CAPTURE && ! -e $OPRD_ARGV_CAPTURE ]] || {
     printf 'ERROR: official Hydra capture path already exists\n' >&2

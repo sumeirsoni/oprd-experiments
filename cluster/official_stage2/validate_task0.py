@@ -473,6 +473,13 @@ def accept(
         ],
         "captured training argv has an invalid checkpoint retention override",
     )
+    hydra_run_arguments = [
+        value for value in argv if value.startswith("hydra.run.dir=")
+    ]
+    _require(
+        hydra_run_arguments == [f"hydra.run.dir={run_directory}/hydra-run"],
+        "captured training argv has an invalid Hydra run directory",
+    )
     try:
         import yaml
     except ImportError as exc:

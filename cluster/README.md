@@ -62,11 +62,12 @@ for the selected world size. Any other traceback fails the job. Review logs, mem
 counter behavior, and projected full-run cost. That review authorized the fixed four-H200 task-0
 execution while retaining eight GPUs as the historical contract topology.
 
-Production startup attempts `7257861` and `7257986` failed before training, first because Ray's
-scratch path exceeded the AF_UNIX 107-byte limit and then because PyTorch expandable segments are
-incompatible with vLLM's memory pool. Their evidence was archived locally and recorded in the
-execution manifest. The launcher uses a short node-local Ray path and does not set the incompatible
-allocator option.
+Production startup attempts `7257861`, `7257986`, and `7257995` failed before training: Ray's
+scratch path exceeded the AF_UNIX limit, PyTorch expandable segments conflicted with vLLM's memory
+pool, and Hydra output from the second attempt made the authenticated source tree dirty. Their
+evidence was archived locally and recorded in the execution manifest. The launcher now uses a short
+node-local Ray path, omits the incompatible allocator option, and routes Hydra output into the run
+namespace instead of the pinned source tree.
 
 The dedicated production command is:
 

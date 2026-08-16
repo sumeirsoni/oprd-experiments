@@ -145,6 +145,12 @@ def validate_execution_manifest(
             "from": None,
             "to": 1,
         },
+        {
+            "path": "hydra.run.dir",
+            "operation": "set",
+            "from": "outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}",
+            "to": "${PROJECT_PATH}/hydra-run",
+        },
     ], "execution manifest Hydra deltas mismatch")
     _require(manifest["checkpoint_policy"] == {
         "save_frequency_updates": 200,
@@ -168,6 +174,17 @@ def validate_execution_manifest(
             "failure": "expandable CUDA allocator is incompatible with vLLM memory pool",
             "runtime_log_sha256": "2ed641a012072867e1a8d5763d9e22c863bd70627d86f9aef54054bbfb47177d",
             "slurm_log_sha256": "972c58a45448c11568ce16a0381d1194b9b5dba7a3ced7775ceb1c2492e7c4bb",
+            "archived_locally": True,
+        },
+        {
+            "job_id": "7257995",
+            "project_revision": "f21646b29a63b79906264624be65dd32c225159f",
+            "phase": "authenticated_preflight_before_namespace_reservation",
+            "failure": "prior Hydra output polluted the authenticated source tree",
+            "slurm_log_sha256": "43d08ff866410aefc9fe14ffad945335a4c154ece762ff5732a683d53101bba6",
+            "source_output_config_sha256": "8f5989a411d7961298416968a90a5f843bb35595293f5ebd5cc89b8c639a2acf",
+            "source_output_hydra_sha256": "7e7f5e5580fb9dd2a5efd729febb3214abfb41627dabee09a2eb2aa58b2ffdef",
+            "source_output_overrides_sha256": "acb3708508f4c0b09448e3539113c1fdc4b761aea9092381280bda5ff39c632f",
             "archived_locally": True,
         },
     ], "prior failed attempt records mismatch")
