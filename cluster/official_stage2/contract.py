@@ -151,6 +151,16 @@ def validate_execution_manifest(
         "max_actor_checkpoints_to_keep": 1,
         "resume_checkpoints_preserved": True,
     }, "execution checkpoint policy mismatch")
+    prior_attempt = manifest["prior_failed_attempt"]
+    _require(prior_attempt == {
+        "job_id": "7257861",
+        "project_revision": "aa99ba1780a68f70cc7d0d1a15fd45e4ca696586",
+        "phase": "ray_start_before_model_loading",
+        "failure": "AF_UNIX socket path exceeded 107 bytes",
+        "runtime_log_sha256": "85c921eaf831e66cd73c1a8bf0c3bedee3655c5ea20a7158a81fc53f3f2aa126",
+        "slurm_log_sha256": "f2095f0f1b06e4f58f34f5fd5431e9a478c068a024b26cd704d039d5a81fdc51",
+        "archived_locally": True,
+    }, "prior failed attempt record mismatch")
     expected_invariants = {
         "prompt_batch_size": contract["training_data"]["prompt_batch_size"],
         "responses_per_prompt": contract["rollout"]["responses_per_prompt"],
@@ -191,6 +201,7 @@ def effective_execution_topology(
         "effective_topology": manifest["approved_topology"],
         "allowed_hydra_deltas": manifest["allowed_hydra_deltas"],
         "checkpoint_policy": manifest["checkpoint_policy"],
+        "prior_failed_attempt": manifest["prior_failed_attempt"],
         "preserved_invariants": manifest["preserved_invariants"],
         "canary_evidence": manifest["canary_evidence"],
     }

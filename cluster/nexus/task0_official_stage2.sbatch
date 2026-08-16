@@ -60,7 +60,7 @@ readonly HF_HOME=$OFFICIAL_ROOT/cache/huggingface
 readonly VLLM_CACHE_ROOT=$OFFICIAL_ROOT/cache/vllm
 readonly TRITON_CACHE_DIR=$OFFICIAL_ROOT/cache/triton
 readonly FLASHINFER_WORKSPACE_BASE=$OFFICIAL_ROOT/cache/flashinfer
-readonly RAY_TMPDIR=$OFFICIAL_ROOT/cache/ray/$SLURM_JOB_ID
+readonly RAY_TMPDIR=/tmp/oprd-ray-$RUN_USER-$SLURM_JOB_ID
 readonly OUTLINES_CACHE_DIR=$OFFICIAL_ROOT/cache/outlines/$SLURM_JOB_ID
 readonly PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 readonly PYTHONDONTWRITEBYTECODE=1
@@ -88,6 +88,7 @@ readonly EXPECTED_UPDATES
 [[ ! -e $RESOLVED_STAGING && ! -e $EXECUTION_STAGING && ! -e $PREFLIGHT_STAGING ]] ||
   fail "stale task-0 staging metadata exists"
 mkdir -p "$RESULT_PARENT" "$HOME" "$RAY_TMPDIR" "$OUTLINES_CACHE_DIR"
+trap 'rm -rf -- "$RAY_TMPDIR"' EXIT
 
 [[ $(git -C "$PROJECT_ROOT" rev-parse HEAD) == "$PROJECT_REVISION" ]] ||
   fail "deployed project revision does not match PROJECT_REVISION"

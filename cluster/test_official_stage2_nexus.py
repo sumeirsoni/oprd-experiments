@@ -38,6 +38,8 @@ class OfficialStage2NexusTests(unittest.TestCase):
         self.assertIn("validate-resolved", script)
         self.assertIn("task0_execution_4h200.json", script)
         self.assertIn("resolved-execution-topology.json", script)
+        self.assertIn("RAY_TMPDIR=/tmp/oprd-ray-", script)
+        self.assertNotIn("RAY_TMPDIR=$OFFICIAL_ROOT", script)
         self.assertIn("OPRD_EXECUTION_DEVIATION", script)
         self.assertIn("torch.cuda.device_count() == 4", script)
         self.assertIn("--world-size 4", script)

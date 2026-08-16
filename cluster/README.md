@@ -62,6 +62,10 @@ for the selected world size. Any other traceback fails the job. Review logs, mem
 counter behavior, and projected full-run cost. That review authorized the fixed four-H200 task-0
 execution while retaining eight GPUs as the historical contract topology.
 
+The first production submission, job `7257861`, failed before model loading because Ray's scratch
+path exceeded the AF_UNIX 107-byte limit. Its evidence was archived locally, the execution manifest
+records its hashes, and the launcher now uses a short node-local Ray path under `/tmp`.
+
 The dedicated production command is:
 
 ```bash
