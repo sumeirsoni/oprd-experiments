@@ -78,6 +78,45 @@ class OfficialTask0ContractTests(unittest.TestCase):
                 with self.assertRaises(task0_contract.ContractError):
                     task0_contract.validate_execution_manifest(changed, contract)
 
+    def test_resume_manifest_binds_exact_checkpoint_and_arithmetic(self):
+        contract = task0_contract.load_contract()
+        execution = task0_contract.load_execution_manifest(contract)
+        resume = task0_contract.load_resume_manifest(contract, execution)
+        authorization = task0_contract.effective_resume_authorization(
+            resume, contract, execution
+        )
+        self.assertEqual(resume["source_checkpoint"]["global_step"], 1600)
+        self.assertEqual(resume["source_checkpoint"]["tracker"]["value"], 1600)
+        self.assertEqual(len(resume["source_checkpoint"]["inventory"]), 23)
+        self.assertEqual(resume["resume_arithmetic"]["remaining_rows"], 5112)
+        self.assertEqual(resume["resume_arithmetic"]["remaining_updates"], 639)
+        self.assertEqual(resume["resume_arithmetic"]["target_step"], 2239)
+        self.assertFalse(resume["scope"]["evaluation_authorized"])
+        self.assertFalse(resume["scope"]["tasks_1_through_26_authorized"])
+        self.assertEqual(len(authorization["resume_manifest_sha256"]), 64)
+
+    def test_resume_manifest_rejects_authorization_and_inventory_mutations(self):
+        contract = task0_contract.load_contract()
+        execution = task0_contract.load_execution_manifest(contract)
+        original = task0_contract.load_resume_manifest(contract, execution)
+        mutations = [
+            (("scope", "evaluation_authorized"), True),
+            (("source_checkpoint", "global_step"), 1400),
+            (("source_checkpoint", "dataloader_state", "samples_yielded"), 12792),
+            (("source_checkpoint", "inventory", 0, "sha256"), "0" * 64),
+            (("resume_arithmetic", "remaining_updates"), 638),
+            (("required_hydra_overrides", "trainer.total_training_steps"), 2240),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path):
+                changed = copy.deepcopy(original)
+                target = changed
+                for component in path[:-1]:
+                    target = target[component]
+                target[path[-1]] = value
+                with self.assertRaises(task0_contract.ContractError):
+                    task0_contract.validate_resume_manifest(changed, contract, execution)
+
     def test_scientific_environment_is_fail_closed(self):
         task0_contract.reject_scientific_environment({"PATH": "/usr/bin"})
         with self.assertRaisesRegex(

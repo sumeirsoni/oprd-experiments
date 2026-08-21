@@ -11,6 +11,7 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   : "${OPRD_OFFICIAL_ROOT:?OPRD_OFFICIAL_ROOT is required}"
   EXPECTED_WORLD_SIZE=${OPRD_EXPECTED_WORLD_SIZE:-8}
   HYDRA_EXECUTION_ARGS=()
+  HYDRA_RESUME_ARGS=()
   MAX_ACTOR_CKPTS=
   if [[ -n ${OPRD_EXECUTION_DEVIATION:-} ]]; then
     EXECUTION_JSON=$(
@@ -34,7 +35,68 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
     exit 1
   }
   RUN_ARGS=("$@")
-  if [[ $EXPECTED_WORLD_SIZE != 8 ]]; then
+  if [[ -n ${OPRD_RESUME_AUTHORIZATION:-} ]]; then
+    [[ $OPRD_RESUME_AUTHORIZATION == task0-7258005 ]] || {
+      printf 'ERROR: unknown resume authorization\n' >&2
+      exit 1
+    }
+    : "${OPRD_RESUME_FROM_PATH:?OPRD_RESUME_FROM_PATH is required}"
+    : "${OPRD_RESUME_LOCAL_DIR:?OPRD_RESUME_LOCAL_DIR is required}"
+    : "${OPRD_RESUME_HYDRA_DIR:?OPRD_RESUME_HYDRA_DIR is required}"
+    : "${OPRD_RESUME_MANIFEST:?OPRD_RESUME_MANIFEST is required}"
+    : "${OPRD_RESUME_NAMESPACE:?OPRD_RESUME_NAMESPACE is required}"
+    : "${OPRD_RESUME_CONTINUATION:?OPRD_RESUME_CONTINUATION is required}"
+    : "${OPRD_RESUME_TERMINAL_LOG:?OPRD_RESUME_TERMINAL_LOG is required}"
+    : "${PROJECT_PATH:?PROJECT_PATH is required}"
+    HYDRA_RESUME_ARGS=(
+      --resume "$OPRD_RESUME_MANIFEST"
+      --official-namespace "$OPRD_RESUME_NAMESPACE"
+      --continuation-dir "$OPRD_RESUME_CONTINUATION"
+    )
+    [[ $EXPECTED_WORLD_SIZE == 4 && $MAX_ACTOR_CKPTS == 1 ]] || {
+      printf 'ERROR: resume authorization requires the four-GPU retention-one execution manifest\n' >&2
+      exit 1
+    }
+    WORLD_SIZE_REPLACEMENTS=0
+    DEFAULT_DIR_REPLACEMENTS=0
+    OUTPUT_LOG_REPLACEMENTS=0
+    for argument in "${RUN_ARGS[@]}"; do
+      case $argument in
+        trainer.n_gpus_per_node=8) WORLD_SIZE_REPLACEMENTS=$((WORLD_SIZE_REPLACEMENTS + 1)) ;;
+        trainer.default_local_dir="$PROJECT_PATH"/*-OPD)
+          DEFAULT_DIR_REPLACEMENTS=$((DEFAULT_DIR_REPLACEMENTS + 1))
+          ;;
+        trainer.output_log_path="$PROJECT_PATH"/logs/terminal/*.log)
+          OUTPUT_LOG_REPLACEMENTS=$((OUTPUT_LOG_REPLACEMENTS + 1))
+          ;;
+        trainer.resume_mode=*|trainer.resume_from_path=*|trainer.default_local_dir=*|trainer.output_log_path=*|trainer.total_training_steps=*|trainer.n_gpus_per_node=*|trainer.max_actor_ckpt_to_keep=*|hydra.run.dir=*)
+          printf 'ERROR: caller supplied duplicate, unexpected, or conflicting resume override: %s\n' "$argument" >&2
+          exit 1
+          ;;
+      esac
+    done
+    [[ $WORLD_SIZE_REPLACEMENTS == 1 && $DEFAULT_DIR_REPLACEMENTS == 1 && $OUTPUT_LOG_REPLACEMENTS == 1 ]] || {
+      printf 'ERROR: expected one original world-size, default-local-dir, and output-log override; found %s, %s, %s\n' \
+        "$WORLD_SIZE_REPLACEMENTS" "$DEFAULT_DIR_REPLACEMENTS" "$OUTPUT_LOG_REPLACEMENTS" >&2
+      exit 1
+    }
+    for index in "${!RUN_ARGS[@]}"; do
+      case ${RUN_ARGS[$index]} in
+        trainer.n_gpus_per_node=8|trainer.default_local_dir="$PROJECT_PATH"/*-OPD|trainer.output_log_path="$PROJECT_PATH"/logs/terminal/*.log)
+          unset 'RUN_ARGS[index]'
+          ;;
+      esac
+    done
+    RUN_ARGS=("${RUN_ARGS[@]}")
+    RUN_ARGS+=(trainer.resume_mode=resume_path)
+    RUN_ARGS+=(trainer.resume_from_path=$OPRD_RESUME_FROM_PATH)
+    RUN_ARGS+=(trainer.default_local_dir=$OPRD_RESUME_LOCAL_DIR)
+    RUN_ARGS+=(trainer.output_log_path=$OPRD_RESUME_TERMINAL_LOG)
+    RUN_ARGS+=(trainer.total_training_steps=2239)
+    RUN_ARGS+=(trainer.n_gpus_per_node=4)
+    RUN_ARGS+=(trainer.max_actor_ckpt_to_keep=1)
+    RUN_ARGS+=(hydra.run.dir=$OPRD_RESUME_HYDRA_DIR)
+  elif [[ $EXPECTED_WORLD_SIZE != 8 ]]; then
     REPLACEMENTS=0
     RETENTION_OVERRIDES=0
     HYDRA_RUN_OVERRIDES=0
@@ -75,7 +137,8 @@ if [[ ${1:-} == -m && ${2:-} == verl.trainer.main_ppo ]]; then
   "$OPRD_REAL_PYTHON" "${RUN_ARGS[@]}" --cfg job --resolve > "$HYDRA_TEMP"
   "$OPRD_REAL_PYTHON" "$OPRD_CONTRACT_TOOL" --contract "$OPRD_CONTRACT" \
     validate-hydra --hydra "$HYDRA_TEMP" --official-root "$OPRD_OFFICIAL_ROOT" \
-    --expected-world-size "$EXPECTED_WORLD_SIZE" "${HYDRA_EXECUTION_ARGS[@]}" >/dev/null
+    --expected-world-size "$EXPECTED_WORLD_SIZE" "${HYDRA_EXECUTION_ARGS[@]}" \
+    "${HYDRA_RESUME_ARGS[@]}" >/dev/null
   "$OPRD_REAL_PYTHON" - "$ARGV_TEMP" "${RUN_ARGS[@]}" <<'PY'
 import json
 import pathlib

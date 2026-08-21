@@ -13,6 +13,8 @@ from typing import Any, Mapping
 
 CONTRACT_PATH = pathlib.Path(__file__).with_name("task0_contract.json")
 EXECUTION_PATH = pathlib.Path(__file__).with_name("task0_execution_4h200.json")
+RESUME_PATH = pathlib.Path(__file__).with_name("task0_resume_7258005.json")
+RESUME_MANIFEST_SHA256 = "7999d929ce351a7f44b591ab23dc9c145441b97e86807af0513c382082c4e143"
 FORBIDDEN_SCIENTIFIC_ENVIRONMENT = frozenset(
     {
         "ATTENTION_DISTILLATION",
@@ -96,6 +98,160 @@ def execution_manifest_sha256(
 ) -> str:
     validate_execution_manifest(manifest, contract)
     return sha256_bytes(canonical_json_bytes(manifest))
+
+
+def load_resume_manifest(
+    contract: Mapping[str, Any],
+    execution_manifest: Mapping[str, Any],
+    path: os.PathLike[str] | str = RESUME_PATH,
+) -> dict[str, Any]:
+    manifest = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    validate_resume_manifest(manifest, contract, execution_manifest)
+    return manifest
+
+
+def resume_manifest_sha256(
+    manifest: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    execution_manifest: Mapping[str, Any],
+) -> str:
+    validate_resume_manifest(manifest, contract, execution_manifest)
+    return sha256_bytes(canonical_json_bytes(manifest))
+
+
+def _require_exact_keys(value: Mapping[str, Any], expected: set[str], field: str) -> None:
+    _require(isinstance(value, Mapping), f"{field} must be an object")
+    actual = set(value)
+    _require(actual == expected, f"{field} keys mismatch: expected {sorted(expected)}, got {sorted(actual)}")
+
+
+def _validate_relative_path(value: Any, field: str) -> None:
+    _require(isinstance(value, str) and value != "", f"{field} must be a non-empty path")
+    path = pathlib.PurePosixPath(value)
+    _require(not path.is_absolute(), f"{field} must be relative")
+    _require(".." not in path.parts and "." not in path.parts, f"{field} must not escape its root")
+    _require(str(path) == value, f"{field} must be a normalized POSIX path")
+
+
+def _validate_file_records(records: Any, field: str, *, allow_absolute: bool = False) -> None:
+    _require(isinstance(records, list) and records, f"{field} must be a non-empty list")
+    paths: list[str] = []
+    for index, record in enumerate(records):
+        _require_exact_keys(record, {"path", "sha256", "size"}, f"{field}[{index}]")
+        path = record["path"]
+        if not (allow_absolute and isinstance(path, str) and path.startswith("/")):
+            _validate_relative_path(path, f"{field}[{index}].path")
+        _require_sha256(record["sha256"], f"{field}[{index}].sha256")
+        _require(isinstance(record["size"], int) and not isinstance(record["size"], bool) and record["size"] > 0, f"{field}[{index}].size must be a positive integer")
+        paths.append(path)
+    _require(len(paths) == len(set(paths)), f"{field} contains duplicate paths")
+
+
+def validate_resume_manifest(
+    manifest: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    execution_manifest: Mapping[str, Any],
+) -> None:
+    validate_execution_manifest(execution_manifest, contract)
+    _require_exact_keys(manifest, {
+        "schema_version", "manifest_name", "scope", "scientific_contract_sha256",
+        "execution_manifest_sha256", "source_checkpoint", "source_evidence",
+        "resume_arithmetic", "approved_topology", "required_hydra_overrides",
+    }, "resume manifest")
+    _require(manifest["schema_version"] == 1, "resume schema version mismatch")
+    _require(manifest["manifest_name"] == "task0-resume-job-7258005-global-step-1600-r1", "resume manifest name mismatch")
+    _require(manifest["scientific_contract_sha256"] == contract_sha256(contract), "resume scientific contract digest mismatch")
+    _require(manifest["execution_manifest_sha256"] == execution_manifest_sha256(execution_manifest, contract), "resume execution manifest digest mismatch")
+    expected_scope = {
+        "task": 0, "phase": "resume_full_training", "original_job_id": "7258005",
+        "original_project_revision": "e52fa7d42660e86cd6c4b26acdabfd576029d215",
+        "authorized_result_namespace": "official-task0-4h200-prod-r1",
+        "continuation_subdirectory": "continuations/resume-global-step-1600-r1",
+        "continuation_attempts": 1, "evaluation_authorized": False,
+        "tasks_1_through_26_authorized": False,
+    }
+    _require(manifest["scope"] == expected_scope, "resume authorization scope mismatch")
+    _validate_relative_path(manifest["scope"]["continuation_subdirectory"], "scope.continuation_subdirectory")
+    _require(manifest["approved_topology"] == execution_manifest["approved_topology"], "resume topology mismatch")
+
+    checkpoint = manifest["source_checkpoint"]
+    _require_exact_keys(checkpoint, {"relative_path", "global_step", "world_size", "tracker", "dataloader_state", "inventory"}, "source_checkpoint")
+    _validate_relative_path(checkpoint["relative_path"], "source_checkpoint.relative_path")
+    _require(checkpoint["relative_path"].endswith("/global_step_1600"), "source checkpoint must be global_step_1600")
+    _require(checkpoint["global_step"] == 1600 and checkpoint["world_size"] == 4, "source checkpoint identity mismatch")
+    tracker = checkpoint["tracker"]
+    _require_exact_keys(tracker, {"relative_path", "sha256", "size", "value"}, "source_checkpoint.tracker")
+    _validate_relative_path(tracker["relative_path"], "source_checkpoint.tracker.relative_path")
+    _require(tracker == {
+        "relative_path": str(pathlib.PurePosixPath(checkpoint["relative_path"]).parent / "latest_checkpointed_iteration.txt"),
+        "sha256": "b458944d9ec4322f9ff0de2885ce82d580341fcf0fd688422e9929b6e7ce3b2d",
+        "size": 4, "value": 1600,
+    }, "source checkpoint tracker mismatch")
+    dataloader = checkpoint["dataloader_state"]
+    _require(dataloader == {
+        "snapshot_step": 1600, "samples_yielded": 12800,
+        "sampler_iter_yielded": 1600, "num_workers": 8,
+        "iterator_finished": False,
+    }, "source dataloader state mismatch")
+    _validate_file_records(checkpoint["inventory"], "source_checkpoint.inventory")
+    inventory_paths = {record["path"] for record in checkpoint["inventory"]}
+    expected_shards = {
+        f"actor/{kind}_world_size_4_rank_{rank}.pt"
+        for kind in ("model", "optim", "extra_state") for rank in range(4)
+    }
+    _require(expected_shards <= inventory_paths, "source checkpoint shard inventory is incomplete")
+    _require("data.pt" in inventory_paths and "actor/fsdp_config.json" in inventory_paths, "source checkpoint metadata inventory is incomplete")
+    _require(any(path.startswith("actor/huggingface/") for path in inventory_paths), "source checkpoint Hugging Face inventory is empty")
+    _require(len(inventory_paths) == 23, "source checkpoint inventory must contain exactly 23 files")
+
+    _validate_file_records(manifest["source_evidence"], "source_evidence", allow_absolute=True)
+    _require([record["path"] for record in manifest["source_evidence"]] == [
+        "preflight.json", "resolved-execution-topology.json", "resolved-scientific-config.json",
+        "actual-hydra.yaml", "actual-python-argv.json", "official-runtime.log",
+        "/cmlscratch/ssoni11/oprd-experiments-main/cluster/logs/oprd_official_task0_7258005.out",
+    ], "source evidence inventory mismatch")
+
+    arithmetic = manifest["resume_arithmetic"]
+    _require_exact_keys(arithmetic, {"total_rows", "prompt_batch_size", "contract_consumed_rows", "checkpoint_consumed_rows", "remaining_rows", "remaining_updates", "first_resumed_step", "target_step"}, "resume_arithmetic")
+    data = contract["training_data"]
+    _require(arithmetic["total_rows"] == data["rows"], "resume total rows mismatch")
+    _require(arithmetic["prompt_batch_size"] == data["prompt_batch_size"], "resume batch size mismatch")
+    _require(arithmetic["contract_consumed_rows"] == data["expected_consumed_rows"], "resume contract consumed rows mismatch")
+    _require(arithmetic["checkpoint_consumed_rows"] == dataloader["samples_yielded"], "resume checkpoint consumed rows mismatch")
+    _require(arithmetic["remaining_rows"] == arithmetic["contract_consumed_rows"] - arithmetic["checkpoint_consumed_rows"], "resume remaining rows mismatch")
+    _require(arithmetic["remaining_rows"] % arithmetic["prompt_batch_size"] == 0, "resume remaining rows must form complete batches")
+    _require(arithmetic["remaining_updates"] == arithmetic["remaining_rows"] // arithmetic["prompt_batch_size"], "resume remaining update count mismatch")
+    _require(arithmetic["first_resumed_step"] == checkpoint["global_step"] + 1, "first resumed step mismatch")
+    _require(arithmetic["target_step"] == checkpoint["global_step"] + arithmetic["remaining_updates"] == data["expected_updates"], "resume target step mismatch")
+
+    _require(manifest["required_hydra_overrides"] == {
+        "trainer.resume_mode": "resume_path",
+        "trainer.resume_from_path": "${OFFICIAL_NAMESPACE}/${SOURCE_CHECKPOINT_RELATIVE_PATH}",
+        "trainer.default_local_dir": "${CONTINUATION_DIR}/checkpoints",
+        "trainer.total_training_steps": 2239,
+        "trainer.n_gpus_per_node": 4,
+        "trainer.max_actor_ckpt_to_keep": 1,
+        "hydra.run.dir": "${CONTINUATION_DIR}/hydra-run",
+    }, "required resume Hydra overrides mismatch")
+    _require(
+        sha256_bytes(canonical_json_bytes(manifest)) == RESUME_MANIFEST_SHA256,
+        "resume manifest immutable digest mismatch",
+    )
+
+
+def effective_resume_authorization(
+    manifest: Mapping[str, Any], contract: Mapping[str, Any], execution_manifest: Mapping[str, Any]
+) -> dict[str, Any]:
+    validate_resume_manifest(manifest, contract, execution_manifest)
+    return {
+        "scientific_contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_manifest_sha256(execution_manifest, contract),
+        "resume_manifest_sha256": resume_manifest_sha256(manifest, contract, execution_manifest),
+        "scope": manifest["scope"], "source_checkpoint": manifest["source_checkpoint"],
+        "source_evidence": manifest["source_evidence"], "resume_arithmetic": manifest["resume_arithmetic"],
+        "approved_topology": manifest["approved_topology"],
+        "required_hydra_overrides": manifest["required_hydra_overrides"],
+    }
 
 
 def validate_execution_manifest(
@@ -467,6 +623,9 @@ def validate_hydra_config(
     official_root: pathlib.Path | None = None,
     expected_world_size: int = 8,
     execution_manifest: Mapping[str, Any] | None = None,
+    resume_manifest: Mapping[str, Any] | None = None,
+    official_namespace: pathlib.Path | None = None,
+    continuation_dir: pathlib.Path | None = None,
     contract: Mapping[str, Any] | None = None,
 ) -> None:
     """Validate the actual resolved Hydra configuration used by official verl."""
@@ -474,6 +633,11 @@ def validate_hydra_config(
         _require(contract is not None, "contract is required with execution manifest")
         validate_execution_manifest(execution_manifest, contract)
         expected_world_size = execution_manifest["approved_topology"]["world_size"]
+    if resume_manifest is not None:
+        _require(contract is not None and execution_manifest is not None, "contract and execution manifest are required with resume manifest")
+        validate_resume_manifest(resume_manifest, contract, execution_manifest)
+        _require(official_namespace is not None and continuation_dir is not None, "official namespace and continuation directory are required for resume Hydra validation")
+        expected_world_size = resume_manifest["approved_topology"]["world_size"]
     _require(expected_world_size in (4, 8), "expected world size must be four or eight")
     expected = {
         "data.shuffle": False,
@@ -530,6 +694,19 @@ def validate_hydra_config(
         expected["trainer.max_actor_ckpt_to_keep"] = execution_manifest[
             "checkpoint_policy"
         ]["max_actor_checkpoints_to_keep"]
+    if resume_manifest is not None:
+        namespace = official_namespace.resolve(strict=True)
+        continuation = continuation_dir.resolve(strict=True)
+        source_checkpoint = namespace / resume_manifest["source_checkpoint"]["relative_path"]
+        _require(source_checkpoint.resolve(strict=True) == source_checkpoint, "resume checkpoint path must be canonical")
+        expected.update({
+            "trainer.resume_mode": "resume_path",
+            "trainer.resume_from_path": str(source_checkpoint),
+            "trainer.default_local_dir": str(continuation / "checkpoints"),
+            "trainer.output_log_path": str(continuation / "logs" / "terminal" / "resume.log"),
+            "trainer.total_training_steps": resume_manifest["resume_arithmetic"]["target_step"],
+            "hydra.run.dir": str(continuation / "hydra-run"),
+        })
     mismatches = []
     for dotted_path, expected_value in expected.items():
         actual_value = _lookup(hydra, dotted_path)
@@ -568,6 +745,10 @@ def _parser() -> argparse.ArgumentParser:
     validate_execution.add_argument("--execution", type=pathlib.Path, required=True)
     emit_execution = subparsers.add_parser("emit-execution")
     emit_execution.add_argument("--execution", type=pathlib.Path, required=True)
+    for command in ("validate-resume", "digest-resume", "emit-resume"):
+        resume = subparsers.add_parser(command)
+        resume.add_argument("--execution", type=pathlib.Path, required=True)
+        resume.add_argument("--resume", type=pathlib.Path, required=True)
     subparsers.add_parser("check-environment")
     subparsers.add_parser("emit-resolved")
     resolved = subparsers.add_parser("validate-resolved")
@@ -577,6 +758,9 @@ def _parser() -> argparse.ArgumentParser:
     hydra.add_argument("--official-root", type=pathlib.Path, required=True)
     hydra.add_argument("--expected-world-size", type=int, choices=(4, 8), default=8)
     hydra.add_argument("--execution", type=pathlib.Path)
+    hydra.add_argument("--resume", type=pathlib.Path)
+    hydra.add_argument("--official-namespace", type=pathlib.Path)
+    hydra.add_argument("--continuation-dir", type=pathlib.Path)
     return parser
 
 
@@ -601,6 +785,16 @@ def main() -> None:
             sort_keys=True,
             separators=(",", ":"),
         ))
+    elif arguments.command in ("validate-resume", "digest-resume", "emit-resume"):
+        execution = load_execution_manifest(contract, arguments.execution)
+        resume = load_resume_manifest(contract, execution, arguments.resume)
+        digest = resume_manifest_sha256(resume, contract, execution)
+        if arguments.command == "digest-resume":
+            print(digest)
+        elif arguments.command == "emit-resume":
+            print(json.dumps(effective_resume_authorization(resume, contract, execution), sort_keys=True, separators=(",", ":")))
+        else:
+            print(json.dumps({"ok": True, "contract_sha256": contract_sha256(contract), "execution_manifest_sha256": execution_manifest_sha256(execution, contract), "resume_manifest_sha256": digest}))
     elif arguments.command == "check-environment":
         reject_scientific_environment()
         print(json.dumps({"ok": True}))
@@ -627,11 +821,20 @@ def main() -> None:
             if arguments.execution
             else None
         )
+        resume_manifest = (
+            load_resume_manifest(contract, execution_manifest, arguments.resume)
+            if arguments.resume and execution_manifest is not None
+            else None
+        )
+        _require(not arguments.resume or execution_manifest is not None, "--resume requires --execution")
         validate_hydra_config(
             hydra,
             official_root=arguments.official_root,
             expected_world_size=arguments.expected_world_size,
             execution_manifest=execution_manifest,
+            resume_manifest=resume_manifest,
+            official_namespace=arguments.official_namespace,
+            continuation_dir=arguments.continuation_dir,
             contract=contract,
         )
         print(json.dumps({"ok": True, "contract_sha256": contract_sha256(contract)}))

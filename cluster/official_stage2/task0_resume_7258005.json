@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "manifest_name": "task0-resume-job-7258005-global-step-1600-r1",
+  "scope": {
+    "task": 0,
+    "phase": "resume_full_training",
+    "original_job_id": "7258005",
+    "original_project_revision": "e52fa7d42660e86cd6c4b26acdabfd576029d215",
+    "authorized_result_namespace": "official-task0-4h200-prod-r1",
+    "continuation_subdirectory": "continuations/resume-global-step-1600-r1",
+    "continuation_attempts": 1,
+    "evaluation_authorized": false,
+    "tasks_1_through_26_authorized": false
+  },
+  "scientific_contract_sha256": "8dd4079e2822a7ae7f94c224b27560e3e6fe36fc09d77fdcd0472f71e3e6b253",
+  "execution_manifest_sha256": "c71b7b8d1b0c9bf2e36fd4988514c652f182887e3911ea1e4f3d6502ac97d715",
+  "source_checkpoint": {
+    "relative_path": "token_reward_direct_DAPO-Math-17k-official-task0_Qwen3-1.7B-Base_Qwen3-4B_16384-T_1.0-Tch_1.0-n_2-mbs_8-topk_0-topk_strategy_only_stu-rw_student_p-2026-08-16_02-58-29-OPD/global_step_1600",
+    "global_step": 1600,
+    "world_size": 4,
+    "tracker": {
+      "relative_path": "token_reward_direct_DAPO-Math-17k-official-task0_Qwen3-1.7B-Base_Qwen3-4B_16384-T_1.0-Tch_1.0-n_2-mbs_8-topk_0-topk_strategy_only_stu-rw_student_p-2026-08-16_02-58-29-OPD/latest_checkpointed_iteration.txt",
+      "sha256": "b458944d9ec4322f9ff0de2885ce82d580341fcf0fd688422e9929b6e7ce3b2d",
+      "size": 4,
+      "value": 1600
+    },
+    "dataloader_state": {
+      "snapshot_step": 1600,
+      "samples_yielded": 12800,
+      "sampler_iter_yielded": 1600,
+      "num_workers": 8,
+      "iterator_finished": false
+    },
+    "inventory": [
+      {"path": "actor/extra_state_world_size_4_rank_0.pt", "sha256": "185e75565d146ae182ad3cd9842de10f9d356c63f80b4aaa0119c66523337ef0", "size": 15077},
+      {"path": "actor/extra_state_world_size_4_rank_1.pt", "sha256": "ff1dc696eecb5df2fb48cfd08dbcb1001b588dd27cc89ee391500cdcd98b0f33", "size": 15077},
+      {"path": "actor/extra_state_world_size_4_rank_2.pt", "sha256": "5e296e07ff2929fda8a86afa8dfd37eed8998a4b168f4c18ecf413bc172fd3cd", "size": 15077},
+      {"path": "actor/extra_state_world_size_4_rank_3.pt", "sha256": "c9885e3923a4dd588fb85e5cb39c0686c3ef9d59edca7139d199e5dff45e94da", "size": 15077},
+      {"path": "actor/fsdp_config.json", "sha256": "68c204b2d3b755db051979376990d46558934c0d7ce0ac06bd1e19d3ee8dcf6d", "size": 46},
+      {"path": "actor/huggingface/added_tokens.json", "sha256": "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680", "size": 707},
+      {"path": "actor/huggingface/chat_template.jinja", "sha256": "87a2728cb8dc9fe424d624542f6060ec05a1d285ebbec578bb078900e33396b5", "size": 4116},
+      {"path": "actor/huggingface/config.json", "sha256": "e05f751096476455c70454addd6359cd4fd9040622b3cb95f79970bc25a0c764", "size": 1359},
+      {"path": "actor/huggingface/generation_config.json", "sha256": "572b47acfde467f61dc18438b2faf85d1db1ad116c63d93afc23a30634ace770", "size": 117},
+      {"path": "actor/huggingface/merges.txt", "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5", "size": 1671853},
+      {"path": "actor/huggingface/special_tokens_map.json", "sha256": "6676f091c8bc4d1b50146427cfde92073402866b87b6e39223227931b70083e9", "size": 616},
+      {"path": "actor/huggingface/tokenizer_config.json", "sha256": "67e5a0a11cd35f9c00ee52e0af4cdc0baa75fea0cb5fce7d1beb251b4621d15c", "size": 5407},
+      {"path": "actor/huggingface/tokenizer.json", "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4", "size": 11422654},
+      {"path": "actor/huggingface/vocab.json", "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910", "size": 2776833},
+      {"path": "actor/model_world_size_4_rank_0.pt", "sha256": "fb558f63814533be0dddf3306eecfb1b0e359efd09c588cee92ff1838df50bed", "size": 2031920747},
+      {"path": "actor/model_world_size_4_rank_1.pt", "sha256": "9c62f6f29d492784a8cebeeee45e1104ee126d05403fed6c56d110f5b45810c9", "size": 2031920747},
+      {"path": "actor/model_world_size_4_rank_2.pt", "sha256": "0f42cd01fb3515bc7fb997d56f15e31496c0599cada83b3e64f01313b21c0814", "size": 2031920747},
+      {"path": "actor/model_world_size_4_rank_3.pt", "sha256": "cd13e87a6731d036470f9244ab19c88aa2bf0a4887a56b0e72dc3a78ad9f8927", "size": 2031920747},
+      {"path": "actor/optim_world_size_4_rank_0.pt", "sha256": "31d9d2248edd609695c1ff250147d3329b85e6c0c3b03bae7d6a7ca6b98332b6", "size": 3441285672},
+      {"path": "actor/optim_world_size_4_rank_1.pt", "sha256": "0a273ef0c964ed9a593052531ca44c9360009d43213327f717acfb7d6fbb28dd", "size": 3441285672},
+      {"path": "actor/optim_world_size_4_rank_2.pt", "sha256": "abb7c476a6de73dd3bdf1b956c977e5e9f77548eb07def4c2dffb852472f6620", "size": 3441285672},
+      {"path": "actor/optim_world_size_4_rank_3.pt", "sha256": "8f2a541052f1ada1f676f8679ce5d3c46c9a6a1f1afa43d01035c963340ab8b8", "size": 3441285672},
+      {"path": "data.pt", "sha256": "8e8ff1e795907a551f475725ef8e34be3e31a68deffe2d535522196901f23407", "size": 1947}
+    ]
+  },
+  "source_evidence": [
+    {"path": "preflight.json", "sha256": "8b3c67d1d88d75d8ab56c1835d864799a6b98b25a058c5206e6043dbb2fe15bf", "size": 2031},
+    {"path": "resolved-execution-topology.json", "sha256": "820e9eeb8d9a79d869fe3b0bb385a775bb3e7708042229d0f680f800c47dd74d", "size": 3180},
+    {"path": "resolved-scientific-config.json", "sha256": "a1b5a6112f035c238c5beca12b68cf0b5c1a9e2de3b03143245b92bb7bc4024d", "size": 598},
+    {"path": "actual-hydra.yaml", "sha256": "95ba699440929e084c57cec9ec031c6c67248469589a23821c60c756e9e2556d", "size": 17943},
+    {"path": "actual-python-argv.json", "sha256": "c1f7226682cee1fa99b8d1af0b2f5cd0e2f09c51b1c0226da174d6c9f960d367", "size": 5858},
+    {"path": "official-runtime.log", "sha256": "2a5437ad0018155807d83a955075ab8b0b91621f60b69e877a8273bc0eaa51a0", "size": 18736274},
+    {"path": "/cmlscratch/ssoni11/oprd-experiments-main/cluster/logs/oprd_official_task0_7258005.out", "sha256": "60c7594594db9a725d1f9131e9ad2dc69ada6c973f9746b17c922439dbb9ad41", "size": 18737198}
+  ],
+  "resume_arithmetic": {
+    "total_rows": 17917,
+    "prompt_batch_size": 8,
+    "contract_consumed_rows": 17912,
+    "checkpoint_consumed_rows": 12800,
+    "remaining_rows": 5112,
+    "remaining_updates": 639,
+    "first_resumed_step": 1601,
+    "target_step": 2239
+  },
+  "approved_topology": {
+    "nodes": 1,
+    "gpus_per_node": 4,
+    "world_size": 4,
+    "accelerator": "h200-sxm"
+  },
+  "required_hydra_overrides": {
+    "trainer.resume_mode": "resume_path",
+    "trainer.resume_from_path": "${OFFICIAL_NAMESPACE}/${SOURCE_CHECKPOINT_RELATIVE_PATH}",
+    "trainer.default_local_dir": "${CONTINUATION_DIR}/checkpoints",
+    "trainer.total_training_steps": 2239,
+    "trainer.n_gpus_per_node": 4,
+    "trainer.max_actor_ckpt_to_keep": 1,
+    "hydra.run.dir": "${CONTINUATION_DIR}/hydra-run"
+  }
+}

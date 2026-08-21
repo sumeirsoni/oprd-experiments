@@ -86,6 +86,14 @@ four-rank model/optimizer/extra-state shards, merging them into an authenticated
 checkpoint, rejecting later steps and unexplained failure markers, and writing an
 `ACCEPTED_OFFICIAL_TASK0` report.
 
+Production job `7258005` reached its 72-hour wall-time limit after logging step 1,793. Its latest complete retained checkpoint is `global_step_1600`, including optimizer, RNG, and dataloader state for all four ranks. The original namespace and timeout evidence remain immutable. A one-shot continuation is authorized separately by `official_stage2/task0_resume_7258005.json` and launched only with:
+
+```bash
+sbatch cluster/nexus/task0_resume_7258005.sbatch <full-clean-project-git-commit>
+```
+
+The continuation is a fixed non-array, five-day job using four H200s, 16 CPUs, and 300 GiB RAM. It authenticates every original evidence and checkpoint file before training, resumes explicitly from the original step-1600 checkpoint into `continuations/resume-global-step-1600-r1`, and targets exactly step 2,239. It rejects missing dataloader restoration, fallback to training from scratch, source-checkpoint mutation, later optimizer steps, incomplete shards, and path collisions. Continuation acceptance is written first, root composite `acceptance.json` second, and root `COMPLETE` last. The source checkpoint stays outside continuation retention and is never modified or pruned. Do not reuse the fresh-run launcher for this continuation.
+
 Evaluation is independently authorized and submitted only against that accepted checkpoint:
 
 ```bash

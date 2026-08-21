@@ -17,9 +17,12 @@ from typing import Any
 from contract import (
     contract_sha256,
     effective_execution_topology,
+    effective_resume_authorization,
     execution_manifest_sha256,
     load_contract,
     load_execution_manifest,
+    load_resume_manifest,
+    resume_manifest_sha256,
     validate_resolved_config,
 )
 
@@ -130,9 +133,11 @@ def validate_model_files(models_root: pathlib.Path, contract: dict[str, Any]) ->
 
 
 def _tree_manifest(root: pathlib.Path) -> tuple[str, list[dict[str, Any]]]:
+    _require(root.is_dir() and not root.is_symlink(), f"authenticated tree root is invalid: {root}")
     records = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.is_symlink():
+        _require(not path.is_symlink(), f"authenticated tree contains a symlink: {path}")
+        if not path.is_file():
             continue
         records.append(
             {
@@ -192,7 +197,9 @@ def _visible_gpu_count() -> int:
     return torch.cuda.device_count()
 
 
-def _validate_project_trust(project_root: pathlib.Path, project_revision: str) -> None:
+def _validate_project_trust(
+    project_root: pathlib.Path, project_revision: str, *, include_resume: bool = False
+) -> None:
     actual_project_revision = subprocess.check_output(
         ["git", "-C", str(project_root), "rev-parse", "HEAD"], text=True
     ).strip()
@@ -204,6 +211,8 @@ def _validate_project_trust(project_root: pathlib.Path, project_revision: str) -
         "cluster/nexus/task0_official_stage2.sbatch",
         "cluster/nexus/evaluate_official_stage2.sbatch",
     ]
+    if include_resume:
+        trust_paths.append("cluster/nexus/task0_resume_7258005.sbatch")
     trust_status = subprocess.check_output(
         [
             "git", "-C", str(project_root), "status", "--porcelain",
@@ -568,6 +577,542 @@ def accept(
     }
 
 
+def _require_real_descendant(path: pathlib.Path, root: pathlib.Path, description: str) -> pathlib.Path:
+    root = root.resolve(strict=True)
+    _require(root.is_dir() and not root.is_symlink(), f"{description} root is invalid")
+    _require(path.is_absolute(), f"{description} path must be absolute")
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise Task0ValidationError(
+            f"{description} path is outside its authorized root"
+        ) from exc
+    current = root
+    for part in relative.parts:
+        current = current / part
+        _require(not current.is_symlink(), f"{description} path contains a symlink: {current}")
+    resolved = path.resolve(strict=True)
+    _require(resolved.is_relative_to(root), f"{description} resolves outside its authorized root")
+    return resolved
+
+
+def _verify_record(path: pathlib.Path, record: dict[str, Any], description: str) -> dict[str, Any]:
+    _require(path.is_file() and not path.is_symlink(), f"{description} is missing or not a regular file: {path}")
+    _require(path.stat().st_size == record["size"], f"{description} size changed: {path}")
+    digest = _sha256_file(path)
+    _require(digest == record["sha256"], f"{description} digest changed: {path}")
+    return {"path": str(path), "size": record["size"], "sha256": digest}
+
+
+def _load_dataloader_state(path: pathlib.Path) -> dict[str, Any]:
+    try:
+        import torch
+        state = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as exc:
+        raise Task0ValidationError(f"cannot authenticate checkpoint dataloader state: {exc}") from exc
+    _require(isinstance(state, dict), "checkpoint data.pt must contain a state dictionary")
+    expected_keys = {
+        "snapshot_step": "_snapshot_step",
+        "samples_yielded": "samples_yielded",
+        "sampler_iter_yielded": "_sampler_iter_yielded",
+        "num_workers": "_num_workers",
+        "iterator_finished": "_iterator_finished",
+    }
+    _require(all(key in state for key in expected_keys.values()), "checkpoint data.pt is missing required dataloader fields")
+    return {name: state[key] for name, key in expected_keys.items()}
+
+
+def _resume_context(
+    run_directory: pathlib.Path,
+    project_root: pathlib.Path,
+    project_revision: str,
+    execution_path: pathlib.Path,
+    resume_path: pathlib.Path,
+    contract: dict[str, Any],
+) -> tuple[pathlib.Path, pathlib.Path, dict[str, Any], dict[str, Any], str]:
+    run_directory = run_directory.resolve(strict=True)
+    _require(run_directory.is_dir() and not run_directory.is_symlink(), "original run directory must be real")
+    execution = load_execution_manifest(contract, execution_path)
+    resume = load_resume_manifest(contract, execution, resume_path)
+    _require(run_directory.name == resume["scope"]["authorized_result_namespace"], "resume namespace is not authorized")
+    _validate_project_trust(
+        project_root.resolve(strict=True), project_revision, include_resume=True
+    )
+    continuation = run_directory / resume["scope"]["continuation_subdirectory"]
+    _require(continuation.parent == run_directory / "continuations", "continuation path is not canonical")
+    return run_directory, continuation, execution, resume, resume_manifest_sha256(resume, contract, execution)
+
+
+def _authenticate_original(run_directory: pathlib.Path, resume: dict[str, Any]) -> dict[str, Any]:
+    _require(not (run_directory / "COMPLETE").exists(), "original run is already complete")
+    _require(not (run_directory / "acceptance.json").exists(), "original run is already accepted")
+    _require(not (run_directory / "merged-hf").exists(), "original run has a root merged checkpoint")
+    evidence = []
+    for record in resume["source_evidence"]:
+        raw = pathlib.Path(record["path"])
+        path = raw if raw.is_absolute() else run_directory / raw
+        if not raw.is_absolute():
+            _require_real_descendant(path, run_directory, "original evidence")
+        evidence.append(_verify_record(path, record, "original evidence"))
+    source = _require_real_descendant(
+        run_directory / resume["source_checkpoint"]["relative_path"], run_directory, "source checkpoint"
+    )
+    _require(source.is_dir() and not source.is_symlink(), "source checkpoint must be a real directory")
+    inventory = []
+    for record in resume["source_checkpoint"]["inventory"]:
+        path = source / record["path"]
+        _require_real_descendant(path, source, "source checkpoint file")
+        inventory.append(_verify_record(path, record, "source checkpoint file"))
+    actual_inventory = {
+        path.relative_to(source).as_posix() for path in source.rglob("*") if path.is_file() or path.is_symlink()
+    }
+    expected_inventory = {record["path"] for record in resume["source_checkpoint"]["inventory"]}
+    _require(actual_inventory == expected_inventory, "source checkpoint contains missing, extra, or symlinked files")
+    validate_fsdp_shards(source / "actor", resume["source_checkpoint"]["world_size"])
+    tracker_record = resume["source_checkpoint"]["tracker"]
+    tracker = run_directory / tracker_record["relative_path"]
+    _require_real_descendant(tracker, run_directory, "source checkpoint tracker")
+    tracker_result = _verify_record(tracker, tracker_record, "source checkpoint tracker")
+    _require(tracker.read_bytes() == str(tracker_record["value"]).encode("ascii"), "source checkpoint tracker value mismatch")
+    dataloader = _load_dataloader_state(source / "data.pt")
+    _require(dataloader == resume["source_checkpoint"]["dataloader_state"], "source checkpoint dataloader state mismatch")
+    later = [
+        path for path in run_directory.rglob("global_step_*")
+        if path.is_dir() and path.name.removeprefix("global_step_").isdigit()
+        and int(path.name.removeprefix("global_step_")) > resume["source_checkpoint"]["global_step"]
+        and not path.is_relative_to(run_directory / "continuations")
+    ]
+    _require(not later, "original run contains a complete checkpoint later than the authorized source")
+    return {"source_checkpoint": str(source), "source_evidence": evidence, "source_inventory": inventory, "tracker": tracker_result, "dataloader_state": dataloader}
+
+
+def _authenticate_current_resume_inputs(
+    run_directory: pathlib.Path,
+    project_root: pathlib.Path,
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    official_root = run_directory.parent.parent.resolve(strict=True)
+    source = official_root / "source" / "OPRD"
+    source_manifest_path = official_root / "source" / "manifest.json"
+    models_root = official_root / "models"
+    models_manifest_path = models_root / "manifest.json"
+    adapter = official_root / "bridge" / "rank8_all_layers"
+    adapter_manifest_path = adapter / "manifest.json"
+    ready_path = official_root / "env-a63236c" / ".oprd-official-ready.json"
+    for path in (
+        source,
+        source_manifest_path,
+        models_manifest_path,
+        adapter_manifest_path,
+        ready_path,
+    ):
+        _require(path.exists() and not path.is_symlink(), f"current official input is missing or symlinked: {path}")
+
+    source_manifest = _load(source_manifest_path)
+    expected_commit = contract["official_source"]["commit"]
+    actual_commit = subprocess.check_output(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
+    ).strip()
+    _require(source_manifest["commit"] == expected_commit == actual_commit, "current official source commit mismatch")
+    source_status = subprocess.check_output(
+        ["git", "-C", str(source), "status", "--porcelain", "--untracked-files=all"],
+        text=True,
+    )
+    _require(not source_status, "current official source checkout is dirty")
+    _verify_file_records(source, source_manifest["files"])
+
+    models_validation = validate_model_files(models_root, contract)
+    models_manifest = _load(models_manifest_path)
+    for directory_name, model_contract in (
+        ("Qwen3-1.7B-Base", contract["models"]["student"]),
+        ("Qwen3-4B", contract["models"]["teacher"]),
+    ):
+        model_manifest = models_manifest["models"][directory_name]
+        _require(model_manifest["model_id"] == model_contract["id"], "current model ID mismatch")
+        _require(model_manifest["revision"] == model_contract["revision"], "current model revision mismatch")
+        _verify_file_records(models_root / directory_name, model_manifest["files"])
+
+    adapter_manifest = _load(adapter_manifest_path)
+    complete_parts = (adapter / "COMPLETE").read_text(encoding="ascii").strip().split()
+    _require(
+        complete_parts == ["manifest_sha256", _sha256_file(adapter_manifest_path)],
+        "current bridge COMPLETE marker mismatch",
+    )
+    for filename, metadata in adapter_manifest["files"].items():
+        _verify_record(adapter / filename, {"path": filename, **metadata}, "current bridge file")
+    _require(adapter_manifest["contract_sha256"] == contract_sha256(contract), "current bridge contract mismatch")
+    _require(adapter_manifest["parity_status"] == "ok", "current bridge parity did not pass")
+
+    ready = _load(ready_path)
+    _require(ready.get("status") == "ready", "current official environment is not ready")
+    _require(
+        pathlib.Path(sys.executable).resolve(strict=True)
+        == pathlib.Path(ready["python"]["executable"]).resolve(strict=True),
+        "current runtime Python does not match the authenticated environment",
+    )
+    for field in ("lock", "pip_freeze"):
+        authenticated_path = pathlib.Path(ready[field]["path"]).resolve(strict=True)
+        _require(_sha256_file(authenticated_path) == ready[field]["sha256"], f"current environment {field} digest mismatch")
+    for distribution, expected_version in ready["packages"].items():
+        _require(importlib.metadata.version(distribution) == expected_version, f"current installed package changed: {distribution}")
+    current_freeze = subprocess.check_output(
+        [sys.executable, "-m", "pip", "freeze", "--all"], text=True
+    ).splitlines()
+    recorded_freeze = pathlib.Path(ready["pip_freeze"]["path"]).read_text(encoding="utf-8").splitlines()
+    _require(sorted(current_freeze) == recorded_freeze, "current installed package freeze changed")
+    return {
+        "source_tree_sha256": source_manifest["tree_sha256"],
+        "models_manifest_sha256": _sha256_file(models_manifest_path),
+        "model_files_contract_sha256": models_validation["model_files_contract_sha256"],
+        "adapter_manifest_sha256": _sha256_file(adapter_manifest_path),
+        "environment_marker_sha256": _sha256_file(ready_path),
+    }
+
+
+def resume_preflight(
+    run_directory: pathlib.Path,
+    project_root: pathlib.Path,
+    project_revision: str,
+    execution_path: pathlib.Path,
+    resume_path: pathlib.Path,
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    run, continuation, execution, resume, resume_digest = _resume_context(
+        run_directory, project_root, project_revision, execution_path, resume_path, contract
+    )
+    _require(not continuation.exists(), f"continuation path already exists: {continuation}")
+    _require(not continuation.parent.is_symlink(), "continuations directory must not be a symlink")
+    original = _authenticate_original(run, resume)
+    current_inputs = _authenticate_current_resume_inputs(run, project_root, contract)
+    _require(_visible_gpu_count() == resume["approved_topology"]["world_size"], "resume requires exactly four visible GPUs")
+    _require(os.environ.get("SLURM_JOB_NUM_NODES") == "1", "resume requires one node")
+    return {
+        "status": "resume_preflight_ok", "project_revision": project_revision,
+        "historical_project_revision": resume["scope"]["original_project_revision"],
+        "contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_manifest_sha256(execution, contract),
+        "resume_manifest_sha256": resume_digest, "continuation": str(continuation),
+        "current_inputs": current_inputs, **original, **resume["resume_arithmetic"],
+    }
+
+
+def _required_resume_arguments(resume: dict[str, Any], source: pathlib.Path, continuation: pathlib.Path) -> dict[str, str]:
+    return {
+        "trainer.resume_mode": "resume_path", "trainer.resume_from_path": str(source),
+        "trainer.default_local_dir": str(continuation / "checkpoints"),
+        "trainer.output_log_path": str(continuation / "logs" / "terminal" / "resume.log"),
+        "trainer.total_training_steps": str(resume["resume_arithmetic"]["target_step"]),
+        "trainer.n_gpus_per_node": str(resume["approved_topology"]["world_size"]),
+        "trainer.max_actor_ckpt_to_keep": "1", "hydra.run.dir": str(continuation / "hydra-run"),
+    }
+
+
+def _authenticate_dataloader_restoration_evidence(
+    continuation: pathlib.Path,
+    source: pathlib.Path,
+    resume: dict[str, Any],
+) -> dict[str, Any]:
+    evidence_path = continuation / "dataloader-restoration.json"
+    _require(
+        evidence_path.is_file() and not evidence_path.is_symlink(),
+        "continuation dataloader restoration evidence is missing",
+    )
+    evidence = _load(evidence_path)
+    data_record = next(
+        record
+        for record in resume["source_checkpoint"]["inventory"]
+        if record["path"] == "data.pt"
+    )
+    expected = {
+        "status": "dataloader_state_restored",
+        "data_path": str(source / "data.pt"),
+        "data_sha256": data_record["sha256"],
+        "state": resume["source_checkpoint"]["dataloader_state"],
+    }
+    _require(
+        evidence == expected,
+        "continuation dataloader restoration evidence does not match the authorized data.pt state",
+    )
+    return {
+        **evidence,
+        "evidence_path": str(evidence_path),
+        "evidence_sha256": _sha256_file(evidence_path),
+    }
+
+
+def _require_positive_dataloader_restore(text: str) -> None:
+    negative = re.compile(
+        r"(?:fail(?:ed|ure)?|could not|cannot|unable|missing|not found|starting over|start(?:ing)? from scratch|fresh iterator|new iterator|reset)"
+        r"[^\n]*(?:data(?:loader)?|sampler)|"
+        r"(?:data(?:loader)?|sampler)[^\n]*(?:fail(?:ed|ure)?|could not|cannot|unable|missing|not found|starting over|start(?:ing)? from scratch|fresh iterator|new iterator|reset)",
+        re.IGNORECASE,
+    )
+    _require(
+        negative.search(text) is None,
+        "runtime contains negative dataloader restoration evidence",
+    )
+
+
+def _require_only_known_tracebacks(text: str, description: str) -> int:
+    starts = [match.start() for match in re.finditer(r"^Traceback \(most recent call last\):", text, re.MULTILINE)]
+    for index, start in enumerate(starts):
+        end = starts[index + 1] if index + 1 < len(starts) else len(text)
+        block = text[start:end]
+        exception_lines = [
+            line.strip()
+            for line in block.splitlines()
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception):", line.strip())
+        ]
+        _require(
+            len(exception_lines) == 1
+            and re.fullmatch(
+                r"RuntimeError: DataLoader worker \([^\n]*\) is killed by signal: Killed",
+                exception_lines[0],
+            ) is not None,
+            f"{description} contains an unexplained traceback",
+        )
+    return len(starts)
+
+
+def resume_accept(
+    run_directory: pathlib.Path, project_root: pathlib.Path, project_revision: str,
+    execution_path: pathlib.Path, resume_path: pathlib.Path, contract: dict[str, Any],
+) -> dict[str, Any]:
+    run, continuation, execution, resume, resume_digest = _resume_context(
+        run_directory, project_root, project_revision, execution_path, resume_path, contract
+    )
+    continuation = _require_real_descendant(continuation, run, "continuation")
+    _require(continuation.is_dir() and not continuation.is_symlink(), "continuation directory is invalid")
+    original = _authenticate_original(run, resume)
+    current_inputs = _authenticate_current_resume_inputs(run, project_root, contract)
+    preflight_path = continuation / "resume-preflight.json"
+    _require(preflight_path.is_file() and not preflight_path.is_symlink(), "resume preflight report is missing")
+    preflight_report = _load(preflight_path)
+    expected_preflight = {
+        "status": "resume_preflight_ok",
+        "project_revision": project_revision,
+        "historical_project_revision": resume["scope"]["original_project_revision"],
+        "contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_manifest_sha256(execution, contract),
+        "resume_manifest_sha256": resume_digest,
+        "continuation": str(continuation),
+        "current_inputs": current_inputs,
+        **original,
+        **resume["resume_arithmetic"],
+    }
+    _require(
+        preflight_report == expected_preflight,
+        "resume preflight report does not match fully reauthenticated evidence",
+    )
+    resolved_resume_path = continuation / "resolved-resume-authorization.json"
+    _require(
+        resolved_resume_path.is_file() and not resolved_resume_path.is_symlink(),
+        "resolved resume authorization is missing or not a regular file",
+    )
+    resolved_resume = _load(resolved_resume_path)
+    canonical_resolved_resume = effective_resume_authorization(
+        resume, contract, execution
+    )
+    _require(
+        resolved_resume == canonical_resolved_resume,
+        "resolved resume authorization does not match the canonical authorization",
+    )
+    canonical_resolved_bytes = (
+        json.dumps(
+            canonical_resolved_resume,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    _require(
+        resolved_resume_path.read_bytes() == canonical_resolved_bytes,
+        "resolved resume authorization is not the canonical byte representation",
+    )
+    argv_path, hydra_path = continuation / "actual-python-argv.json", continuation / "actual-hydra.yaml"
+    argv = _load(argv_path)
+    _require(isinstance(argv, list) and argv[:2] == ["-m", "verl.trainer.main_ppo"], "captured resume argv is invalid")
+    _require("--cfg" not in argv, "captured resume argv unexpectedly requests config-only mode")
+    source = pathlib.Path(original["source_checkpoint"])
+    for key, value in _required_resume_arguments(resume, source, continuation).items():
+        hits = [argument for argument in argv if argument.startswith(f"{key}=")]
+        _require(hits == [f"{key}={value}"], f"captured resume argv has an invalid or duplicate {key} override")
+    _require(hydra_path.is_file() and not hydra_path.is_symlink(), "captured resume Hydra config is missing")
+    try:
+        import yaml
+    except ImportError as exc:
+        raise Task0ValidationError(
+            "PyYAML is required for task-0 resume acceptance"
+        ) from exc
+    from contract import validate_hydra_config
+    validate_hydra_config(
+        yaml.safe_load(hydra_path.read_text(encoding="utf-8")),
+        official_root=run.parent.parent,
+        execution_manifest=execution,
+        resume_manifest=resume,
+        official_namespace=run,
+        continuation_dir=continuation,
+        contract=contract,
+    )
+    target = resume["resume_arithmetic"]["target_step"]
+    checkpoint = continuation / "checkpoints" / f"global_step_{target}"
+    _require_real_descendant(checkpoint, continuation, "final continuation checkpoint")
+    _require(checkpoint.is_dir() and not checkpoint.is_symlink(), "exact final continuation checkpoint is missing")
+    later = [p for p in (continuation / "checkpoints").glob("global_step_*") if p.is_dir() and p.name[12:].isdigit() and int(p.name[12:]) > target]
+    _require(not later, "continuation contains optimizer steps beyond the target")
+    fsdp = validate_fsdp_shards(checkpoint / "actor", resume["approved_topology"]["world_size"])
+    logs = sorted((continuation / "logs" / "terminal").glob("*.log"))
+    _require(len(logs) == 1 and not logs[0].is_symlink(), "continuation must contain exactly one real terminal log")
+    runtime = continuation / "official-runtime.log"
+    _require(runtime.is_file() and not runtime.is_symlink(), "continuation runtime log is missing")
+    text = runtime.read_text(encoding="utf-8", errors="replace")
+    terminal_text = logs[0].read_text(encoding="utf-8", errors="replace")
+    for failure in ("RayActorError", "ActorDiedError", "CUDA out of memory", "NCCL error", "Training from scratch", "will start from scratch"):
+        _require(failure.lower() not in text.lower() and failure.lower() not in terminal_text.lower(), f"continuation log contains failure marker: {failure}")
+    _require_only_known_tracebacks(text, "continuation runtime")
+    _require_only_known_tracebacks(terminal_text, "continuation terminal log")
+    start = resume["source_checkpoint"]["global_step"]
+    first = resume["resume_arithmetic"]["first_resumed_step"]
+    for pattern, message in (
+        (rf"Load from checkpoint folder:\s*{re.escape(str(source))}(?:\s|$)", "source checkpoint load proof"),
+        (rf"Setting global step to {start}(?![0-9])", "global-step restore proof"),
+        (rf"Resuming from\s+{re.escape(str(source))}(?:\s|$)", "resume-path proof"),
+        (rf"training/global_step:{first}(?![0-9])", "first resumed step proof"),
+        (rf"training/global_step:{target}(?![0-9])", "exact final step proof"),
+    ):
+        _require(re.search(pattern, text) is not None, f"runtime is missing {message}")
+    _require_positive_dataloader_restore(text)
+    dataloader_restoration = _authenticate_dataloader_restoration_evidence(
+        continuation, source, resume
+    )
+    logged_steps = {
+        int(value)
+        for value in re.findall(r"training/global_step:([0-9]+)", text)
+    }
+    expected_steps = set(range(first, target + 1))
+    _require(
+        expected_steps.issubset(logged_steps),
+        "runtime does not prove every resumed step from 1601 through 2239",
+    )
+    _require(
+        not any(step > target for step in logged_steps),
+        "runtime contains optimizer steps beyond the target",
+    )
+    for rank in range(resume["approved_topology"]["world_size"]):
+        for kind, label in (("model", "model"), ("optim", "optimizer"), ("extra_state", "rng"), ("extra_state", "lr_scheduler")):
+            filename = f"{kind}_world_size_4_rank_{rank}.pt"
+            _require(re.search(rf"Loaded {label} from .*?/actor/{re.escape(filename)}", text) is not None, f"runtime is missing {label} restore proof for rank {rank}")
+    checkpoint_digest, checkpoint_files = _tree_manifest(checkpoint)
+    merged = continuation / "merged-hf"
+    _require_real_descendant(merged, continuation, "merged continuation checkpoint")
+    _require(merged.is_dir() and not merged.is_symlink(), "merged continuation checkpoint is missing")
+    merged_digest, merged_files = _tree_manifest(merged)
+    _require(merged_files, "merged continuation checkpoint is empty")
+    return {
+        "status": "ACCEPTED_TASK0_CONTINUATION", "project_revision": project_revision,
+        "historical_project_revision": resume["scope"]["original_project_revision"],
+        "contract_sha256": contract_sha256(contract),
+        "execution_manifest_sha256": execution_manifest_sha256(execution, contract),
+        "resume_manifest_sha256": resume_digest,
+        "resolved_resume_authorization": str(resolved_resume_path),
+        "resolved_resume_authorization_sha256": _sha256_file(resolved_resume_path),
+        "current_inputs_reauthenticated": current_inputs,
+        "original_evidence_reauthenticated": original,
+        "dataloader_restoration": dataloader_restoration,
+        "global_step": target, "checkpoint": str(checkpoint), "checkpoint_tree_sha256": checkpoint_digest,
+        "checkpoint_files": checkpoint_files, "fsdp_shards": fsdp, "merged_checkpoint": str(merged),
+        "merged_checkpoint_tree_sha256": merged_digest, "merged_checkpoint_files": merged_files,
+        "actual_hydra_sha256": _sha256_file(hydra_path), "actual_argv_sha256": _sha256_file(argv_path),
+        "terminal_log": str(logs[0]), "terminal_log_sha256": _sha256_file(logs[0]),
+        "runtime_log": str(runtime), "runtime_log_sha256": _sha256_file(runtime),
+    }
+
+
+def resume_composite_accept(
+    run_directory: pathlib.Path, project_root: pathlib.Path, project_revision: str,
+    execution_path: pathlib.Path, resume_path: pathlib.Path, contract: dict[str, Any],
+) -> dict[str, Any]:
+    run, continuation, _, _, _ = _resume_context(
+        run_directory, project_root, project_revision, execution_path, resume_path, contract
+    )
+    acceptance_path = continuation / "acceptance.json"
+    _require(acceptance_path.is_file() and not acceptance_path.is_symlink(), "continuation acceptance is missing")
+    recorded = _load(acceptance_path)
+    expected = resume_accept(run, project_root, project_revision, execution_path, resume_path, contract)
+    _require(recorded == expected, "continuation acceptance does not match revalidated evidence")
+    return {
+        **expected, "status": "ACCEPTED_OFFICIAL_TASK0",
+        "continuation_acceptance": str(acceptance_path),
+        "continuation_acceptance_sha256": _sha256_file(acceptance_path),
+    }
+
+
+def validate_resume_reservation(
+    run_directory: pathlib.Path,
+    project_root: pathlib.Path,
+    project_revision: str,
+    execution_path: pathlib.Path,
+    resume_path: pathlib.Path,
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    run, continuation, _, _, resume_digest = _resume_context(
+        run_directory, project_root, project_revision, execution_path, resume_path, contract
+    )
+    continuation = _require_real_descendant(continuation, run, "reserved continuation")
+    _require(continuation.is_dir() and not continuation.is_symlink(), "reserved continuation is not a real directory")
+    _require(not any(continuation.iterdir()), "reserved continuation must be empty before evidence publication")
+    return {
+        "status": "resume_reservation_ok",
+        "continuation": str(continuation),
+        "resume_manifest_sha256": resume_digest,
+    }
+
+
+def atomic_publish_file(source: pathlib.Path, destination: pathlib.Path) -> None:
+    source = source.resolve(strict=True)
+    destination = destination.absolute()
+    _require(source.is_file() and not source.is_symlink(), "publication source must be a real file")
+    _require(destination.parent.is_dir() and not destination.parent.is_symlink(), "publication directory is invalid")
+    _require(not destination.exists() and not destination.is_symlink(), "publication destination already exists")
+    temporary = destination.parent / f".{destination.name}.publish-{os.getpid()}"
+    _require(not temporary.exists(), "publication temporary path already exists")
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
+        with os.fdopen(fd, "wb") as handle:
+            with source.open("rb") as input_handle:
+                for chunk in iter(lambda: input_handle.read(1024 * 1024), b""):
+                    handle.write(chunk)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, destination)
+        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def atomic_publish_complete(destination: pathlib.Path) -> None:
+    destination = destination.absolute()
+    staging = destination.parent / f".{destination.name}.content-{os.getpid()}"
+    _require(not staging.exists(), "completion staging path already exists")
+    staging.write_bytes(b"ACCEPTED_OFFICIAL_TASK0\n")
+    try:
+        atomic_publish_file(staging, destination)
+    finally:
+        try:
+            staging.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contract", type=pathlib.Path, default=None)
@@ -585,6 +1130,23 @@ def _parser() -> argparse.ArgumentParser:
     accept_parser.add_argument("--run-directory", type=pathlib.Path, required=True)
     accept_parser.add_argument("--project-root", type=pathlib.Path, required=True)
     accept_parser.add_argument("--execution", type=pathlib.Path, required=True)
+    for command in (
+        "resume-preflight",
+        "resume-reservation",
+        "resume-accept",
+        "resume-composite-accept",
+    ):
+        resume_parser = subparsers.add_parser(command)
+        resume_parser.add_argument("--run-directory", type=pathlib.Path, required=True)
+        resume_parser.add_argument("--project-root", type=pathlib.Path, required=True)
+        resume_parser.add_argument("--project-revision", required=True)
+        resume_parser.add_argument("--execution", type=pathlib.Path, required=True)
+        resume_parser.add_argument("--resume", type=pathlib.Path, required=True)
+    publish_parser = subparsers.add_parser("publish-file")
+    publish_parser.add_argument("--source", type=pathlib.Path, required=True)
+    publish_parser.add_argument("--destination", type=pathlib.Path, required=True)
+    complete_parser = subparsers.add_parser("publish-complete")
+    complete_parser.add_argument("--destination", type=pathlib.Path, required=True)
     models_parser = subparsers.add_parser("models")
     models_parser.add_argument("--models-root", type=pathlib.Path, required=True)
     shards_parser = subparsers.add_parser("shards")
@@ -612,6 +1174,32 @@ def main() -> None:
         result = accept(
             arguments.run_directory, arguments.project_root, arguments.execution, contract
         )
+    elif arguments.command == "resume-preflight":
+        result = resume_preflight(
+            arguments.run_directory, arguments.project_root, arguments.project_revision,
+            arguments.execution, arguments.resume, contract,
+        )
+    elif arguments.command == "resume-reservation":
+        result = validate_resume_reservation(
+            arguments.run_directory, arguments.project_root, arguments.project_revision,
+            arguments.execution, arguments.resume, contract,
+        )
+    elif arguments.command == "resume-accept":
+        result = resume_accept(
+            arguments.run_directory, arguments.project_root, arguments.project_revision,
+            arguments.execution, arguments.resume, contract,
+        )
+    elif arguments.command == "resume-composite-accept":
+        result = resume_composite_accept(
+            arguments.run_directory, arguments.project_root, arguments.project_revision,
+            arguments.execution, arguments.resume, contract,
+        )
+    elif arguments.command == "publish-file":
+        atomic_publish_file(arguments.source, arguments.destination)
+        result = {"status": "published", "destination": str(arguments.destination)}
+    elif arguments.command == "publish-complete":
+        atomic_publish_complete(arguments.destination)
+        result = {"status": "published", "destination": str(arguments.destination)}
     elif arguments.command == "models":
         result = validate_model_files(arguments.models_root, contract)
     else:
