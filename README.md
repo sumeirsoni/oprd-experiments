@@ -1,86 +1,50 @@
-# OPRD relational-distillation experiments
+# On-policy representation distillation experiments
 
-Empirical program probing **On-Policy Representation Distillation** (OPRD, arXiv 2606.06021):
-which representational structure actually transfers, where the useful signal lives relative to
-the LM head, and which cross-architecture bridge objective deserves training compute.
+An experimental study of how a language model transfers knowledge to a smaller model. This repository compares output-level distillation with representation-based objectives, investigates where useful information appears in hidden states, and provides training and evaluation pipelines for GPU clusters.
 
-Tiers 0/3, the Tier-1 sweep, the original confounded Tier-2 run, and the positive-control gate
-are complete. The immutable Qwen3-4B to Qwen3-1.7B bridge also passed a single-H200 Stage-2 pilot,
-but that cached-rollout run is not a paper reproduction. A separate official-code-faithful task 0
-is packaged in [`cluster/official_stage2/`](cluster/official_stage2/). Its historical scientific
-contract uses one eight-GPU node; the explicitly authorized production execution uses four H200s
-under a tracked topology-deviation manifest backed by successful eight-GPU smoke and four-GPU
-canary evidence. Ordered one-epoch DAPO traversal, batch 8, two fresh responses per prompt, FP32,
-optimizer, loss, and the frozen all-layer rank-8 bridge remain unchanged. Evaluation and tasks 1-26
-remain blocked until task 0 is accepted and separately reviewed.
+**Status:** Research in progress. The positive control and preliminary ablations are complete. The initial cross-size comparison has a training-protocol confound, and the corrected experiment is not yet a completed benchmark result.
 
-## Results so far (read these two files first)
+## Selected result: positive control
 
-| Doc | What it contains |
-|---|---|
-| [`tier0-results.md`](tier0-results.md) | Four no-training kill-switch measurements. Headline: neighbor identity is **output-readable** (row-space carries ≥99% of the mKNN signal, both model pairs) → identity-only arms demoted to control. OPRD's gradient-variance advantage confirmed (0.39 vs 0.86). Seed-budget power table. |
-| [`tier3-results.md`](tier3-results.md) | Causal follow-up at 1.5B: row-space-only supervision is the only final-layer loss that improves functional agreement; null-space supervision matches full-MSE geometrically but *hurts* function. Mid-layer supervision beats every final-layer variant on KL; all-layer beats it on top-1 (metric disagreement → needs real AIME eval on the cluster). |
+On a same-architecture 1.5B teacher-student pair, output-level on-policy distillation improved average reasoning accuracy under a fixed evaluation protocol:
 
-Supporting docs: [`oprd-adversarial-review.md`](oprd-adversarial-review.md) (the research review
-that defined the tiers), `tier0-execution.plan.md` / `tier3-local.plan.md` (execution contracts,
-including deviations), [`evidence/`](evidence/) (paper digests).
+| Model | AIME 2024 Avg@16 | AIME 2025 Avg@16 |
+| --- | ---: | ---: |
+| Untrained student | 28.33% | 22.92% |
+| Output-level distillation | 48.89% | 33.68% |
+| Mid-layer relational matching | 35.42% | 26.46% |
 
-## Run Tier 1-2 on the UMD cluster
+The trained rows are means over three training seeds; the untrained row is one baseline evaluation. Evaluations sampled 16 responses per problem with a 24,000-token limit. Completion and truncation rates also changed, so these scores alone do not isolate an improvement in reasoning conditional on completing an answer. This is a positive control for the training pipeline, not a demonstration that the proposed representation bridge works across model sizes. See [the full positive-control results](pc-gate-results.md) for individual seeds, rates, and limitations.
 
-Full detail is in [`cluster/README.md`](cluster/README.md). The external bridge smoke uses an
-explicit setup, preflight, submission, and terminal reconciliation sequence:
+The earlier cross-size comparison used truncated training rollouts. Its poor scores cannot establish that the methods fail under a corrected protocol. See [the Tier 2 analysis](tier2-results.md) for the confound and [the archived evidence](oprd-experiment-results-3/README.md) for the later 24k reevaluation and provenance. The immutable bridge passed a single-H200 pilot; a separate implementation and execution contract for an official-code-faithful run are in development. No completed result from that run is claimed here.
+
+## What is implemented
+
+- A PyTorch training harness with student-generated rollouts, teacher supervision, multiple distillation losses, and vLLM generation.
+- AIME evaluation with response-completion and truncation diagnostics, plus multi-seed experiment scripts.
+- Slurm workflows for cluster setup, training, recovery, and validation, including an independently prepared cross-size bridge.
+- Representation probes and ablations for examining how hidden-state geometry relates to model outputs.
+
+## Explore the work
+
+| Path | Contents |
+| --- | --- |
+| [Positive-control results](pc-gate-results.md) | Evaluation protocol, per-seed scores, completion rates, and caveats |
+| [Cross-size experiment](tier2-results.md) | Initial results and the rollout-length confound |
+| [Representation probes](tier0-results.md) and [layer ablations](tier3-results.md) | Measurements, controls, and limitations |
+| [Cluster guide](cluster/README.md) | Environment, experiment configuration, and Slurm workflows |
+| [Evidence archive](oprd-experiment-results-3/README.md) | Historical run data, logs, provenance, and verification |
+| [Tier 0 scripts](tier0/scripts/) | Rollout generation, hidden-state extraction, and probe code |
+
+This work investigates [On-Policy Representation Distillation](https://arxiv.org/abs/2606.06021); it is an independent experimental project, not the official implementation. Large hidden-state artifacts and model checkpoints are not included. The historical checkpoints described in the archive were deleted after their hashes were recorded, so exact weight-level reevaluation of those runs is unavailable.
+
+## Verify archived results
+
+The archive includes a standard-library check for its file hashes and published tables:
 
 ```bash
-# 1. Put the clone on scratch.
-git clone <this-repo> /cmlscratch/$USER/oprd-experiments
-cd /cmlscratch/$USER/oprd-experiments
-mkdir -p cluster/logs
-
-# 2. Create and validate the pinned Python 3.12 CUDA environment on an H200.
-sbatch cluster/nexus/setup_env.sbatch
-# Wait for SETUP_OK and venv/.oprd-env-ready.json before continuing.
-
-# 3. Validate paths, the environment marker, scratch blocks and inodes, quota reporting,
-#    Slurm commands, and the unclaimed canonical smoke artifact.
-BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh --preflight-only
-
-# 4. Submit only the eight-prompt bridge smoke DAG. It stops after the two-step
-#    external-artifact Stage-2 backward smoke and never submits production Tier 2.
-BRIDGE_SMOKE=1 cluster/nexus/submit_oprd_bridge.sh
-
-# 5. Reconcile every recorded Slurm job and authenticate all final outputs.
-cluster/nexus/submit_oprd_bridge.sh --status cluster/job_ids/<record>.json
+cd oprd-experiment-results-3
+python3 build_manifest.py --check
 ```
 
-The old Tier-2 wrapper remains available only for project controls and now rejects task 0. Official
-task 0 has its own contract, dependency environment, bridge-format adapter, source/data manifests,
-eight-GPU smoke, accepted four-GPU canary, fixed four-H200 non-array production launcher, and
-dual-track offline evaluation. Full task-0 training is authorized through the tracked execution
-manifest; evaluation remains separately gated. The resource gates, scientific settings, and
-acceptance rules are documented in `cluster/README.md`.
-
-## Repo map
-
-```
-cluster/            Slurm scripts + fully implemented training harness  <- partner starts here
-tier0-results.md    Tier 0 verdicts (go/no-go table on top)
-tier3-results.md    Tier 3 causal results + layer-ablation addendum
-tier0/scripts/      full measurement + training pipeline (Mac/MPS; reusable pieces for CUDA)
-tier0/prompts.jsonl the exact 150 DAPO-Math prompts (seed 0) — reuse for comparability
-tier0/rollouts/     the exact rollouts all measurements used
-tier0/results/      raw JSON behind every number in the results docs
-evidence/           digests of OPRD + rival papers, with the review's caveats
-```
-
-## Not in the repo (too large)
-
-- `tier0/hidden/` (15 GB teacher/student hidden-state memmaps) and `tier0/t3/runs/` (46 GB
-  checkpoints). Regenerate with `tier0/scripts/gen_rollouts.py` → `extract_hidden.py` →
-  `t3_train.py` (≈2 h on an M3 Max, faster on CUDA — swap the mlx generation for vLLM), or ask
-  Christian for a transfer.
-
-## Environment
-
-Measurements ran on: `torch 2.13.0, transformers 5.2.0, numpy 2.5.1, scipy 1.18.0`
-(plus `mlx-lm 0.31.3` for Mac-only generation — replace with vLLM on the cluster).
-`tier0/requirements.txt` pins these.
+GPU runs require the model weights, datasets, compatible CUDA hardware, and the setup described in the [cluster guide](cluster/README.md). Some scripts encode UMD Nexus paths and scheduling assumptions; adapt them to your environment before submitting jobs.
